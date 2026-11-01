@@ -1,0 +1,19 @@
+{
+  "_comment": "WBS-005 toolchain pins. Dockerfile, compose checks and scripts/host_check.py read or verify these values. Change through a shared WBS.",
+  "python": {
+    "container": "3.13.9",
+    "host_min": "3.12"
+  },
+  "node": {
+    "version": "24.22.2",
+    "line": "Krypton (LTS)",
+    "image": "node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c"
+  },
+  "pnpm": {
+    "version": "12.14.0"
+  },
+  "claude_cli": {
+    "verified": "2.1.316",
+    "note": "WBS-001/002 evidence version. A different version requires re-running spikes/cli/isolation.py (ADR-002 decision 5)."
+  }
+}

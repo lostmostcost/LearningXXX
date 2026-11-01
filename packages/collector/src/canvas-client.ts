@@ -4,6 +4,7 @@ import { collectionError } from "./errors.ts";
 export const KHU_CANVAS_BASE_URL = "https://khcanvas.khu.ac.kr";
 
 const MAX_PAGES = 50;
+const MAX_REDIRECTS = 3;
 /** Canvas prefixes cookie-authenticated JSON with this guard. */
 const JSON_GUARD = "while(1);";
 
@@ -35,6 +36,11 @@ export class CanvasClient {
     this.#now = options.now ?? (() => new Date());
   }
 
+  /** The only origin that ever receives the session. */
+  get origin(): string {
+    return this.#origin;
+  }
+
   async getObject(path: string): Promise<unknown> {
     return (await this.#get(new URL(path, this.#origin))).body;
   }
@@ -55,6 +61,45 @@ export class CanvasClient {
       url = next;
     }
     return items;
+  }
+
+  /**
+   * Starts a file download. Same-origin hops carry the session; a hop to
+   * another origin (Canvas file storage) is fetched without any credential.
+   * A redirect to the LMS login page means the session expired.
+   */
+  async download(path: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string | undefined }> {
+    let url = new URL(path, this.#origin);
+    if (url.origin !== this.#origin) {
+      throw collectionError("SOURCE_CHANGED", "LMS가 다른 주소의 파일을 안내해 받지 않았습니다.");
+    }
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      const sameOrigin = url.origin === this.#origin;
+      if (url.protocol !== "https:") throw collectionError("SOURCE_CHANGED", "LMS가 https가 아닌 주소로 파일을 안내했습니다.");
+      const headers = sameOrigin ? await this.#getAuthHeaders() : {};
+      let response: Response;
+      try {
+        response = await this.#fetch(url, { method: "GET", redirect: "manual", headers });
+      } catch {
+        throw collectionError("DOWNLOAD_FAILED", "파일을 받는 중 연결이 끊겼습니다.", { retryable: true });
+      }
+      const location = response.headers.get("location");
+      if (response.status >= 300 && response.status < 400 && location !== null) {
+        const target = new URL(location, url);
+        await response.body?.cancel();
+        if (target.origin === this.#origin && /^\/login\b/.test(target.pathname)) {
+          throw collectionError("AUTH_REQUIRED", "학교 로그인이 만료되었습니다. 다시 로그인한 뒤 수집을 실행하세요.", { httpStatus: response.status });
+        }
+        url = target;
+        continue;
+      }
+      if (response.status === 200 && response.body !== null) {
+        return { body: response.body, contentType: response.headers.get("content-type") ?? undefined };
+      }
+      await this.#readFailure(response);
+      throw collectionError("DOWNLOAD_FAILED", "파일 응답이 비어 있습니다.", { retryable: true });
+    }
+    throw collectionError("SOURCE_CHANGED", "파일 주소 이동이 너무 많습니다.");
   }
 
   async #get(url: URL): Promise<{ body: unknown; next: URL | undefined }> {

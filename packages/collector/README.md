@@ -1,6 +1,6 @@
-# @learningxxx/collector (WBS-007, WBS-008)
+# @learningxxx/collector (WBS-007, WBS-008, WBS-010)
 
-사용자가 앱에서 수집을 실행하면 host가 호출하는 Mac 내부 LMS 수집 모듈입니다(CR-001, ADR-002). 한 과목의 주차(Canvas module)를 `Course`, `Week`로 정규화하고(WBS-007), 주차에 걸린 파일·공지·과제를 `ManifestItem`으로 정규화하면서 원본 파일을 받아 해시로 검증합니다(WBS-008). manifest를 로컬에 기록하는 일은 WBS-010입니다.
+사용자가 앱에서 수집을 실행하면 host가 호출하는 Mac 내부 LMS 수집 모듈입니다(CR-001, ADR-002). 한 과목의 주차(Canvas module)를 `Course`, `Week`로 정규화하고(WBS-007), 주차에 걸린 파일·공지·과제를 `ManifestItem`으로 정규화하면서 원본 파일을 받아 해시로 검증합니다(WBS-008). 수집 결과는 revision manifest와 SyncRun으로 Mac에 기록합니다(WBS-010). HTTP 전달 서비스는 없습니다(CR-001).
 
 ```ts
 const client = new CanvasClient({ getAuthHeaders });
@@ -12,6 +12,18 @@ const store = createDirectoryStore(dataRoot); // host가 데이터 폴더를 정
 const result = await collectResources({ client, store, course, weeks, previous }); // previous = 마지막 정상 manifest
 // result.items, result.tombstones, result.errors(비어 있지 않으면 partial), result.skippedTypes
 ```
+
+## 한 번의 수집 실행과 기록 (WBS-010)
+```ts
+const { syncRun, manifest, written } = await collectCourse({ client, store, root, accountKey, sourceCourseId: "95899" });
+const status = await readSyncStatus(root, accountKey); // collection.status: lastSucceeded, current
+```
+- **저장 위치(host가 정한 `root` 아래):** `courses/<courseId>/current.json`(현재 manifest), `courses/<courseId>/revisions/<n>.json`(모든 revision), `sync-runs/<id>.json`(실행 기록), `originals/…`(원본). courseId에 계정이 들어 있어 계정끼리 섞이지 않습니다.
+- **적용 순서:** 새 manifest가 가리키는 원본 파일을 모두 다시 해시해 맞을 때만, revision 파일을 쓰고 `current.json`을 원자적으로 바꿉니다. 하나라도 틀리면 `CHECKSUM_MISMATCH`로 멈추고 이전 정상본이 그대로 남습니다.
+- **멱등:** 내용(과목·주차·자료·tombstone)이 같으면 아무것도 쓰지 않고 revision도 그대로입니다. 실행 기록만 남습니다.
+- **실행 결과:** 오류가 없으면 `succeeded`, 자료 일부 실패는 `partial`(성공으로 보고하지 않음), 로그인 만료·버전 불일치·기록 손상 등은 `failed`. 실패해도 예외를 던지지 않고 SyncRun으로 남깁니다.
+- **읽기 검사:** 다른 계약 major는 `SCHEMA_VERSION_UNSUPPORTED`(앱 업데이트 필요), 다른 계정·과목의 manifest는 `SCOPE_VIOLATION`, 깨진 JSON은 `CHECKSUM_MISMATCH`. 문제 파일은 덮어쓰지 않습니다.
+- **범위 밖:** 동시에 두 번 실행하는 것을 막는 잠금, 중단 후 이어받기, 화면 표시는 WBS-009와 host(WBS-012)입니다.
 
 ## 자료 수집 (WBS-008)
 - **주차 연결:** 각 주차 module의 항목을 읽어 File은 파일 자료, Assignment·Quiz는 과제에 주차를 붙입니다. 같은 파일이 여러 주차에 있으면 가장 앞 주차입니다. Page·Discussion·외부 링크는 아직 계약에 종류가 없어 건너뛰고 `skippedTypes`로 개수만 알립니다.

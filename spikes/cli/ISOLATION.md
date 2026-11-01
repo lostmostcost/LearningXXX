@@ -5,7 +5,8 @@
 - 환경: macOS 27.2, arm64, Claude Code 2.1.316, 구독 Pro, 모델 alias `haiku`
 - 실행일: 2026-11-01 · 실행 2회 (`evidence/2026-11-01-isolation1.json`, `isolation2.json`)
 - 결과: 2회 모두 PASS. 모든 호출이 `apiKeySource: none`
-- 사람 QA: NOT RUN
+- 두 번째 Mac: macOS 26.6.2, arm64, Claude Code 2.1.316, Team 구독에서 `debf231` PASS (QA-002)
+- 사람 QA: 통과 (검수자 이문찬, 2026-11-01)
 
 ## 결론
 
@@ -74,7 +75,7 @@ Bash는 도구 목록에 없다.
 - **사용자 전역 설정:** 실제 `~/.claude`를 건드리지 않기 위해 전역 `CLAUDE.md`, 전역 hook에는 canary를 심지 않았다. 이 Mac에는 전역 `CLAUDE.md`가 없다.
 - **내장 플러그인:** 격리 세션에도 `cc-plugin-*` 3개가 남고, 스킬은 0개다. 동작은 분석하지 않았다.
 - **격리 세션의 정상 쓰기:** 외부 쓰기 거부만 확인했다. 작업 폴더 안 쓰기와 외부 폴더 선택 흐름은 앱 구현 단계에서 검증해야 한다.
-- **기타:** 네트워크 요청 본문 직접 관찰(인증 정보를 프록시에 노출하게 되어 하지 않음), macOS 앱 프로세스 실행, 두 번째 Mac, CLI 버전 변경 후 동작, 악의적 우회.
+- **기타:** 네트워크 요청 본문 직접 관찰(인증 정보를 프록시에 노출하게 되어 하지 않음), macOS 앱 프로세스 실행, CLI 버전 변경 후 동작, 악의적 우회.
 
 ## 재현
 
@@ -101,6 +102,8 @@ python3.13 spikes/cli/isolation.py --evidence spikes/cli/evidence/<파일명>.js
 3. 증거 JSON의 `controls`에는 canary가 있고, `isolated`에는 `attachment`의 ATTACH 외에 없는지 확인한다.
 4. 증거 JSON에 본인 이메일, 사용자 이름, 커넥터 이름이 없는지 확인한다.
 
-- Actual experience:
-- Tester / date:
-- Result: NOT RUN
+기록은 Notion QA-002를 따른다.
+
+- Actual experience: 전달받지 않음
+- Tester / date: 이문찬 / 2026-11-01
+- Result: PASS (안상현이 구두로 전달, 기술 실행은 Codex)

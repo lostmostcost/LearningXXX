@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import { CollectionManifest, SyncRun } from "@learningxxx/contracts";
 import { stableId } from "../src/discovery.ts";
 import { CanvasClient, CollectionError, collectCourse, commitManifest, createDirectoryStore, readCurrentManifest, readSyncStatus } from "../src/index.ts";
-import { BASE, C, lms } from "./fake-lms.ts";
+import { BASE, C, lms, noWait } from "./fake-lms.ts";
 
 const accountKey = "acct_synthalpha01";
 const courseId = stableId("course", accountKey, "77", "1001");
@@ -18,7 +18,7 @@ function setup() {
   let tick = 0;
   const now = () => new Date(Date.UTC(2026, 10, 1, 9, 0, tick++));
   const client = new CanvasClient({ baseUrl: BASE, fetch: fake.fetch, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
-  const run = () => collectCourse({ client, store, root, accountKey, sourceCourseId: "1001", now });
+  const run = () => collectCourse({ client, store, root, accountKey, sourceCourseId: "1001", now, retry: noWait() });
   const dir = join(root, "courses", courseId);
   const current = () => readFileSync(join(dir, "current.json"), "utf8");
   return { ...fake, root, store, run, dir, current };
@@ -81,7 +81,7 @@ describe("the previous good manifest survives failures", () => {
     await run();
     const before = current();
     const expired = new CanvasClient({ baseUrl: BASE, fetch: async () => new Response("", { status: 401 }), getAuthHeaders: async () => ({}) });
-    const r = await collectCourse({ client: expired, store, root, accountKey, sourceCourseId: "1001" });
+    const r = await collectCourse({ client: expired, store, root, accountKey, sourceCourseId: "1001", retry: noWait() });
     assert.equal(r.syncRun.status, "failed");
     assert.equal(r.syncRun.errors[0]?.code, "AUTH_REQUIRED");
     assert.equal(r.written, false);

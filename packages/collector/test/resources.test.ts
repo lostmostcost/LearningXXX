@@ -8,7 +8,7 @@ import { AppError, CollectionManifest, Course, Week } from "@learningxxx/contrac
 import { stableId } from "../src/discovery.ts";
 import { CanvasClient, CollectionError, collectResources, createDirectoryStore, toUtc } from "../src/index.ts";
 import type { ResourceCollectionResult } from "../src/index.ts";
-import { BASE, C, STORAGE, lms } from "./fake-lms.ts";
+import { BASE, C, STORAGE, lms, noWait } from "./fake-lms.ts";
 
 const accountKey = "acct_synthalpha01";
 const courseId = stableId("course", accountKey, "77", "1001");
@@ -22,7 +22,7 @@ function setup() {
   const client = new CanvasClient({ baseUrl: BASE, fetch: fake.fetch, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
   const store = createDirectoryStore(root);
   const now = () => new Date("2026-11-01T09:00:00Z");
-  const run = (previous?: CollectionManifest) => collectResources({ client, store, course, weeks, previous, now });
+  const run = (previous?: CollectionManifest) => collectResources({ client, store, course, weeks, previous, now, retry: noWait() });
   return { ...fake, root, store, run };
 }
 
@@ -215,7 +215,7 @@ describe("removal and login expiry", () => {
       return lms().fetch(input, init);
     }) as typeof globalThis.fetch;
     const client = new CanvasClient({ baseUrl: BASE, fetch: loginRedirect, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
-    const error = await collectResources({ client, store: createDirectoryStore(root), course, weeks }).then(() => assert.fail("expected AUTH_REQUIRED"), (e: unknown) => e);
+    const error = await collectResources({ client, store: createDirectoryStore(root), course, weeks, retry: noWait() }).then(() => assert.fail("expected AUTH_REQUIRED"), (e: unknown) => e);
     assert.ok(error instanceof CollectionError);
     assert.equal(error.appError.code, "AUTH_REQUIRED");
   });

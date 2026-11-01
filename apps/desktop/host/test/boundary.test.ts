@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { IpcChannels } from "@learningxxx/contracts";
-import { WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
+import { isAllowedLoginUrl, LOGIN_WEB_PREFERENCES, WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -44,4 +44,22 @@ test("the page refuses remote and inline scripts", () => {
 
 test("the window can shrink to the narrow layout", () => {
   assert.ok(WINDOW_SIZE.minWidth < 900);
+});
+
+test("the remote login window has no preload and no Node access", () => {
+  assert.equal(LOGIN_WEB_PREFERENCES.sandbox, true);
+  assert.equal(LOGIN_WEB_PREFERENCES.nodeIntegration, false);
+  assert.equal("preload" in LOGIN_WEB_PREFERENCES, false);
+});
+
+test("login navigation stays on https", () => {
+  assert.equal(isAllowedLoginUrl("https://khcanvas.khu.ac.kr/login"), true);
+  assert.equal(isAllowedLoginUrl("http://khcanvas.khu.ac.kr/login"), false);
+  assert.equal(isAllowedLoginUrl("file:///etc/passwd"), false);
+});
+
+test("host code never reads session cookies or credentials", () => {
+  for (const name of ["lms-session.ts", "lms-probe.ts"]) {
+    assert.doesNotMatch(read(`../src/${name}`), /cookies\.|document\.cookie|executeJavaScript|password/i, name);
+  }
 });

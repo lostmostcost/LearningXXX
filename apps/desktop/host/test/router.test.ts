@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AppError, SCHEMA_VERSION } from "@learningxxx/contracts";
-import { skeletonHandlers } from "../src/handlers.ts";
 import { createRouter } from "../src/router.ts";
 
 const envelope = (channel: string, payload: unknown = {}) => ({ schemaVersion: SCHEMA_VERSION, channel, payload });
-const router = createRouter(skeletonHandlers);
+const router = createRouter({
+  "session.list": async () => ({ sessions: [] }),
+});
 
 async function code(raw: unknown, handle = router) {
   const result = await handle(raw);

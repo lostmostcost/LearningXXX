@@ -168,6 +168,9 @@ importers:
 
   apps/desktop/host:
     dependencies:
+      '@learningxxx/cli-adapter':
+        specifier: workspace:*
+        version: link:../../../packages/cli-adapter
       '@learningxxx/collector':
         specifier: workspace:*
         version: link:../../../packages/collector

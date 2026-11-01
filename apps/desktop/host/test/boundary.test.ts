@@ -59,7 +59,13 @@ test("login navigation stays on https", () => {
 });
 
 test("host code never reads session cookies or credentials", () => {
-  for (const name of ["lms-session.ts", "lms-probe.ts"]) {
-    assert.doesNotMatch(read(`../src/${name}`), /cookies\.|document\.cookie|executeJavaScript|password/i, name);
+  // WBS-039: the one exception is the LearningX token, which LearningX only accepts as a bearer header.
+  const session = read("../src/lms-session.ts");
+  const cookieUses = session.match(/cookies\.\w+\([^)]*\)/g) ?? [];
+  assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)"]);
+  assert.match(session, /const LEARNINGX_TOKEN = "xn_api_token";/);
+  for (const [name, source] of [["lms-session.ts", session], ["lms-probe.ts", read("../src/lms-probe.ts")]] as const) {
+    assert.doesNotMatch(source, /document\.cookie|executeJavaScript|password/i, name);
   }
+  assert.doesNotMatch(read("../src/lms-probe.ts"), /cookies\./, "lms-probe.ts");
 });

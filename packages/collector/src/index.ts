@@ -7,3 +7,7 @@ export type { DiscoveredCourse, DiscoveryInput } from "./discovery.ts";
 export { CollectionError } from "./errors.ts";
 export { collectResources, toUtc } from "./resources.ts";
 export type { ResourceCollectionInput, ResourceCollectionResult, ResourceError } from "./resources.ts";
+export { collectCourse } from "./collect-course.ts";
+export type { CollectCourseInput, CollectCourseResult } from "./collect-course.ts";
+export { commitManifest, readCurrentManifest, readSyncStatus, writeSyncRun } from "./manifest-store.ts";
+export type { CommitResult, ManifestDraft, SyncError } from "./manifest-store.ts";

@@ -175,10 +175,13 @@
         "WBS-006"
       ],
       "areas": [
-        "collector"
+        "collector",
+        "shared"
       ],
       "paths": [
-        "packages/collector/"
+        "packages/collector/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-001",
       "requirements": [

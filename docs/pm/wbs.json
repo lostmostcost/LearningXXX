@@ -307,10 +307,15 @@
         "WBS-011"
       ],
       "areas": [
-        "host"
+        "host",
+        "shared",
+        "ui"
       ],
       "paths": [
-        "apps/desktop/host/"
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-001",
       "requirements": [
@@ -320,7 +325,8 @@
       "status": "Backlog",
       "branch": "feat/WBS-012-local-sync",
       "url": "https://app.notion.com/p/40bbd7ec20cd81c79284de0a894dc8eb?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 경로 확장: 수집 결과를 앱 화면에 보이려면 과목 목록(library.courses)과 원본 읽기(library.asset) IPC 계약(packages/contracts, shared)과 renderer 연결(apps/desktop/ui, ui)이 필요하다. 세 영역 모두 비어 있어 정상 선점으로 진행한다. 이 확장 기록을 위해 docs/pm/wbs.json을 수정했다."
     },
     {
       "id": "WBS-013",

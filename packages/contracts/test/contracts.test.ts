@@ -88,6 +88,8 @@ describe("producer → consumer round trip", () => {
       "collection.run": { scope: "course", courseId: sid },
       "collection.status": {},
       "library.manifest": { courseId: sid },
+      "library.courses": {},
+      "library.asset": { courseId: sid, assetId: crypto.randomUUID() },
       "session.create": { mode: "independent", title: "새 독립 세션" },
       "session.list": { includeArchived: false },
       "session.rename": { appSessionId: sid, title: "이름" },

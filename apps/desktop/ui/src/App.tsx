@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
-import { invoke } from "./host-api.ts";
+import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
-import { buildLibrary, type Entry } from "./library.ts";
+import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
+import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
 
-/**
- * `?fixture` shows the synthetic course (WBS-013 acceptance). The host has no
- * course list or local asset channel yet (WBS-012), so the app itself shows
- * the empty state.
- */
+/** `?fixture` shows the synthetic course (WBS-013); otherwise material comes from the host's local library (WBS-012). */
 const FIXTURE_MODE = new URLSearchParams(window.location.search).has("fixture");
-const library = FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined;
-const loadAsset = FIXTURE_MODE ? loadFixtureAsset : undefined;
+const IN_APP = window.host !== undefined;
+
+/** The first course with collected material, read from disk by the host; works offline. */
+async function loadLocalLibrary(): Promise<Library | undefined> {
+  const courses = await invoke("library.courses", {});
+  const course = courses.ok ? courses.data.courses[0] : undefined;
+  if (!course) return undefined;
+  const result = await invoke("library.manifest", { courseId: course.id });
+  return result.ok && result.data.manifest ? buildLibrary(result.data.manifest) : undefined;
+}
 
 function useWindowWidth(): number {
   const [width, setWidth] = useState(window.innerWidth);
@@ -31,18 +36,51 @@ export function App() {
   const narrow = isNarrow(useWindowWidth());
   const [view, setView] = useState<NarrowView>("materials");
   const [status, setStatus] = useState(FIXTURE_MODE ? "합성 데이터(fixture) 모드" : "확인 중");
+  const [collecting, setCollecting] = useState(false);
+  const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
 
+  const refresh = useCallback(async () => {
+    const result = await invoke("collection.status", {});
+    setStatus(result.ok ? syncStatusText(result.data) : result.error.message);
+    setLibrary(await loadLocalLibrary());
+  }, []);
+
   useEffect(() => {
     if (FIXTURE_MODE) return;
-    void invoke("collection.status", {}).then((result) => {
-      if (!result.ok) setStatus(result.error.message);
-      else setStatus(result.data.lastSucceeded ? "수집 완료" : "아직 수집하지 않음");
+    void refresh();
+    return onHostPush((push) => {
+      if (push.kind !== "collection.progress") return;
+      setCollecting(push.syncRun.status === "running");
+      if (push.syncRun.status === "running") setStatus(syncStatusText({ current: push.syncRun }));
+      else void refresh();
     });
+  }, [refresh]);
+
+  const collect = useCallback(async () => {
+    setCollecting(true);
+    const result = await invoke("collection.run", { scope: "all_courses" });
+    if (!result.ok) {
+      setCollecting(false);
+      setStatus(result.error.message);
+    }
   }, []);
+
+  const loadAsset = useCallback(
+    async (assetId: string) => {
+      if (FIXTURE_MODE) return loadFixtureAsset(assetId);
+      if (!library) return undefined;
+      const result = await invoke("library.asset", { courseId: library.course.id, assetId });
+      return result.ok ? result.data.bytes : undefined;
+    },
+    [library],
+  );
+  const collectButton = IN_APP && !FIXTURE_MODE ? (
+    <button onClick={() => void collect()} disabled={collecting}>{collecting ? "수집 중…" : "수집 실행"}</button>
+  ) : null;
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -70,6 +108,7 @@ export function App() {
       <header className="topbar">
         <strong>LearningXXX</strong>
         <span role="status">수집: {status}</span>
+        {library ? collectButton : null}
         <span>{library ? library.course.title : "과목 없음"} · 세션 없음</span>
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">
@@ -85,12 +124,12 @@ export function App() {
           <>
             <h2>과목</h2>
             <p>아직 자료가 없습니다.</p>
-            <p>수집을 실행하면 과목과 주차가 여기에 나타납니다.</p>
-            <button disabled title="수집 연결은 후속 작업에서 제공됩니다">수집 실행</button>
+            <p>수집을 실행하면 과목과 주차가 여기에 나타납니다. 처음이면 학교 로그인 창이 열립니다.</p>
+            {collectButton ?? <p>앱 안에서 실행하면 수집할 수 있습니다.</p>}
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <Viewer entry={selected} {...(loadAsset ? { loadAsset } : {})} open={openPdfInBrowser} now={now} />
+          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} />
         ))}
         {panel("chat", "채팅", (
           <>

@@ -6,6 +6,8 @@ const CHANNELS = new Set([
   "collection.run",
   "collection.status",
   "library.manifest",
+  "library.courses",
+  "library.asset",
   "session.create",
   "session.list",
   "session.rename",

@@ -4,7 +4,9 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
 import { createHandlers } from "./handlers.ts";
+import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
+import { createLmsClient, openLoginWindow } from "./lms-session.ts";
 import { createRouter } from "./router.ts";
 import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
@@ -55,7 +57,21 @@ app.whenReady().then(async () => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "run.event", event });
     },
   });
-  const router = createRouter(createHandlers(sessions));
+  let loginWindow: BrowserWindow | undefined;
+  const library = new LibraryService({
+    root: join(dataRoot, "library"),
+    client: createLmsClient,
+    onProgress: (syncRun) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "collection.progress", syncRun });
+    },
+    // One login window at a time; the user signs in there and runs collection again.
+    openLogin: () => {
+      if (loginWindow && !loginWindow.isDestroyed()) return void loginWindow.focus();
+      loginWindow = openLoginWindow();
+    },
+  });
+  await library.init();
+  const router = createRouter(createHandlers(sessions, library));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

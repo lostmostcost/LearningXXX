@@ -63,6 +63,24 @@ class ClaimTests(unittest.TestCase):
         self.assertEqual(1, len(winners))
         claim.release(winners[0], "WBS-001")
 
+    def test_non_owner_cannot_release(self):
+        owned = claim.acquire(self.a, "WBS-005", ["infra", "shared"])
+        # B has no receipt: release refuses before touching the remote.
+        with self.assertRaises(OSError):
+            claim.release(self.b, "WBS-005")
+        # B forges a receipt with a guessed SHA: the expected-SHA lease rejects it.
+        forged = {**owned, "sha": "0" * 40}
+        receipt_dir = self.b / ".git/learningxxx-claims"
+        receipt_dir.mkdir(parents=True, exist_ok=True)
+        (receipt_dir / "WBS-005.json").write_text(json.dumps(forged))
+        with self.assertRaises(RuntimeError):
+            claim.release(self.b, "WBS-005")
+        refs = self.refs()
+        for ref in ("task-WBS-005", "area-infra", "area-shared"):
+            self.assertIn(ref, refs)
+        claim.release(self.a, "WBS-005")
+        self.assertEqual("", self.refs())
+
     def test_stale_receipt_cannot_delete_new_claim(self):
         old = claim.acquire(self.a, "WBS-001", ["cli"])
         receipt = self.a / ".git/learningxxx-claims/WBS-001.json"

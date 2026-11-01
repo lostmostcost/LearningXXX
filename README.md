@@ -3,7 +3,7 @@
 경희대 학생의 개인용 macOS 학습 공간. 이문찬(lostmostcost)·안상현(Kishibae)이 공동 개발합니다.
 
 **현재 상태: 기획·협업 scaffold. 제품 기능은 아직 구현하지 않았습니다.**
-A: 서버 LMS 수집 → Mac 자료·자유 채팅·세션·선택 번역.
+A: Mac에서 LMS 수동 수집 → 자료·자유 채팅·세션·선택 번역.
 B: 녹음·온라인 영상 원본 → 자동 전사. 전체 MVP는 A+B입니다.
 각자 공식 Claude Code 구독 로그인을 사용하며 API 인증으로 대체하지 않습니다.
 
@@ -27,7 +27,7 @@ python3 scripts/check.py
 python3 -m unittest discover -s tests/tooling -v
 ```
 
-Python은 현재 저장소 운영 도구의 런타임입니다. 앱 UI/서버 기술 스택은 G0 ADR에서 결정합니다.
+Python은 현재 저장소 운영 도구의 런타임입니다. 앱 기술 스택은 [ADR-002](docs/decisions/ADR-002-runtime-placement.md)를 따릅니다. 서버는 없습니다.
 컨테이너는 공통 검사·서비스 개발용입니다. macOS GUI·마이크·키체인·개인 구독 CLI는 Mac host에서 검증합니다.
 
 ## 문서
@@ -49,8 +49,7 @@ apps/desktop/ui/      # 자료·채팅 화면
 apps/desktop/host/    # Mac 권한·IPC·로컬 데이터
 packages/cli-adapter/ # 공식 CLI 실행/세션
 packages/contracts/  # 공동 데이터 계약 (shared lock)
-services/collector/  # LMS 신규 구현
-services/sync/       # Mac 자료 전달
+packages/collector/ # LMS 수동 수집 신규 구현
 services/transcriber/# 엔진 결정 후 자동 전사
 tests/fixtures/      # 비공개 자료 없는 합성 fixture
 tests/acceptance/    # 통합 시나리오

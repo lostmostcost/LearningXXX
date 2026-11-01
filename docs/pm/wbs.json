@@ -144,7 +144,13 @@
       ],
       "paths": [
         "packages/contracts/",
-        "tests/fixtures/"
+        "tests/fixtures/",
+        "package.json",
+        "pnpm-workspace.yaml",
+        "pnpm-lock.yaml",
+        "tsconfig.base.json",
+        "compose.yaml",
+        "docs/pm/wbs.json"
       ],
       "spec": "ARCH-001",
       "requirements": [
@@ -156,7 +162,8 @@
       "status": "Backlog",
       "branch": "feat/WBS-006-contracts",
       "url": "https://app.notion.com/p/40bbd7ec20cd81348fa0e5ef35a200fc?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 경로 확장: ADR-002 pnpm workspace 루트(package.json, pnpm-workspace.yaml, pnpm-lock.yaml, tsconfig.base.json)와 계약 검사를 공통 컨테이너 검사에 연결하는 compose.yaml. 이 확장 기록 자체를 위한 docs/pm/wbs.json."
     },
     {
       "id": "WBS-007",

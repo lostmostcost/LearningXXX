@@ -10,6 +10,18 @@ services:
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
-    command: ["sh", "-c", "python scripts/check.py && python -m unittest discover -s tests/tooling -v"]
+    # TypeScript checks run on a private copy: the source mount stays read-only and
+    # no node_modules or pnpm store is written into the host checkout.
+    command:
+      - sh
+      - -c
+      - >-
+        python scripts/check.py
+        && python -m unittest discover -s tests/tooling -v
+        && mkdir -p /tmp/ws
+        && tar -C /workspace --exclude=./.git --exclude='*/node_modules' --exclude=./node_modules --exclude=./.pnpm-store -cf - . | tar -C /tmp/ws -xf -
+        && cd /tmp/ws
+        && pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store --reporter=append-only
+        && pnpm -r run check
     init: true
 

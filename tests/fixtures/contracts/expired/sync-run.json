@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "55555555-5555-4555-8555-000000000002",
+  "accountKey": "acct_synthalpha01",
+  "courseId": "11111111-1111-4111-8111-000000000001",
+  "trigger": "manual",
+  "scope": "course",
+  "startedAt": "2026-11-02T01:00:00Z",
+  "endedAt": "2026-11-02T01:00:03Z",
+  "status": "failed",
+  "errors": [
+    { "code": "AUTH_REQUIRED", "message": "학교 로그인이 만료되었습니다. 다시 로그인한 뒤 수집을 실행하세요.", "retryable": false }
+  ]
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "name": "future major version is an explicit update-needed error",
+    "schema": "CollectionManifest",
+    "base": "normal/manifest.json",
+    "patch": { "schemaVersion": 2 },
+    "expect": "SCHEMA_VERSION_UNSUPPORTED"
+  },
+  {
+    "name": "succeeded sync run cannot hide errors",
+    "schema": "SyncRun",
+    "base": "normal/sync-run.json",
+    "patch": { "errors": [{ "code": "DOWNLOAD_FAILED", "message": "실패", "retryable": true }] },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "partial sync run must name its errors",
+    "schema": "SyncRun",
+    "base": "interrupted/sync-run-partial.json",
+    "patch": { "errors": [] },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "auth expiry is not retryable",
+    "schema": "SyncRun",
+    "base": "expired/sync-run.json",
+    "patch": { "errors": [{ "code": "AUTH_REQUIRED", "message": "만료", "retryable": true }] },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "timestamps must be UTC",
+    "schema": "SyncRun",
+    "base": "normal/sync-run.json",
+    "patch": { "startedAt": "2026-11-01T11:59:10+09:00" },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "storage key cannot escape the data root",
+    "schema": "Asset",
+    "base": "normal/manifest.json#/items/0/assets/0",
+    "patch": { "storageKey": "originals/../../.ssh/id_ed25519" },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "independent session cannot carry a course",
+    "schema": "Session",
+    "base": "normal/sessions.json#/1",
+    "patch": { "courseId": "11111111-1111-4111-8111-000000000001" },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "independent workspace path cannot contain course context",
+    "schema": "Session",
+    "base": "normal/sessions.json#/1",
+    "patch": { "workspaceKey": "courses/logic/sessions/x" },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "run.started with an API key source is rejected",
+    "schema": "RunEvent",
+    "base": "normal/events.json#/0",
+    "patch": { "payload": { "appSessionId": "66666666-6666-4666-8666-000000000001", "cliSessionId": "77777777-7777-4777-8777-000000000001", "mode": "course", "apiKeySource": "ANTHROPIC_API_KEY", "tools": [], "mcpServers": [] } },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "interrupted run needs an error code",
+    "schema": "Run",
+    "base": "interrupted/run.json",
+    "patch": { "errorCode": null },
+    "expect": "INVALID_REQUEST"
+  }
+]

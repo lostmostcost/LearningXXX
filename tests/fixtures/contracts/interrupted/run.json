@@ -1,0 +1,9 @@
+{
+  "runId": "99999999-9999-4999-8999-000000000003",
+  "appSessionId": "66666666-6666-4666-8666-000000000001",
+  "requestId": "aaaaaaaa-aaaa-4aaa-8aaa-000000000003",
+  "startedAt": "2026-11-03T03:00:00Z",
+  "endedAt": "2026-11-03T03:00:30Z",
+  "status": "interrupted",
+  "errorCode": "RUN_INTERRUPTED"
+}

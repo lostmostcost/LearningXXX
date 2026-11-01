@@ -1,0 +1,5 @@
+packages:
+  - packages/*
+  - apps/desktop/*
+# Supply-chain guard: only resolve versions published at least 14 days ago (minutes).
+minimumReleaseAge: 20160

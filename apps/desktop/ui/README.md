@@ -20,8 +20,9 @@
 - **과제:** 마감을 서울 시간으로 보인다. LMS가 시간대를 주지 않아 서울로 해석한 경우 그 사실을 함께 보인다. 제출 기능은 없고 제출 페이지 링크만 둔다.
 - **원문 열기:** `https://` 링크만 `target="_blank"`로 연다. host가 기본 브라우저로 넘기고 앱 창은 이동하지 않는다. 직접 추가한 자료는 원문 링크가 없다.
 
-## 데이터
-지금 host에는 과목 목록과 로컬 원본을 읽는 채널이 없다(WBS-012에서 연결). 그래서 앱은 빈 상태를 보이고, `?fixture`를 붙인 경우에만 합성 과목을 보인다. 자료 원본은 renderer가 직접 읽지 않고 `AssetLoader`로 받는다.
+## 데이터 (WBS-012)
+앱 안에서는 host의 로컬 라이브러리를 읽는다: `library.courses`로 수집한 과목을 찾고 `library.manifest`로 목록을, `library.asset`으로 원본을 받는다. 원본은 manifest의 asset id로만 요청하므로 renderer가 파일 경로를 지정할 수 없고, host가 해시를 다시 확인한 뒤 돌려준다. 모두 로컬 디스크에서 읽어 오프라인에서도 열린다.
+위쪽 `수집 실행` 버튼은 `collection.run`을 부르고, host가 보내는 `collection.progress`로 상태 줄을 바꾼다(`sync-status.ts`: 일부 실패는 성공으로 표시하지 않음, 로그인 만료 시 로그인 창 안내). 앱 밖(브라우저)에서는 수집 버튼이 없고, `?fixture`를 붙인 경우에만 합성 과목을 보인다.
 
 ## 보안 설정
 `index.html` CSP에 pdf.js용으로 `worker-src 'self'`, `connect-src 'self'`(CMap·글꼴·이미지 디코더 파일), `img-src blob:`를 더했다. 외부 주소와 `unsafe-eval`(wasm 포함)은 여전히 허용하지 않는다. pdf.js 6에는 `eval`이 없고, WebAssembly 대신 JS 이미지 디코더(`useWasm: false`)를 쓴다. host의 boundary 테스트가 이 CSP를 검사한다.

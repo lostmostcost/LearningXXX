@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { CollectionManifest, SyncRun } from "./lms.ts";
+import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ComposerDraft, Run, Session } from "./sessions.ts";
 
 /**
@@ -22,6 +22,19 @@ export const IpcChannels = {
   "library.manifest": {
     request: z.object({ courseId: Id }),
     response: z.object({ manifest: CollectionManifest.optional() }),
+  },
+  /** Courses that have a collected manifest on this Mac, for the signed-in account. */
+  "library.courses": {
+    request: z.object({}),
+    response: z.object({ courses: z.array(Course) }),
+  },
+  /**
+   * One stored original, looked up through the course manifest so the renderer
+   * can never name a file path. The host re-hashes it before answering.
+   */
+  "library.asset": {
+    request: z.object({ courseId: Id, assetId: Id }),
+    response: z.object({ mediaType: z.string().min(1), bytes: z.instanceof(Uint8Array) }),
   },
   "session.create": {
     request: z.discriminatedUnion("mode", [

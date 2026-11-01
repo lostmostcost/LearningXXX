@@ -125,3 +125,27 @@ describe("PDF states with pdf.js on synthetic files", () => {
     assert.equal(await loadFixtureAsset("ffffffff-0000-4000-8000-000000000000"), undefined);
   });
 });
+
+describe("collection status line", async () => {
+  const { syncStatusText } = await import("../src/sync-status.ts");
+  const base = { schemaVersion: 1 as const, id: "eeeeeeee-0000-4000-8000-000000000009", accountKey: "acct_synthfixture01", trigger: "manual" as const, scope: "course" as const, startedAt: "2026-11-01T00:00:00Z" };
+  const ok = { ...base, status: "succeeded" as const, endedAt: "2026-11-01T00:05:00Z", errors: [] };
+  test("nothing yet, running and success", () => {
+    assert.equal(syncStatusText({}), "아직 수집하지 않음");
+    assert.equal(syncStatusText({ current: { ...base, status: "running", errors: [] } }), "수집 중…");
+    assert.match(syncStatusText({ current: ok, lastSucceeded: ok }), /^수집 완료 · 11월 1일 \(일\) 09:05$/);
+  });
+  test("a partial run is not shown as success and keeps the last completion", () => {
+    const partial = { ...base, status: "partial" as const, endedAt: "2026-11-02T00:00:00Z", errors: [{ code: "DOWNLOAD_FAILED" as const, message: "x", retryable: true, resourceSourceId: "9" }] };
+    const text = syncStatusText({ current: partial, lastSucceeded: ok });
+    assert.ok(text.startsWith("자료 1개를 받지 못함"));
+    assert.ok(text.includes("마지막 완료"));
+    assert.ok(!text.startsWith("수집 완료"));
+  });
+  test("an expired login says to sign in; interruption says to run again", () => {
+    const failed = { ...base, status: "failed" as const, endedAt: "2026-11-02T00:00:00Z", errors: [{ code: "AUTH_REQUIRED" as const, message: "만료", retryable: false }] };
+    assert.ok(syncStatusText({ current: failed }).startsWith("학교 로그인이 필요합니다"));
+    const cut = { ...base, status: "interrupted" as const, endedAt: "2026-11-02T00:00:00Z", errors: [] };
+    assert.ok(syncStatusText({ current: cut }).startsWith("지난 수집이 중간에 멈춤"));
+  });
+});

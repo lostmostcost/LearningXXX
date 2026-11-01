@@ -79,8 +79,14 @@ export class LibraryService {
     try {
       me = await client.getObject("/api/v1/users/self");
     } catch (error) {
-      if (error instanceof CollectionError && error.appError.code === "AUTH_REQUIRED") this.#o.openLogin?.();
-      throw error;
+      // Real KHU Canvas answers users/self with 404, not 401, when nobody is signed in (WBS-038).
+      const signedOut =
+        error instanceof CollectionError &&
+        (error.appError.code === "AUTH_REQUIRED" || (error.appError.code === "SOURCE_CHANGED" && error.appError.detail?.httpStatus === 404));
+      if (!signedOut) throw error;
+      this.#o.openLogin?.();
+      // The school cookie lasts only while the app runs, so each launch may need a new sign-in.
+      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 앱을 다시 켜면 다시 로그인해야 할 수 있습니다.");
     }
     const id = (me as { id?: unknown } | null)?.id;
     if (typeof id !== "number" && typeof id !== "string") fail("SOURCE_CHANGED", "LMS 사용자 정보를 읽지 못했습니다.");

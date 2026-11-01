@@ -34,20 +34,21 @@ Actual collector + directory store → actual LibraryService/IPC router → view
 | REQ-001 credentials/failures | API environment refused without subprocess; CLI auth expiry, weekly limit, wrong session and reported outside access produce terminal host state, no automatic retry/leaked canary |
 | Duplicate/cancel | Collection lock, requestId dedup, partial output preserved on cancellation and no resend on reopen |
 | WBS-017 regression integration | Actual subprocess writes → host snapshot/change list → test Trash restore; explicit delete refusal preserves file |
-| Attachment/capture boundary | Unknown/unprepared IDs rejected rather than silently discarded; **delivery is still unimplemented** |
+| Attachment boundary (WBS-036) | Real preparation → explicit confirmation → run-specific read-only copy → synthetic CLI reads the selected bytes; unconfirmed/foreign/removed IDs refused, original preserved, temporary run copy removed |
+| Capture boundary | Unknown/unprepared capture IDs rejected; **capture delivery is still unimplemented** |
 
 The fake CLI only reports simulated tool events; these tests do not prove the real CLI's OS isolation or translation quality. `openPdf` exercises parsing/text extraction, not canvas/TextLayer alignment or source-link clicks. Those UI checks and actual Mac/native permission behavior belong to the real app flow, with the existing WBS-018 synthetic UI evidence kept separate.
 
 ## Current result and blocking gaps
 
-Development suite: **11 PASS, 0 FAIL, 3 TODO**. Strict `--require-ready`: **BLOCKED, exit 1**. Not a completed A gate or developer self-QA.
+Development suite: **14 PASS, 0 FAIL, 2 TODO**. Strict `--require-ready`: **BLOCKED, exit 1**. Not a completed A gate or developer self-QA.
 
 | ID | Missing existing MVP workflow | Evidence / follow-up |
 | --- | --- | --- |
-| A-001 | Course/local-file attachment preparation, explicit confirmation and verified run-specific delivery | ChatPanel attachment control disabled; SessionService rejects attachmentIds. [Backlog](https://app.notion.com/p/40bbd7ec20cd814b8c4dec1865941e20) |
+| A-001 | Implemented in WBS-036: course/local-file preparation and explicit confirmation, session/account/hash validation, run-specific read-only copy and delivery | Integration assertions now run. Native picker is separate from synthetic UI verification. [WBS-036](https://app.notion.com/p/40bbd7ec20cd80859c5beaa0b854e853) |
 | A-002 | Capture selection/cancel/preview/confirmation and run-specific delivery | Capture control disabled; host rejects captureIds. [Backlog](https://app.notion.com/p/40bbd7ec20cd81a496dbd36ca117758f) |
-| A-003 | File grant/change list/restore/trash controls in renderer | files.* host API exists but no UI invocation. [Backlog](https://app.notion.com/p/40bbd7ec20cd819e83a7e8546333465a) |
+| A-003 | WBS-035 file controls are implemented; acceptance UI/native assertion is still TODO | Do not confuse the remaining TODO with missing product implementation. [Backlog](https://app.notion.com/p/40bbd7ec20cd819e83a7e8546333465a) |
 
-Replace each TODO with assertions that exercise the implemented workflow using prepared/registered IDs (not fabricated IDs). Add the UI/native confirmation evidence, rerun strict mode, then complete WBS-019 and start WBS-020 developer functional self-test. WBS-019 remains Blocked while these required paths are missing. No extra peer/human QA card is introduced for this work.
+Replace each TODO with assertions that exercise the implemented workflow using prepared/registered IDs (not fabricated IDs). Add the UI/native confirmation evidence, rerun strict mode, then complete WBS-019 and start WBS-020 developer functional self-test. WBS-019 remains Blocked while the remaining required paths/evidence are missing. No extra peer/human QA card is introduced for this work.
 
 Unrun here: real LMS login/expiry, subscription CLI calls, actual Mac screenshots/capture permissions and Trash, native app rendering, real translation quality, and developer hands-on A self-test. The logged-in Claude account was not used.

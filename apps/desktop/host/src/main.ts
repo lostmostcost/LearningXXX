@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
 import { FileService } from "./file-service.ts";
@@ -51,15 +52,7 @@ app.whenReady().then(async () => {
     return;
   }
   const dataRoot = join(app.getPath("userData"), "data");
-  const sessions = new SessionService({
-    dataRoot,
-    store: new SessionStore(join(dataRoot, "app-state.json")),
-    startCli: createCliRunner(),
-    history: (now) => new RunHistory(join(dataRoot, "history"), now),
-    onEvent: (event) => {
-      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "run.event", event });
-    },
-  });
+  let sessions: SessionService;
   let loginWindow: BrowserWindow | undefined;
   const library = new LibraryService({
     root: join(dataRoot, "library"),
@@ -74,6 +67,25 @@ app.whenReady().then(async () => {
     },
   });
   await library.init();
+  const attachments = new AttachmentService({
+    dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),
+    readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId),
+    chooseLocal: async () => {
+      const selected = await dialog.showOpenDialog({ title: "첨부할 파일 선택", properties: ["openFile"], filters: [{ name: "학습 자료", extensions: ["pdf", "txt", "md", "csv", "json", "png", "jpg", "jpeg", "webp"] }] });
+      return selected.canceled ? undefined : selected.filePaths[0];
+    },
+  });
+  sessions = new SessionService({
+    dataRoot,
+    attachments,
+    store: new SessionStore(join(dataRoot, "app-state.json")),
+    startCli: createCliRunner(),
+    history: (now) => new RunHistory(join(dataRoot, "history"), now),
+    onEvent: (event) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "run.event", event });
+    },
+  });
+
   const files = new FileService({
     dataRoot,
     sessions,
@@ -95,7 +107,7 @@ app.whenReady().then(async () => {
     },
     trash: (path) => shell.trashItem(path),
   });
-  const router = createRouter(createHandlers(sessions, library, files));
+  const router = createRouter(createHandlers(sessions, library, files, attachments));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

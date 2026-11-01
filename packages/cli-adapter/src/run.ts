@@ -285,7 +285,8 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
     if (typeof input.pattern === "string" && isAbsolute(input.pattern)) paths.push(input.pattern);
     const targets = paths.map(targetKey);
     // Host-side scope decision; the CLI enforces too, and a mismatch is caught on the result.
-    const decision = expectedTools.has(name) && !targets.includes("<outside>") ? "allowed" : "denied";
+    const attachmentWrite = WRITE_TOOLS.has(name) && targets.some((key) => key.startsWith("attachment-"));
+    const decision = expectedTools.has(name) && !targets.includes("<outside>") && !attachmentWrite ? "allowed" : "denied";
     tools.set(id, { name, decision, targets });
     emit("tool.requested", { toolUseId: id || "unknown", tool: name || "unknown", targetKeys: targets, decision });
   };

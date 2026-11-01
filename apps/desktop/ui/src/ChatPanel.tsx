@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, type Transcript, type Turn } from "./chat.ts";
-import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft } from "./composer.ts";
+import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft, type Attachment } from "./composer.ts";
 import { FilesSection } from "./FilesSection.tsx";
 import { invoke, onHostPush } from "./host-api.ts";
 import { INTENT_LABEL, type SelectedText, type SelectionRequest } from "./selection.ts";
@@ -19,6 +19,7 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
             <button onClick={() => onOpenSelection(turn.sent.selection!)}>원문 보기</button></p>
           <blockquote>{turn.sent.selection.text}</blockquote>
         </> : null}
+        {turn.sent.attachmentIds.length ? <p className="meta">확인한 첨부 {turn.sent.attachmentIds.length}개 포함</p> : null}
         {turn.sent.text}
       </div>
       <div className="answer" aria-live={isOpen(turn) ? "polite" : "off"}>
@@ -39,9 +40,10 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
 /**
  * Sessions and free chat (WBS-016). Drafts are kept per session and frozen at
  * send time with their target session, so a session switch never re-routes a
- * message. Attachments and captures need host support and are not sent yet.
+ * message. Attachments are explicitly confirmed; captures still need host support.
  */
-export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection }: {
+export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [] }: {
+  selectedAssets?: { id: string; name: string }[];
   courseId?: string | undefined; courseTitle?: string | undefined; activeId: string | undefined;
   onActiveId: (id: string) => void; selectionRequest?: SelectionRequest | undefined;
   onSelectionUsed: (id: string) => void; onOpenSelection: (s: SelectedText) => boolean;
@@ -108,6 +110,38 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     }
     setTranscript((t) => addTurn(t, result.data.run, sent));
     return true;
+  };
+
+  const patchAttachment = (target: string, id: string, patch?: Attachment) => setDrafts((d) => {
+    const current = d[target] ?? emptyDraft();
+    return { ...d, [target]: { ...current, attachments: current.attachments.flatMap((a) => a.id === id ? (patch ? [patch] : []) : [a]) } };
+  });
+  const prepare = async (assetId?: string) => {
+    if (!active || running || draft.attachments.length >= 8) return;
+    const target = active.appSessionId, placeholder = crypto.randomUUID();
+    setDrafts((d) => ({ ...d, [target]: { ...(d[target] ?? emptyDraft()), attachments: [...(d[target]?.attachments ?? []), { id: placeholder, name: "첨부 준비 중…", status: "preparing" }] } }));
+    const result = assetId && courseId
+      ? await invoke("attachments.prepareAsset", { appSessionId: target, courseId, assetId })
+      : await invoke("attachments.chooseLocal", { appSessionId: target });
+    if (!result.ok) return patchAttachment(target, placeholder, { id: placeholder, name: "첨부 준비 실패", status: "failed", error: result.error.message });
+    const item = result.data.attachment;
+    patchAttachment(target, placeholder, item ? { id: item.id, name: item.name, bytes: item.bytes, status: "unconfirmed" } : undefined);
+  };
+  const confirmAttachment = async (item: Attachment) => {
+    if (!active) return;
+    const target = active.appSessionId;
+    patchAttachment(target, item.id, { ...item, status: "preparing" });
+    const result = await invoke("attachments.confirm", { appSessionId: target, attachmentId: item.id });
+    patchAttachment(target, item.id, result.ok ? { ...item, status: "ready" } : { ...item, status: "failed", error: result.error.message });
+  };
+  const removeAttachment = async (item: Attachment) => {
+    if (!active || item.status === "preparing") return;
+    const target = active.appSessionId;
+    if (item.status !== "failed") {
+      const result = await invoke("attachments.remove", { appSessionId: target, attachmentId: item.id });
+      if (!result.ok) setNotice(result.error.message);
+    }
+    patchAttachment(target, item.id);
   };
 
   const send = async () => {
@@ -204,6 +238,14 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
             ))}
           </ol>
           <div className="composer">
+            {draft.attachments.length ? <ul aria-label="보낼 첨부" className="entries">
+              {draft.attachments.map((item) => <li key={item.id}>
+                <span>{item.name}{item.bytes !== undefined ? ` · ${item.bytes.toLocaleString()} bytes` : ""}</span>
+                <span className="meta"> · {item.status === "ready" ? "확인됨" : item.status === "preparing" ? "준비 중" : item.status === "failed" ? item.error : `대상: ${active.title} · 이 파일을 보낼까요?`}</span>
+                {item.status === "unconfirmed" ? <button onClick={() => void confirmAttachment(item)}>첨부 확인</button> : null}
+                <button disabled={running || item.status === "preparing"} onClick={() => void removeAttachment(item)}>첨부 빼기</button>
+              </li>)}
+            </ul> : null}
             {draft.selection ? <div className="selection-preview">
               <label>선택 문장 작업 <select aria-label="선택 문장 작업" value={draft.intent} onChange={(e) => setDraft(active.appSessionId, { ...draft, intent: e.target.value as Draft["intent"] })}>
                 {Object.entries(INTENT_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -223,7 +265,8 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
               }}
             />
             <div className="composer-actions">
-              <button disabled title="첨부 전달은 host 지원 후 제공됩니다">자료 첨부</button>
+              <button disabled={running || draft.attachments.length >= 8} onClick={() => void prepare()}>로컬 파일 첨부</button>
+              {selectedAssets.map((asset) => <button key={asset.id} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}>자료 첨부: {asset.name}</button>)}
               <button disabled title="화면 캡처는 host 지원 후 제공됩니다">화면 캡처</button>
               <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block">보내기</button>
             </div>

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { AppError, Run, Session } from "@learningxxx/contracts";
 import type { ErrorCode, IpcRequest, RunChanges, RunEvent } from "@learningxxx/contracts";
 import type { RunRequest, StartOutcome } from "@learningxxx/cli-adapter";
+import type { AttachmentService } from "./attachment-service.ts";
 import type { RunHistory } from "./run-history.ts";
 import type { SessionStore, StoredState } from "./session-store.ts";
 
@@ -16,6 +17,7 @@ export interface SessionServiceOptions {
   onEvent?: (event: RunEvent) => void;
   /** Receives the service clock. Omitted only by tests of unrelated behaviour. */
   history?: (now: () => string) => RunHistory;
+  attachments?: AttachmentService;
   model?: string;
   now?: () => Date;
   newId?: () => string;
@@ -183,12 +185,13 @@ export class SessionService {
     const session = this.#session(appSessionId);
     if (session.archivedAt !== undefined) fail("INVALID_REQUEST", "보관된 세션입니다.");
     if (this.#active.has(appSessionId)) fail("RUN_ALREADY_ACTIVE", "이 세션의 응답이 아직 끝나지 않았습니다.");
-    if (draft.attachmentIds.length + draft.captureIds.length > 0) {
-      fail("INVALID_REQUEST", "첨부는 아직 지원하지 않습니다.");
+    if (draft.captureIds.length > 0 || (draft.attachmentIds.length > 0 && !this.#options.attachments)) {
+      fail("INVALID_REQUEST", "지원하지 않거나 준비되지 않은 첨부입니다.");
     }
 
     // Everything up to here is synchronous, so a double click cannot pass twice.
     const runId = this.#newId();
+    const inputs = this.#options.attachments?.forRun(appSessionId, runId, draft.attachmentIds);
     const abort = new AbortController();
     this.#active.set(appSessionId, { runId, abort });
     const startedAt = this.#now();
@@ -202,6 +205,7 @@ export class SessionService {
       this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
     } catch {
       // No baseline means no recovery path, so the run does not start.
+      this.#options.attachments?.releaseRun(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       return this.#updateRun(runId, { status: "failed", endedAt: this.#now(), errorCode: "INTERNAL" });
@@ -216,7 +220,8 @@ export class SessionService {
           resume: session.cliSessionId !== undefined,
           workspacePath,
           ...(externalFolders.length > 0 ? { writableDirs: externalFolders } : {}),
-          prompt: buildPrompt(draft),
+          attachmentDirs: inputs?.dirs ?? [],
+          prompt: [buildPrompt(draft), inputs?.prompt].filter(Boolean).join("\n\n"),
           ...(this.#options.model === undefined ? {} : { model: this.#options.model }),
         },
         abort.signal,
@@ -225,6 +230,7 @@ export class SessionService {
 
     if (!outcome.ok) {
       this.#recordChanges(runId);
+      this.#options.attachments?.releaseRun(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       // Cancelled before the CLI opened: the user stopped it, nothing failed.
@@ -259,6 +265,7 @@ export class SessionService {
         this.#updateSession(appSessionId, { status: "interrupted" });
       }
       this.#recordChanges(runId);
+      this.#options.attachments?.releaseRun(runId);
       this.#active.delete(appSessionId);
     }
   }

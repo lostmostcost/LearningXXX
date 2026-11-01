@@ -98,6 +98,20 @@ export const Attachment = z.object({
 });
 export type Attachment = z.infer<typeof Attachment>;
 
+/** Staged outside the CLI workspace until the user confirms and sends it. */
+export const PreparedAttachment = z.object({
+  id: Id,
+  appSessionId: Id,
+  name: z.string().min(1).max(255),
+  mediaType: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  contentHash: Sha256,
+  provenance: z.enum(["course_asset", "local_file"]),
+  sourceAssetId: Id.optional(),
+  confirmed: z.boolean(),
+});
+export type PreparedAttachment = z.infer<typeof PreparedAttachment>;
+
 /** SPEC-003 composer draft; frozen at send time. */
 export const TextSelection = z
   .object({

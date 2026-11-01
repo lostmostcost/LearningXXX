@@ -155,7 +155,7 @@ export function App() {
         ))}
         {panel("chat", "채팅", window.host ? (
           <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
-            selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
+            selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
         ) : (
           <>
             <h2>채팅</h2>

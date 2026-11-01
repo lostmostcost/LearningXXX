@@ -103,6 +103,10 @@ describe("producer → consumer round trip", () => {
       "session.list": { includeArchived: false },
       "session.rename": { appSessionId: sid, title: "이름" },
       "session.archive": { appSessionId: sid, archived: true },
+      "attachments.chooseLocal": { appSessionId: sid },
+      "attachments.prepareAsset": { appSessionId: sid, courseId: sid, assetId: sid },
+      "attachments.confirm": { appSessionId: sid, attachmentId: sid },
+      "attachments.remove": { appSessionId: sid, attachmentId: sid },
       "run.start": {
         requestId: crypto.randomUUID(),
         draft: { text: "", attachmentIds: [], captureIds: [], targetSessionId: sid, intent: "translate_en_ko", selection: { assetId: sid, page: 3, text: "Boolean algebra" } },

@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
-import { ComposerDraft, Run, Session } from "./sessions.ts";
+import { ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
 
 /**
  * Renderer → host request channels (ADR-002: preload exposes only these).
@@ -56,6 +56,22 @@ export const IpcChannels = {
   "session.archive": {
     request: z.object({ appSessionId: Id, archived: z.boolean() }),
     response: z.object({ session: Session }),
+  },
+  "attachments.chooseLocal": {
+    request: z.object({ appSessionId: Id }),
+    response: z.object({ attachment: PreparedAttachment.optional() }),
+  },
+  "attachments.prepareAsset": {
+    request: z.object({ appSessionId: Id, courseId: Id, assetId: Id }),
+    response: z.object({ attachment: PreparedAttachment }),
+  },
+  "attachments.confirm": {
+    request: z.object({ appSessionId: Id, attachmentId: Id }),
+    response: z.object({ attachment: PreparedAttachment }),
+  },
+  "attachments.remove": {
+    request: z.object({ appSessionId: Id, attachmentId: Id }),
+    response: z.object({ removed: z.boolean() }),
   },
   "run.start": {
     request: z.object({ requestId: Id, draft: ComposerDraft }),

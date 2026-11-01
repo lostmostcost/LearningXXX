@@ -1068,6 +1068,37 @@
       "url": "https://app.notion.com/p/40bbd7ec20cd81a39f7dd11710895a97",
       "qa_mode": "appropriate_checks_only",
       "scope_note": "2026-11-01 WBS-020 자가 테스트 중 발견, 이문찬 승인 영역 밖 예외(OPS-001 v0.2.1): apps/desktop/host/와 docs/pm/wbs.json은 snagha의 WBS-035 claim(PR #23 병합, 미해제) 영역이다. 최소 수정만 하고 claim ref는 건드리지 않으며 PR로 통지한다. 본인 task·lms-auth·acceptance claim을 따로 잡는다."
+    },
+    {
+      "id": "WBS-039",
+      "title": "LearningX 강의 자료(PDF) 수집",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-008",
+        "WBS-038"
+      ],
+      "areas": [
+        "collector",
+        "lms-auth"
+      ],
+      "paths": [
+        "packages/collector/",
+        "apps/desktop/host/",
+        "docs/pm/wbs.json",
+        "AGENTS.md",
+        "docs/specs/SPEC-001.md"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "KHU 주차 강의 자료는 Canvas 파일이 아니라 LearningX에 있다. 학교 로그인 한 번으로 받은 LearningX 토큰(xn_api_token)으로 주차 모듈을 읽고 Commons에서 PDF 등 원본을 받아 주차별 file 자료로 저장한다. 바뀌지 않은 자료는 다시 받지 않고, HTML 오류 페이지는 저장하지 않으며, 토큰은 LearningX API에만 보낸다. 실제 Mac 앱에서 PDF가 열리는지 확인한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-039-learningx-materials",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 사용자 지시로 khu-ecampus-archive(개인 아카이빙 스킬)의 LearningX→Commons 흐름을 참고해 새로 구현. khu-lecture-recorder는 열지 않음. 실제 LMS 5차 진단으로 흐름 확인(모듈 200, PDF 4.1MB %PDF). 영역 밖 예외(이문찬 결정): AGENTS.md·SPEC-001에 khu-ecampus-archive 참고 허용 문구 각 1줄, apps/desktop/host/ 로그인 창·LearningX 연결 최소 수정.",
+      "url": "https://app.notion.com/p/40bbd7ec20cd814d9da6c94f2b7cec73"
     }
   ],
   "qaPolicy": {

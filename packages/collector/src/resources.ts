@@ -5,6 +5,7 @@ import type { AssetStore } from "./asset-store.ts";
 import type { CanvasClient } from "./canvas-client.ts";
 import { stableId } from "./discovery.ts";
 import { CollectionError, collectionError } from "./errors.ts";
+import { LEARNINGX_FILE_TYPES, type LearningXClient } from "./learningx.ts";
 import { DEFAULT_RETRY, withRetry, type RetryPolicy } from "./retry.ts";
 
 type Item = z.infer<typeof ManifestItem>;
@@ -33,6 +34,34 @@ const CanvasFile = z.object({
   hidden_for_user: z.boolean().optional(),
 });
 type CanvasFile = z.infer<typeof CanvasFile>;
+
+/** One weekly LearningX module; items embed their Commons content (khu-ecampus-archive flow). */
+const LearningXModule = z.object({
+  module_id: SourceId.optional(),
+  title: Text,
+  module_items: z
+    .array(
+      z.object({
+        content_type: Text,
+        title: Text,
+        url: Text,
+        content_data: z
+          .object({
+            opened: z.boolean().nullish(),
+            item_content_data: z
+              .object({
+                content_id: Text,
+                content_type: Text,
+                file_name: Text,
+                last_updated_date: z.union([z.string(), z.number()]).nullish(),
+              })
+              .nullish(),
+          })
+          .nullish(),
+      }),
+    )
+    .nullish(),
+});
 
 const CanvasAssignment = z.object({
   id: SourceId,
@@ -63,6 +92,8 @@ export interface ResourceCollectionInput {
   now?: () => Date;
   /** Bounded retry for transient failures (WBS-009); tests pass a fake sleep. */
   retry?: RetryPolicy;
+  /** KHU lecture materials live in LearningX, not Canvas files (WBS-039). */
+  learningx?: LearningXClient | undefined;
 }
 
 export interface ResourceCollectionResult {
@@ -182,6 +213,70 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
     if (!done) keepPrevious(id);
   }
 
+  // 2b. LearningX lecture materials. Only listed, opened files are fetched, and an
+  //     unchanged one (same update time, intact on disk) is never downloaded again.
+  if (input.learningx) {
+    const lx = input.learningx;
+    const raw = await attempt(undefined, () => lx.modules(cid));
+    if (raw === undefined) complete.file = false;
+    const byModule = new Map(weeks.map((w) => [w.sourceWeekId, w.id]));
+    const byLabel = new Map(weeks.map((w) => [w.label.trim(), w.id]));
+    const seen = new Set<string>();
+    for (const entry of raw ?? []) {
+      const mod = LearningXModule.safeParse(entry);
+      if (!mod.success) {
+        errors.push(collectionError("SOURCE_CHANGED", "강의 자료 주차 형식이 예상과 다릅니다.").appError);
+        complete.file = false;
+        continue;
+      }
+      const weekId = (mod.data.module_id && byModule.get(mod.data.module_id)) || (mod.data.title && byLabel.get(mod.data.title.trim())) || undefined;
+      for (const it of mod.data.module_items ?? []) {
+        if (it.content_type !== "attendance_item") continue;
+        const icd = it.content_data?.item_content_data;
+        const ext = (icd?.content_type ?? "").toLowerCase();
+        if (!LEARNINGX_FILE_TYPES.has(ext)) {
+          skippedTypes[`learningx:${ext || "unknown"}`] = (skippedTypes[`learningx:${ext || "unknown"}`] ?? 0) + 1;
+          continue;
+        }
+        const contentId = icd?.content_id;
+        if (!contentId || contentId === "not_open" || it.content_data?.opened === false) {
+          skippedTypes["learningx:not_open"] = (skippedTypes["learningx:not_open"] ?? 0) + 1;
+          continue;
+        }
+        const sourceId = `commons:${contentId}`;
+        if (seen.has(sourceId)) continue;
+        seen.add(sourceId);
+        const id = stableId("resource", course.id, "file", sourceId);
+        const prev = prevItems.get(id);
+        const title = it.title ?? icd?.file_name ?? "강의 자료";
+        const originalName = icd?.file_name ?? `${title}.${ext}`;
+        const updatedAt = sourceTime(icd?.last_updated_date) ?? keepTime(prev, now);
+        const done = await attempt(sourceId, async () => {
+          const res = resource("file", sourceId, { weekId, title, url: it.url, updatedAt });
+          const old = prev?.assets[0];
+          if (old && prev.resource.updatedAt === updatedAt && (await store.verify(old.storageKey, old.sha256))) {
+            items.set(id, withRevision({ resource: res, assets: [{ ...old, originalName }] }, prev));
+            return true;
+          }
+          const { bytes, extension } = await lx.download(contentId, ext);
+          const stored = await store.put(new Blob([bytes]).stream(), { expectedBytes: bytes.length, extension });
+          const asset = Asset.parse({
+            id: stableId("asset", id, contentId),
+            resourceId: id,
+            mediaType: MEDIA_TYPES[extension] ?? "application/octet-stream",
+            bytes: stored.bytes,
+            sha256: stored.sha256,
+            storageKey: stored.storageKey,
+            originalName,
+          });
+          items.set(id, withRevision({ resource: res, assets: [asset] }, prev));
+          return true;
+        });
+        if (!done) keepPrevious(id);
+      }
+    }
+  }
+
   // 3. Announcements: course-level notices, attachments kept as assets.
   const announcements = await attempt(undefined, () => client.getList(`/api/v1/courses/${cid}/discussion_topics?only_announcements=true&per_page=100`));
   if (announcements === undefined) complete.notice = false;
@@ -278,6 +373,34 @@ export function toUtc(value: string | undefined): { at: string; assumed: boolean
   const date = new Date(assumed ? `${value}+09:00` : value);
   return Number.isNaN(date.getTime()) ? undefined : { at: utc(date), assumed };
 }
+
+/** LearningX sends either epoch time (s or ms) or a date string. */
+function sourceTime(value: string | number | null | undefined): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (typeof value === "number" || /^\d+$/.test(value)) {
+    const n = Number(value);
+    const date = new Date(n > 1e12 ? n : n * 1000);
+    return Number.isNaN(date.getTime()) ? undefined : utc(date);
+  }
+  return toUtc(value)?.at;
+}
+
+const MEDIA_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  zip: "application/zip",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  doc: "application/msword",
+  ppt: "application/vnd.ms-powerpoint",
+  xls: "application/vnd.ms-excel",
+  hwp: "application/x-hwp",
+  hwpx: "application/hwp+zip",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+};
 
 const keepTime = (prev: Item | undefined, now: () => Date) => prev?.resource.updatedAt ?? utc(now());
 

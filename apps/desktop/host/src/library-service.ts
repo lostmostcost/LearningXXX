@@ -11,7 +11,7 @@ import {
   readSyncStatus,
   recoverInterruptedRuns,
 } from "@learningxxx/collector";
-import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult } from "@learningxxx/collector";
+import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
 /** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). More courses are added here. */
 export const DEFAULT_SOURCE_COURSES: readonly string[] = ["95899"];
@@ -21,6 +21,8 @@ export interface LibraryServiceOptions {
   root: string;
   /** Client bound to the in-app LMS sign-in session (WBS-034). */
   client: () => CanvasClient;
+  /** Lecture materials through the same sign-in (WBS-039). */
+  learningx?: () => LearningXClient;
   sourceCourseIds?: readonly string[];
   /** Pushed to the renderer: `running` first, then each final run. */
   onProgress?: (run: SyncRun) => void;
@@ -138,7 +140,7 @@ export class LibraryService {
       );
       let result: CollectCourseResult;
       try {
-        result = await collect({ client, store: this.#store, root: this.#o.root, accountKey, sourceCourseId, now: this.#now, newId: () => id });
+        result = await collect({ client, learningx: this.#o.learningx?.(), store: this.#store, root: this.#o.root, accountKey, sourceCourseId, now: this.#now, newId: () => id });
       } catch (error) {
         // RUN_ALREADY_ACTIVE from the collector's own lock, or an unexpected bug.
         const appError =

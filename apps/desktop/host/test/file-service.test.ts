@@ -325,3 +325,66 @@ test("external changes are listed but not claimed as restorable", async () => {
   assert.deepEqual(sessions.history!.changes(run.runId)?.changes, [{ key: "external-0/report.md", change: "created", restorable: false }]);
   assert.deepEqual(await files.restore({ runId: run.runId }), { restored: [], skipped: ["external-0/report.md"] });
 });
+
+// Regression scenarios from the PR #21 review (0c8c2ab).
+for (const change of ["created", "modified", "deleted"] as const) {
+  for (const parentLink of [false, true]) {
+    test(`restore skips ${change} files when ${parentLink ? "a parent" : "the target"} became a symlink`, async () => {
+      const key = parentLink ? "sub/notes.md" : "notes.md";
+      const { sessions, files, dataRoot, trashed } = setup((req) => {
+        const path = join(req.workspacePath, key);
+        if (change === "deleted") rmSync(path);
+        else writeFileSync(path, "changed");
+      });
+      const session = courseSession(sessions);
+      const dir = workspace(dataRoot, session);
+      mkdirSync(join(dir, "sub"));
+      mkdirSync(join(dir, "important"));
+      const unrelated = join(dir, "important/notes.md");
+      writeFileSync(unrelated, "important unrelated data");
+      if (change !== "created") writeFileSync(join(dir, key), "original notes");
+      const run = await runOnce(sessions, session.appSessionId);
+      const link = join(dir, parentLink ? "sub" : key);
+      rmSync(link, { recursive: true, force: true });
+      symlinkSync(parentLink ? join(dir, "important") : unrelated, link);
+      const result = await files.restore({ runId: run.runId });
+      assert.equal(readFileSync(unrelated, "utf8"), "important unrelated data");
+      assert.deepEqual(trashed, []);
+      assert.deepEqual(result, { restored: [], skipped: [key] });
+    });
+  }
+}
+
+test("path scope rejects dangling links and replaced roots without following them", () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "wbs017-links-")));
+  const root = join(dir, "workspace");
+  mkdirSync(root);
+  symlinkSync(join(root, "missing"), join(root, "dangling"));
+  assert.equal(resolveEntry(root, "dangling"), undefined);
+  assert.equal(resolveEntry(root, "dangling/new.md"), undefined);
+  symlinkSync(root, join(dir, "root-link"));
+  assert.equal(resolveEntry(join(dir, "root-link"), "new.md"), undefined);
+});
+
+test("backup preparation failure ends the run, releases the lock and permits a later request", async () => {
+  const { sessions, dataRoot, calls } = setup();
+  const session = courseSession(sessions);
+  const history = join(dataRoot, "history");
+  writeFileSync(history, "synthetic unavailable history directory");
+  const run = await runOnce(sessions, session.appSessionId);
+  assert.equal(run.status, "failed");
+  assert.equal(run.errorCode, "INTERNAL");
+  assert.equal(sessions.isActive(session.appSessionId), false);
+  assert.equal(sessions.get(session.appSessionId).status, "idle");
+  assert.equal(calls.length, 0, "never start CLI without a baseline");
+  const saved = new SessionStore(join(dataRoot, "app-state.json")).load();
+  assert.equal(saved.runs.find((r) => r.runId === run.runId)?.status, "failed");
+  assert.equal(saved.sessions.find((s) => s.appSessionId === session.appSessionId)?.status, "idle");
+  rmSync(history);
+  const next = await runOnce(sessions, session.appSessionId);
+  assert.notEqual(next.runId, run.runId);
+  assert.equal(calls.length, 1);
+  assert.equal(sessions.isActive(session.appSessionId), false);
+  assert.equal(new SessionStore(join(dataRoot, "app-state.json")).load().runs.find((r) => r.runId === next.runId)?.status, "completed");
+});
+

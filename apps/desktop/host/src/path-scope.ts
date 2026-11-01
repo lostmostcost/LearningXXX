@@ -26,25 +26,23 @@ export function resolveScoped(root: string, key: string): string | undefined {
 }
 
 /**
- * For acting on an entry itself. resolveScoped follows a final symlink to its
- * target, so writing or trashing that result would hit whatever the link points
- * at, even another file inside the root. This returns the entry the key names,
- * and undefined if it is a symlink or anything but a regular file.
+ * For acting on an entry itself. Walks the key one component at a time from the
+ * root and never follows a link, because following any of them, final or parent,
+ * lands on some other file, possibly one inside the root. Returns undefined for
+ * a link at any level (dangling ones too), a replaced root, or a non-file target.
+ * Components that do not exist yet are fine: nothing there can be a link.
  */
 export function resolveEntry(root: string, key: string): string | undefined {
-  const scoped = resolveScoped(root, key);
-  if (scoped === undefined) return undefined;
-  const parent = resolveScoped(root, dirname(key)) ?? (dirname(key) === "." ? realpathSync(root) : undefined);
-  if (parent === undefined) return undefined;
-  const entry = join(parent, basename(key));
-  if (!existsSync(entry) && !isDanglingLink(entry)) return entry;
-  return lstatSync(entry).isFile() ? entry : undefined;
-}
-
-function isDanglingLink(path: string): boolean {
-  try {
-    return lstatSync(path).isSymbolicLink();
-  } catch {
-    return false;
+  const parts = key.split("/");
+  if (isAbsolute(key) || key.includes("\0") || parts.some((p) => p === "" || p === "." || p === "..")) return undefined;
+  if (!lstatSync(root, { throwIfNoEntry: false })?.isDirectory()) return undefined;
+  let current = root;
+  for (const [index, part] of parts.entries()) {
+    current = join(current, part);
+    const stat = lstatSync(current, { throwIfNoEntry: false });
+    if (stat === undefined) return join(root, ...parts);
+    const last = index === parts.length - 1;
+    if (last ? !stat.isFile() : !stat.isDirectory()) return undefined;
   }
+  return current;
 }

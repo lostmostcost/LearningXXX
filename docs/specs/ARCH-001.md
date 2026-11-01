@@ -4,22 +4,21 @@ Source: https://app.notion.com/p/40bbd7ec20cd815bb87ad1ce5b9e1d04?pvs=204
 Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
 
 ## 제안 아키텍처
-이 문서는 설계 제안이다. macOS UI 프레임워크와 서버 런타임은 G0 결과로 ADR-002에서 확정한다. 초기 저장소는 특정 UI 프레임워크를 강제로 설치하지 않는 공통 검증 환경과 구조를 제공한다.
+이 문서는 설계 제안이다. 기술 선택은 ADR-002를 따르고, 서버는 없다(CR-001). 초기 저장소는 특정 UI 프레임워크를 강제로 설치하지 않는 공통 검증 환경과 구조를 제공한다.
 
 | 경계 | 책임 | 배치 |
 | --- | --- | --- |
 | Desktop renderer | 자료 뷰어·채팅·세션·녹음 상태 | Mac 앱 UI |
 | Desktop host | 공식 CLI 프로세스·파일 접근·키체인/마이크·IPC | 각자의 Mac |
 | CLI adapter | 실행·이벤트·재개·오류 정규화 | host 내부 |
-| Collector | LMS 인증·파싱·정규화 | 서버 컨테이너 |
-| Sync service | manifest·asset 전달·접근 제어 | 서버 컨테이너 |
+| Collector | LMS 인증·파싱·정규화 | Mac host 내부 |
 | STT worker | 원본→전사 job | 엔진 선정 후 Mac 또는 컨테이너 |
 | Contracts | DTO·스키마·오류·버전 fixture | 공통 패키지 |
 
-renderer는 임의 shell 명령을 실행하지 못한다. host에 타입이 있는 요청을 보내고 host가 scope를 확인한다. 서버는 Claude 개인 구독 토큰을 갖지 않는다. 수집/동기화와 AI 세션 장애를 독립적으로 복구한다.
+renderer는 임의 shell 명령을 실행하지 못한다. host에 타입이 있는 요청을 보내고 host가 scope를 확인한다. 수집과 AI 세션 장애를 독립적으로 복구한다.
 
 ## 저장소 경로와 병렬 경계
-apps/desktop/ui, apps/desktop/host, packages/cli-adapter, services/collector, services/sync, services/transcriber, packages/contracts, tests/fixtures, tests/acceptance, infra, docs.
+apps/desktop/ui, apps/desktop/host, packages/cli-adapter, packages/collector, services/transcriber, packages/contracts, tests/fixtures, tests/acceptance, infra, docs.
 공유 계약·루트 의존성·마이그레이션·CI는 shared 영역으로 직렬화한다. 서로 다른 디렉터리만 수정해도 계약을 바꾸면 충돌하므로 관련 작업을 잠시 멈추고 계약 PR을 먼저 병합한다. 시작할 때 WBS의 경로/잠금 영역을 확인한다.
 
 ## 계약 초안
@@ -29,7 +28,7 @@ Event envelope: schemaVersion, eventId, runId, occurredAt, type, payload. 타입
 계약 fixture는 실명·학번·쿠키·강의 비공개 내용이 없는 합성 데이터로 만든다.
 
 ## 데이터 보존·이동
-서버 원본 저장소와 Mac 캐시는 분리한다. 파일명만으로 키를 만들지 않는다. 다운로드는 임시→검증→원자 이동, 메타데이터는 트랜잭션으로 처리한다. 사용자 작성 파일은 원본 자료와 디렉터리를 나눈다. 버전 마이그레이션은 백업·실패 복구를 포함하며 두 개발자가 별도 마이그레이션을 동시에 만들지 않는다.
+수집 원본 폴더와 앱 캐시는 분리한다. 파일명만으로 키를 만들지 않는다. 다운로드는 임시→검증→원자 이동, 메타데이터는 트랜잭션으로 처리한다. 사용자 작성 파일은 원본 자료와 디렉터리를 나눈다. 버전 마이그레이션은 백업·실패 복구를 포함하며 두 개발자가 별도 마이그레이션을 동시에 만들지 않는다.
 
 ## Docker 공통 환경
 Docker Desktop의 컨테이너는 Linux VM에서 실행된다. 따라서 공통 서비스·합성 데이터·계약 검사·CI를 컨테이너로 고정하고 macOS GUI·마이크·키체인·구독 CLI 검증은 호스트에서 수행한다. [Docker 공식 설명](https://docs.docker.com/desktop/features/vmm/).

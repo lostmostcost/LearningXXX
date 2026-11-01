@@ -160,7 +160,7 @@
     },
     {
       "id": "WBS-007",
-      "title": "서버 LMS 인증·과목·주차 탐색",
+      "title": "Mac LMS 인증·과목·주차 탐색",
       "phase": "A 핵심경험",
       "priority": "P0",
       "deps": [
@@ -171,7 +171,7 @@
         "collector"
       ],
       "paths": [
-        "services/collector/"
+        "packages/collector/"
       ],
       "spec": "SPEC-001",
       "requirements": [
@@ -185,7 +185,7 @@
     },
     {
       "id": "WBS-008",
-      "title": "서버 자료·공지·과제·첨부 수집",
+      "title": "Mac 자료·공지·과제·첨부 수집",
       "phase": "A 핵심경험",
       "priority": "P0",
       "deps": [
@@ -195,7 +195,7 @@
         "collector"
       ],
       "paths": [
-        "services/collector/"
+        "packages/collector/"
       ],
       "spec": "SPEC-001",
       "requirements": [
@@ -209,7 +209,7 @@
     },
     {
       "id": "WBS-009",
-      "title": "예약 수집·재시도·변경 추적",
+      "title": "수동 수집 재시도·변경 추적",
       "phase": "A 핵심경험",
       "priority": "P0",
       "deps": [
@@ -219,13 +219,13 @@
         "collector"
       ],
       "paths": [
-        "services/collector/"
+        "packages/collector/"
       ],
       "spec": "SPEC-001",
       "requirements": [
         "REQ-002"
       ],
-      "acceptance": "합의한 주기로 실행하고 auth_required·부분 실패·tombstone을 표시한다. 중단 재시도와 중복 스케줄의 멱등성을 검증한다.",
+      "acceptance": "사용자가 수집을 실행하면 auth_required·부분 실패·tombstone을 표시한다. 중단 후 재실행과 중복 실행의 멱등성을 검증한다.",
       "status": "Backlog",
       "branch": "feat/WBS-009-scheduler",
       "url": "https://app.notion.com/p/40bbd7ec20cd8147a1f5f11c4efbbaef?pvs=204",
@@ -233,7 +233,7 @@
     },
     {
       "id": "WBS-010",
-      "title": "서버 manifest·asset 전달 서비스",
+      "title": "수집 결과 로컬 manifest 기록",
       "phase": "A 핵심경험",
       "priority": "P0",
       "deps": [
@@ -241,16 +241,16 @@
         "WBS-006"
       ],
       "areas": [
-        "sync"
+        "collector"
       ],
       "paths": [
-        "services/sync/"
+        "packages/collector/"
       ],
       "spec": "SPEC-001",
       "requirements": [
         "REQ-002"
       ],
-      "acceptance": "인증된 계정별 manifest와 asset 전달 API를 구현한다. 서로 다른 계정 차단, 버전 불일치, 무결성 실패, 재전달 멱등 테스트를 통과한다.",
+      "acceptance": "수집 결과를 revision manifest와 asset으로 로컬에 기록한다. 버전 불일치, 무결성 실패, 재실행 멱등 테스트를 통과한다. HTTP 전달 서비스는 만들지 않는다(CR-001).",
       "status": "Backlog",
       "branch": "feat/WBS-010-delivery",
       "url": "https://app.notion.com/p/40bbd7ec20cd816fafb9dc41f26ed547?pvs=204",
@@ -285,7 +285,7 @@
     },
     {
       "id": "WBS-012",
-      "title": "Mac 수신·로컬 자료 저장·오프라인",
+      "title": "Mac 로컬 자료 저장·오프라인",
       "phase": "A 핵심경험",
       "priority": "P0",
       "deps": [
@@ -302,7 +302,7 @@
       "requirements": [
         "REQ-002"
       ],
-      "acceptance": "manifest→임시 다운로드→해시→원자 확정 흐름과 로컬 인덱스를 구현한다. 중간 종료와 offline에서도 기존 정상본·사용자 메모가 유지된다.",
+      "acceptance": "수집→임시 파일→해시→원자 확정 흐름과 로컬 인덱스를 구현한다. 중간 종료와 offline에서도 기존 정상본·사용자 메모가 유지된다.",
       "status": "Backlog",
       "branch": "feat/WBS-012-local-sync",
       "url": "https://app.notion.com/p/40bbd7ec20cd81c79284de0a894dc8eb?pvs=204",
@@ -485,7 +485,7 @@
         "REQ-005",
         "REQ-006"
       ],
-      "acceptance": "서버→Mac→뷰어→첨부→CLI→재개 전체 흐름을 검증한다. 만료·오프라인·중복·격리 실패를 검출하고 수정은 해당 모듈의 별도 claim 작업으로 처리한다.",
+      "acceptance": "수동 수집→뷰어→첨부→CLI→재개 전체 흐름을 검증한다. 만료·오프라인·중복·격리 실패를 검출하고 수정은 해당 모듈의 별도 claim 작업으로 처리한다.",
       "status": "Backlog",
       "branch": "feat/WBS-019-a-integration",
       "url": "https://app.notion.com/p/40bbd7ec20cd81cf8cdee0e7883c68da?pvs=204",
@@ -609,7 +609,7 @@
         "collector"
       ],
       "paths": [
-        "services/collector/"
+        "packages/collector/"
       ],
       "spec": "SPEC-004",
       "requirements": [
@@ -683,19 +683,17 @@
         "WBS-026"
       ],
       "areas": [
-        "host",
-        "sync"
+        "host"
       ],
       "paths": [
-        "apps/desktop/host/",
-        "services/sync/"
+        "apps/desktop/host/"
       ],
       "spec": "SPEC-004",
       "requirements": [
         "REQ-007",
         "REQ-008"
       ],
-      "acceptance": "호스트/서버 간 media 전달과 job 상태를 연결한다. 앱 재시작 후 누락 job 복구, 동일 원본 중복 전사 방지, 원본 재생을 확인한다.",
+      "acceptance": "로컬 media와 전사 job 상태를 연결한다. 앱 재시작 후 누락 job 복구, 동일 원본 중복 전사 방지, 원본 재생을 확인한다.",
       "status": "Backlog",
       "branch": "feat/WBS-027-media-integration",
       "url": "https://app.notion.com/p/40bbd7ec20cd81779f4ed19d57301eda?pvs=204",
@@ -844,6 +842,34 @@
       "status": "In Progress",
       "branch": "feat/WBS-032-self-qa-policy",
       "url": "https://app.notion.com/p/40bbd7ec20cd81d8b415e6bcb2d43391?pvs=204"
+    },
+    {
+      "id": "WBS-033",
+      "title": "서버 없는 로컬 수동 수집 기획 반영",
+      "phase": "G1 기반",
+      "priority": "P0",
+      "deps": [
+        "WBS-004"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "AGENTS.md",
+        "README.md",
+        "docs/",
+        "services/",
+        "packages/collector/"
+      ],
+      "spec": "ARCH-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "CR-001을 문서와 WBS에 반영하고 서버 전제를 제거한다. 제품 기능은 구현하지 않는다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-033-local-manual-collection",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81bc99abdff77c5ebd8e?pvs=204",
+      "qa_mode": "appropriate_checks_only"
     }
   ],
   "qaPolicy": {

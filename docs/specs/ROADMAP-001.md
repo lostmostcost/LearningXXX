@@ -11,8 +11,8 @@ Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approve
 | --- | --- | --- |
 | G0 | CLI 기술검증 / 실제 과목·파일·QA 기준 결정 | 구독·세션 격리 및 필수 결정 |
 | G1 | 환경 재현 / 계약·fixture 정의 | 계약 merge 후 하위 작업 Ready |
-| A-1 | 서버 collector / Mac shell·viewer | 정규화 fixture 일치 |
-| A-2 | server sync / local CLI adapter·session | 계약 변경은 shared 먼저 |
+| A-1 | Mac collector / Mac shell·viewer | 정규화 fixture 일치 |
+| A-2 | 로컬 저장 / local CLI adapter·session | 계약 변경은 shared 먼저 |
 | A-3 | local sync / chat composer | host IPC 변경은 host 영역 조율 |
 | A-4 | 선택 번역 / 통합·복구 테스트 준비 | A 사용자 QA |
 | B-1 | 대면 녹음 / 온라인 다운로드 | media 계약 확정 |
@@ -31,8 +31,8 @@ WBS 상태 보드에서 Review/Human QA 정체를 먼저 확인한다. Ready 미
 
 ## 48–72시간 개발 목표와 실행 순서
 사용자 목표는 개발 착수(T0) 후 2–3일 내 전체 MVP다. 아래 시간대는 실행 계획 초안이며 기술 검증·실제 처리량에 따라 갱신한다. 시작 시각이 확정되지 않았으므로 달력 날짜를 임의로 채우지 않는다.
-- T+0–4h: WBS-001/002로 구독 CLI·파일 작업·재개·독립 격리를 실증하고 WBS-004에서 UI/서버·빌드 경로를 확정한다. 필수 조건 실패는 즉시 보고한다.
-- T+4–12h: 환경과 계약을 고정하고 collector/sync와 Mac UI/CLI 작업을 서로 다른 영역에서 병렬 착수한다.
+- T+0–4h: WBS-001/002로 구독 CLI·파일 작업·재개·독립 격리를 실증하고 WBS-004에서 UI·빌드 경로를 확정한다. 필수 조건 실패는 즉시 보고한다.
+- T+4–12h: 환경과 계약을 고정하고 collector와 Mac UI/CLI 작업을 서로 다른 영역에서 병렬 착수한다.
 - T+12–36h: A 전체 흐름을 연결한다. PDF, 영어↔한국어, 외부 폴더 권한·휴지통 삭제, 세션 기능을 완성 직후 사람에게 설명하고 기능별 QA한다.
 - T+36–60h: B 녹음·온라인 영상 원본·자동 전사와 WBS-031 앱 코드 수정·빌드·복구를 병렬 추진한다. host 영역이 겹치는 작업은 claim 기준으로 직렬화한다.
 - T+60–72h: 기능별 통합·실패 복구·회귀 검수와 결함 수정, 로컬 릴리스를 진행한다.

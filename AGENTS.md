@@ -12,7 +12,7 @@
 - G0 must prove execution, file access, resume and independent-session isolation.
 - Independent sessions have no automatic course/history/memory/filesystem context. Do not implement isolation with prompt wording alone.
 - A then B. B recording, video originals and automatic transcription are part of full MVP.
-- Automatic collection and transcription; manual summarization.
+- User-run manual collection on each Mac with no server (CR-001, ADR-002); automatic transcription; manual summarization.
 - Do not copy/invoke legacy khu-ecampus-archive code; implement new modules.
 - Never open/read/copy/port/refer to khu-lecture-recorder skill during implementation.
 - Do not commit credentials, recordings, downloaded lectures or private course content.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import { viewTarget } from "../../apps/desktop/ui/src/document.ts";
 import { openPdf, type PdfLib } from "../../apps/desktop/ui/src/pdf.ts";
 import { emptyDraft, freeze, withSelection } from "../../apps/desktop/ui/src/composer.ts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp } from "../../apps/desktop/ui/src/chat.ts";
-import { harness, until, STORAGE } from "./harness.ts";
+import { CAPTURE_PNG, harness, until, STORAGE } from "./harness.ts";
 
 const requireUi = createRequire(new URL("../../apps/desktop/ui/package.json", import.meta.url));
 const pdfjs: PdfLib = await import(pathToFileURL(requireUi.resolve("pdfjs-dist/legacy/build/pdf.mjs")).href);
@@ -220,7 +220,48 @@ test("A-001: selected course/local files are confirmed and copied to this run on
   assert.ok(!removed.ok); assert.equal(h.calls().length, 2);
   assert.equal(readFileSync(local, "utf8"), "EXPLICIT_LOCAL_CANARY");
 });
-test.todo("A-ready: capture selection, cancellation and confirmed delivery (A-002)");
+test("A-002: a selected region is previewed, explicitly confirmed and copied to this run only", async (t) => {
+  // Synthetic: the Mac selection tool and permission prompt are replaced by the harness. Real Mac behaviour is a WBS-020 self-test item.
+  const h = await harness(t);
+  const { session } = await h.ok("session.create", { mode: "independent", title: "capture" });
+  const { session: other } = await h.ok("session.create", { mode: "independent", title: "other" });
+  h.state.capture = "cancel";
+  assert.deepEqual(await h.ok("captures.start", { appSessionId: session.appSessionId }), {}, "Escape leaves nothing to send");
+  h.state.capture = "denied";
+  const denied = await h.call("captures.start", { appSessionId: session.appSessionId });
+  assert.ok(!denied.ok);
+  assert.equal(denied.error.code, "CAPTURE_PERMISSION_DENIED");
+  assert.equal(denied.error.retryable, false);
+  h.state.capture = "fail";
+  const failed = await h.call("captures.start", { appSessionId: session.appSessionId });
+  assert.ok(!failed.ok && failed.error.code === "CAPTURE_FAILED" && failed.error.retryable);
+  h.state.capture = "png";
+  const { capture } = await h.ok("captures.start", { appSessionId: session.appSessionId });
+  assert.ok(capture);
+  assert.deepEqual(capture.preview, CAPTURE_PNG, "the preview is exactly what will be sent");
+  assert.equal(capture.attachment.confirmed, false);
+  const early = await h.call("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), captureIds: [capture.attachment.id] } });
+  assert.ok(!early.ok); assert.equal(h.calls().length, 0);
+  await h.ok("attachments.confirm", { appSessionId: session.appSessionId, attachmentId: capture.attachment.id });
+  for (const wrong of [
+    { ...draft(other.appSessionId), captureIds: [capture.attachment.id] },
+    { ...draft(session.appSessionId), attachmentIds: [capture.attachment.id] },
+  ]) {
+    const refused = await h.call("run.start", { requestId: randomUUID(), draft: wrong });
+    assert.ok(!refused.ok);
+  }
+  assert.equal(h.calls().length, 0, "no refused capture ever reached the CLI");
+  h.state.scenario = "attachment_read";
+  const { run } = await h.ok("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), text: "what is in this region", captureIds: [capture.attachment.id] } });
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  assert.equal(h.store.load().runs.find((r) => r.runId === run.runId)!.status, "completed");
+  const call = h.calls()[0]!;
+  const dir = call.argv[call.argv.indexOf("--add-dir") + 1]!;
+  assert.ok(dir.includes(run.runId), "copy is per run");
+  assert.ok(h.events.some((e) => e.runId === run.runId && e.type === "text.delta" && e.payload.text.includes("CAPTURE_SELECTED_REGION_CANARY")));
+  assert.equal(existsSync(dir), false, "temporary run copy removed after the run");
+  await until(() => readdirSync(h.root).every((n) => !n.startsWith("learningxxx-capture-")));
+});
 test.todo("A-ready: file scope/change summary/restore/trash controls connected to UI (A-003)");
 
 

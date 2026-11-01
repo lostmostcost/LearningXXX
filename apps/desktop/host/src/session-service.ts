@@ -185,13 +185,13 @@ export class SessionService {
     const session = this.#session(appSessionId);
     if (session.archivedAt !== undefined) fail("INVALID_REQUEST", "보관된 세션입니다.");
     if (this.#active.has(appSessionId)) fail("RUN_ALREADY_ACTIVE", "이 세션의 응답이 아직 끝나지 않았습니다.");
-    if (draft.captureIds.length > 0 || (draft.attachmentIds.length > 0 && !this.#options.attachments)) {
+    if (draft.attachmentIds.length + draft.captureIds.length > 0 && !this.#options.attachments) {
       fail("INVALID_REQUEST", "지원하지 않거나 준비되지 않은 첨부입니다.");
     }
 
     // Everything up to here is synchronous, so a double click cannot pass twice.
     const runId = this.#newId();
-    const inputs = this.#options.attachments?.forRun(appSessionId, runId, draft.attachmentIds);
+    const inputs = this.#options.attachments?.forRun(appSessionId, runId, draft.attachmentIds, draft.captureIds);
     const abort = new AbortController();
     this.#active.set(appSessionId, { runId, abort });
     const startedAt = this.#now();

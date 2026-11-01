@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, type Transcript, type Turn } from "./chat.ts";
 import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft, type Attachment } from "./composer.ts";
+import { capturePreview } from "./capture-preview.ts";
 import { FilesSection } from "./FilesSection.tsx";
 import { invoke, onHostPush } from "./host-api.ts";
 import { INTENT_LABEL, type SelectedText, type SelectionRequest } from "./selection.ts";
@@ -20,6 +21,7 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
           <blockquote>{turn.sent.selection.text}</blockquote>
         </> : null}
         {turn.sent.attachmentIds.length ? <p className="meta">확인한 첨부 {turn.sent.attachmentIds.length}개 포함</p> : null}
+        {turn.sent.captureIds.length ? <p className="meta">확인한 캡처 {turn.sent.captureIds.length}개 포함</p> : null}
         {turn.sent.text}
       </div>
       <div className="answer" aria-live={isOpen(turn) ? "polite" : "off"}>
@@ -40,7 +42,7 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
 /**
  * Sessions and free chat (WBS-016). Drafts are kept per session and frozen at
  * send time with their target session, so a session switch never re-routes a
- * message. Attachments are explicitly confirmed; captures still need host support.
+ * message. Attachments are explicitly confirmed; captures use the same explicit confirmation.
  */
 export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [] }: {
   selectedAssets?: { id: string; name: string }[];
@@ -126,6 +128,15 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     if (!result.ok) return patchAttachment(target, placeholder, { id: placeholder, name: "첨부 준비 실패", status: "failed", error: result.error.message });
     const item = result.data.attachment;
     patchAttachment(target, placeholder, item ? { id: item.id, name: item.name, bytes: item.bytes, status: "unconfirmed" } : undefined);
+  };
+  const prepareCapture = async (replacing?: string) => {
+    if (!active || running || (!replacing && draft.attachments.length >= 8)) return;
+    const target = active.appSessionId, placeholder = crypto.randomUUID();
+    setDrafts((d) => ({ ...d, [target]: { ...(d[target] ?? emptyDraft()), attachments: [...(d[target]?.attachments.filter((a) => a.id !== replacing) ?? []), { id: placeholder, name: "영역 선택 중… Esc로 취소", status: "preparing", kind: "capture" }] } }));
+    const result = await invoke("captures.start", { appSessionId: target });
+    if (!result.ok) return patchAttachment(target, placeholder, { id: placeholder, name: "캡처 실패", kind: "capture", status: "failed", error: result.error.message });
+    const item = result.data.capture;
+    patchAttachment(target, placeholder, item ? { id: item.attachment.id, name: item.attachment.name, bytes: item.attachment.bytes, kind: "capture", preview: capturePreview(item.preview), status: "unconfirmed" } : undefined);
   };
   const confirmAttachment = async (item: Attachment) => {
     if (!active) return;
@@ -240,9 +251,11 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
           <div className="composer">
             {draft.attachments.length ? <ul aria-label="보낼 첨부" className="entries">
               {draft.attachments.map((item) => <li key={item.id}>
+                {item.preview ? <img className="capture-preview" src={item.preview} alt="보낼 캡처 미리보기" /> : null}
                 <span>{item.name}{item.bytes !== undefined ? ` · ${item.bytes.toLocaleString()} bytes` : ""}</span>
                 <span className="meta"> · {item.status === "ready" ? "확인됨" : item.status === "preparing" ? "준비 중" : item.status === "failed" ? item.error : `대상: ${active.title} · 이 파일을 보낼까요?`}</span>
-                {item.status === "unconfirmed" ? <button onClick={() => void confirmAttachment(item)}>첨부 확인</button> : null}
+                {item.status === "unconfirmed" ? <button onClick={() => void confirmAttachment(item)}>{item.kind === "capture" ? "캡처 확인" : "첨부 확인"}</button> : null}
+                {item.kind === "capture" && item.status === "failed" ? <button disabled={running} onClick={() => void prepareCapture(item.id)}>다시 캡처</button> : null}
                 <button disabled={running || item.status === "preparing"} onClick={() => void removeAttachment(item)}>첨부 빼기</button>
               </li>)}
             </ul> : null}
@@ -267,7 +280,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
             <div className="composer-actions">
               <button disabled={running || draft.attachments.length >= 8} onClick={() => void prepare()}>로컬 파일 첨부</button>
               {selectedAssets.map((asset) => <button key={asset.id} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}>자료 첨부: {asset.name}</button>)}
-              <button disabled title="화면 캡처는 host 지원 후 제공됩니다">화면 캡처</button>
+              <button disabled={running || draft.attachments.length >= 8} onClick={() => void prepareCapture()}>화면 캡처</button>
               <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block">보내기</button>
             </div>
             <p id="send-block" className="meta">{block && block !== "empty" ? BLOCK_REASON[block] : "⌘+Enter로 보내기"}</p>

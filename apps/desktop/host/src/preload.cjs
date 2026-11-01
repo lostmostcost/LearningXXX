@@ -12,6 +12,7 @@ const CHANNELS = new Set([
   "session.list",
   "session.rename",
   "session.archive",
+  "captures.start",
   "attachments.chooseLocal",
   "attachments.prepareAsset",
   "attachments.confirm",

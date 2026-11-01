@@ -1006,6 +1006,39 @@
       "url": "https://app.notion.com/p/40bbd7ec20cd80859c5beaa0b854e853",
       "qa_mode": "appropriate_checks_only",
       "scope_note": "2026-11-01 이문찬 명시 승인(현재 채팅): 병합된 WBS-035의 host/shared/ui claim을 유지한 OPS-001 5항 예외. apps/desktop/host/의 첨부 서비스·세션/라이브러리/IPC 연결 및 테스트, apps/desktop/ui/의 첨부 선택·확인·상태 UI와 테스트, packages/contracts/의 첨부 IPC/준비 계약, docs/pm/wbs.json의 새 작업 등록에 한해 최소 수정. 다른 claim은 삭제/덮어쓰기하지 않는다. PR #23 issuecomment-6558002745로 claim holder에게 사전 통지. cli/acceptance 및 새 attachments task/area를 별도 선점한다. 최신 main 검토, frozen 전체 Docker, fresh clone 및 scope 검사 후 병합. 실제 영역 밖 파일: apps/desktop/host/{ATTACHMENTS.md,scripts/attachment-canary.py,scripts/attachment-evidence-2026-11-01.json,src/attachment-service.ts,src/handlers.ts,src/library-service.ts,src/main.ts,src/preload.cjs,src/session-service.ts,test/attachment-service.test.ts}; apps/desktop/ui/{src/App.tsx,src/ChatPanel.tsx,src/composer.ts,src/fake-host.ts,test/attachments.test.ts}; packages/contracts/{src/ipc.ts,src/sessions.ts,test/contracts.test.ts}; docs/pm/wbs.json. 첨부 준비·확인·세션/계정 검증·전용 사본 전달과 화면·계약·검증에 필요한 변경만 포함한다."
+    },
+    {
+      "id": "WBS-037",
+      "title": "캡처 선택·취소·확인·CLI 전달",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-016",
+        "WBS-035",
+        "WBS-036"
+      ],
+      "areas": [
+        "captures",
+        "acceptance"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "tests/acceptance/",
+        "docs/pm/wbs.json"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-005"
+      ],
+      "acceptance": "Mac 사용자 선택 영역 캡처의 미리보기·명시 확인·취소·권한 거부·재시도와 세션/계정/hash 경계를 구현하고 해당 실행에만 사본을 전달한다. A-002 통합 TODO를 실행 증거로 바꾸며 실제 Mac 권한/선택 흐름과 합성 검사를 구분해 기록한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-037-explicit-capture",
+      "url": "https://app.notion.com/p/40bbd7ec20cd807293acdabd8db8d182",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 사용자 예외 승인·담당자 통지 지시와 WBS-036 완료 후 다음 단계 재지시에 따른 동일 host/shared/ui 영역의 최소 후속 구현. 기존 WBS-035 task/area claim 유지. 수정 범위: host 캡처 서비스/권한·temp 정리/첨부 전달 연결·문서·테스트, UI 캡처·미리보기·확인 상태와 테스트, contracts capture provenance/IPC, docs/pm/wbs.json 작업 등록. PR #25 issuecomment-6558350384로 통지. 본인 task/captures/acceptance claim을 별도 확보. 최신 main 대조, frozen 전체 Docker, fresh clone, scope 검사 후 병합. 새 시스템 권한 확대가 필요하면 실행 시 별도 확인하고 미실행 결과를 완료로 쓰지 않는다."
     }
   ],
   "qaPolicy": {

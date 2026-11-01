@@ -57,6 +57,10 @@ export const IpcChannels = {
     request: z.object({ appSessionId: Id, archived: z.boolean() }),
     response: z.object({ session: Session }),
   },
+  "captures.start": {
+    request: z.object({ appSessionId: Id }),
+    response: z.object({ capture: z.object({ attachment: PreparedAttachment, preview: z.instanceof(Uint8Array) }).optional() }),
+  },
   "attachments.chooseLocal": {
     request: z.object({ appSessionId: Id }),
     response: z.object({ attachment: PreparedAttachment.optional() }),

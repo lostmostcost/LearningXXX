@@ -9,6 +9,7 @@ import { LibraryPanel } from "./LibraryPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
+import type { PageLocation, SelectedText, SelectionIntent, SelectionRequest } from "./selection.ts";
 
 /** `?fixture` shows the synthetic course (WBS-013); otherwise material comes from the host's local library (WBS-012). */
 const FIXTURE_MODE = new URLSearchParams(window.location.search).has("fixture");
@@ -40,6 +41,9 @@ export function App() {
   const [collecting, setCollecting] = useState(false);
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
+  const [activeSessionId, setActiveSessionId] = useState<string>();
+  const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
+  const [location, setLocation] = useState<PageLocation>();
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
@@ -83,6 +87,23 @@ export function App() {
     <button onClick={() => void collect()} disabled={collecting}>{collecting ? "수집 중…" : "수집 실행"}</button>
   ) : null;
 
+  const selectAction = (selection: SelectedText, intent: SelectionIntent) => {
+    setSelectionRequest({ id: crypto.randomUUID(), selection: { ...selection }, intent,
+      ...(activeSessionId ? { targetSessionId: activeSessionId } : {}) });
+    setView("chat");
+  };
+  const selectionUsed = useCallback((id: string) => setSelectionRequest((r) => r?.id === id ? undefined : r), []);
+  const openSelection = (selection: SelectedText): boolean => {
+    if (!library) return false;
+    const entries = [...library.notices, ...library.other, ...library.weeks.flatMap((w) => w.entries)];
+    const entry = entries.find((e) => e.assets.some((a) => a.id === selection.assetId));
+    if (!entry) return false;
+    setSelected(entry);
+    setLocation({ id: crypto.randomUUID(), assetId: selection.assetId, page: selection.page ?? 1 });
+    setView("materials");
+    return true;
+  };
+
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key !== "F6") return;
@@ -97,12 +118,12 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onKeyDown]);
 
-  const panel = (id: Panel, label: string, children: React.ReactNode) =>
-    panels.includes(id) ? (
-      <section className={`panel ${id}`} aria-label={label} tabIndex={-1} ref={(element) => { refs.current[id] = element; }}>
+  // Keep drafts, streams and the current PDF page when narrow layouts switch panels.
+  const panel = (id: Panel, label: string, children: React.ReactNode) => (
+      <section hidden={!panels.includes(id)} className={`panel ${id}`} aria-label={label} tabIndex={-1} ref={(element) => { refs.current[id] = element; }}>
         {children}
       </section>
-    ) : null;
+    );
 
   return (
     <div className={narrow ? "app narrow" : "app"}>
@@ -110,7 +131,7 @@ export function App() {
         <strong>LearningXXX</strong>
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
-        <span>{library ? library.course.title : "과목 없음"} · 세션 없음</span>
+        <span>{library ? library.course.title : "과목 없음"} · {activeSessionId ? "세션 선택됨" : "세션 없음"}</span>
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">
             <button role="tab" aria-selected={view === "materials"} onClick={() => setView("materials")}>자료</button>
@@ -130,10 +151,11 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} />
+          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} />
         ))}
         {panel("chat", "채팅", window.host ? (
-          <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} />
+          <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
+            selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
         ) : (
           <>
             <h2>채팅</h2>

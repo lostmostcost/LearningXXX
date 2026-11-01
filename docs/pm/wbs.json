@@ -906,6 +906,7 @@
         "shared"
       ],
       "paths": [
+        "apps/desktop/README.md",
         "apps/desktop/host/",
         "packages/collector/",
         "pnpm-lock.yaml",

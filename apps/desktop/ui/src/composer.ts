@@ -1,5 +1,6 @@
 import { ComposerDraft } from "@learningxxx/contracts";
 import type { Session } from "@learningxxx/contracts";
+import type { SelectedText, SelectionIntent } from "./selection.ts";
 
 /**
  * Composer state per session (SPEC-003). Each session keeps its own draft, so
@@ -14,11 +15,26 @@ export interface Attachment {
 export interface Draft {
   text: string;
   attachments: Attachment[];
-  selection?: { assetId: string; page?: number; text: string };
+  selection?: SelectedText;
   intent: ComposerDraft["intent"];
 }
 
 export const emptyDraft = (): Draft => ({ text: "", attachments: [], intent: "chat" });
+
+/** A selection is copied to one explicit session draft, never attached as a whole file. */
+export function withSelection(draft: Draft, selection: SelectedText, intent: SelectionIntent): Draft {
+  return { ...draft, selection: { ...selection }, intent };
+}
+
+export function withoutSelection(draft: Draft): Draft {
+  const { selection: _selection, ...rest } = draft;
+  return { ...rest, intent: "chat" };
+}
+
+/** A refused send must not erase a selection or overwrite a new draft typed during the request. */
+export function restoreIfEmpty(current: Draft | undefined, previous: Draft): Draft {
+  return current && (current.text.trim() || current.selection || current.attachments.length) ? current : previous;
+}
 
 export type SendBlock =
   | "no_session"

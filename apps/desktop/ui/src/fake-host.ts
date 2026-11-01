@@ -1,4 +1,6 @@
 import type { HostPush, IpcChannel, Run, RunEvent, Session } from "@learningxxx/contracts";
+import { INTENT_LABEL } from "./selection.ts";
+import type { ComposerDraft } from "@learningxxx/contracts";
 
 /**
  * Stand-in host for `?fixture` only, so the chat flow can be tried in a plain
@@ -41,12 +43,12 @@ export function installFakeHost(courseTitle: string): void {
       return ok({ session: update(String(p.appSessionId), next) });
     },
     "run.start": (p) => {
-      const draft = p.draft as { targetSessionId: string; text: string };
+      const draft = p.draft as ComposerDraft;
       const session = sessions.find((s) => s.appSessionId === draft.targetSessionId);
       if (!session) return fail("NOT_FOUND", "세션을 찾을 수 없습니다.");
       if ([...runs.values()].some((r) => r.run.appSessionId === session.appSessionId && r.timer)) return fail("RUN_ALREADY_ACTIVE", "이 세션의 응답이 아직 끝나지 않았습니다.");
       const run = { runId: crypto.randomUUID(), appSessionId: session.appSessionId, requestId: String(p.requestId), startedAt: now(), status: "streaming" } as Run;
-      const words = `(합성 응답) ${session.mode === "independent" ? "독립 세션이라 과목 자료 없이" : `${courseTitle} 세션에서`} 답합니다: "${draft.text.slice(0, 40)}"`.split(" ");
+      const words = `(합성 응답 · 실제 번역 아님) ${INTENT_LABEL[draft.intent]} · ${session.mode === "independent" ? "독립 세션이라 과목 자료 없이" : `${courseTitle} 세션에서`} 답합니다: "${(draft.selection?.text ?? draft.text).slice(0, 80)}"`.split(" ");
       const entry: { run: Run; seq: number; timer?: ReturnType<typeof setInterval> } = { run, seq: 0 };
       event(run, entry.seq++, "run.started", { appSessionId: session.appSessionId, cliSessionId: crypto.randomUUID(), mode: session.mode, apiKeySource: "none", tools: [], mcpServers: [] });
       entry.timer = setInterval(() => {

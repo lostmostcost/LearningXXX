@@ -1,0 +1,74 @@
+import { ComposerDraft } from "@learningxxx/contracts";
+import type { Session } from "@learningxxx/contracts";
+
+/**
+ * Composer state per session (SPEC-003). Each session keeps its own draft, so
+ * switching sessions can never send one session's text to another.
+ */
+export interface Attachment {
+  id: string;
+  name: string;
+  status: "preparing" | "ready" | "failed";
+}
+
+export interface Draft {
+  text: string;
+  attachments: Attachment[];
+  selection?: { assetId: string; page?: number; text: string };
+  intent: ComposerDraft["intent"];
+}
+
+export const emptyDraft = (): Draft => ({ text: "", attachments: [], intent: "chat" });
+
+export type SendBlock =
+  | "no_session"
+  | "archived"
+  | "running"
+  | "empty"
+  | "preparing"
+  | "failed_attachment";
+
+export const BLOCK_REASON: Record<SendBlock, string> = {
+  no_session: "세션을 먼저 고르거나 만드세요.",
+  archived: "보관된 세션입니다. 보관을 해제한 뒤 보내세요.",
+  running: "이 세션의 응답이 끝난 뒤 보낼 수 있습니다.",
+  empty: "내용을 입력하세요.",
+  preparing: "첨부를 준비하는 중입니다.",
+  failed_attachment: "준비하지 못한 첨부가 있습니다. 빼거나 다시 추가하세요.",
+};
+
+/** Why the send button is locked, or undefined when it may send. */
+export function sendBlock(draft: Draft, session: Session | undefined, running: boolean): SendBlock | undefined {
+  if (!session) return "no_session";
+  if (session.archivedAt !== undefined) return "archived";
+  if (running) return "running";
+  if (draft.attachments.some((a) => a.status === "preparing")) return "preparing";
+  if (draft.attachments.some((a) => a.status === "failed")) return "failed_attachment";
+  if (draft.text.trim() === "" && draft.attachments.length === 0 && !draft.selection) return "empty";
+  return undefined;
+}
+
+/**
+ * Freezes what is sent: the target session is fixed here, at click time, and
+ * later edits or session switches do not change it. Throws if the contract
+ * would reject the draft, so nothing half-valid reaches the host.
+ */
+export function freeze(draft: Draft, targetSessionId: string): ComposerDraft {
+  return ComposerDraft.parse({
+    text: draft.text,
+    attachmentIds: draft.attachments.map((a) => a.id),
+    captureIds: [],
+    targetSessionId,
+    intent: draft.intent,
+    ...(draft.selection ? { selection: draft.selection } : {}),
+  });
+}
+
+/** Sessions for the panel: the current course's sessions and independent ones, newest first. */
+export function visibleSessions(sessions: Session[], courseId: string | undefined): { course: Session[]; independent: Session[] } {
+  const byRecent = (a: Session, b: Session) => b.lastUsedAt.localeCompare(a.lastUsedAt);
+  return {
+    course: sessions.filter((s) => s.mode === "course" && s.courseId === courseId).sort(byRecent),
+    independent: sessions.filter((s) => s.mode === "independent").sort(byRecent),
+  };
+}

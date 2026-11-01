@@ -49,3 +49,13 @@ p.due { font-weight: 600; font-size: 15px; }
 .pdf-page { overflow: auto; }
 .pdf-page canvas { display: block; max-width: none; border: 1px solid var(--line); background: #fff; }
 button:disabled { cursor: default; opacity: 0.5; }
+.chat { display: flex; flex-direction: column; gap: 8px; min-height: 100%; }
+.session-actions, .session-head, .composer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.session-head strong { flex: 1; }
+.transcript { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.turn .you { background: var(--panel); border-radius: 8px; padding: 6px 10px; white-space: pre-wrap; margin-left: 24px; }
+.turn .answer { white-space: pre-wrap; padding: 6px 2px; }
+.turn.cancelled .answer, .turn.failed .answer { color: var(--muted); }
+blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--line); color: var(--muted); }
+.composer { position: sticky; bottom: -16px; background: var(--bg); padding: 8px 0; border-top: 1px solid var(--line); }
+.composer-actions { justify-content: flex-end; }

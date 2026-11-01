@@ -884,6 +884,35 @@
       "branch": "feat/WBS-033-local-manual-collection",
       "url": "https://app.notion.com/p/40bbd7ec20cd81bc99abdff77c5ebd8e?pvs=204",
       "qa_mode": "appropriate_checks_only"
+    },
+    {
+      "id": "WBS-034",
+      "title": "앱 LMS 로그인 창과 실제 응답 확인",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-007",
+        "WBS-011"
+      ],
+      "areas": [
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "packages/collector/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "앱 안 로그인 창으로 학교 세션을 받고 실제 LMS에서 과목과 주차를 읽는다. 비밀번호와 쿠키를 코드에서 읽거나 저장하지 않으며 만료 동작을 실제 응답으로 확인한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-034-lms-login",
+      "url": "https://app.notion.com/p/40bbd7ec20cd817ca74ce231371ed831?pvs=204",
+      "qa_mode": "appropriate_checks_only"
     }
   ],
   "qaPolicy": {

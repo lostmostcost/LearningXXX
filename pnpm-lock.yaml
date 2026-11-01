@@ -168,6 +168,9 @@ importers:
 
   apps/desktop/host:
     dependencies:
+      '@learningxxx/collector':
+        specifier: workspace:*
+        version: link:../../../packages/collector
       '@learningxxx/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts

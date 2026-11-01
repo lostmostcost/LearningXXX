@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { skeletonHandlers } from "./handlers.ts";
+import { runLmsProbe } from "./lms-probe.ts";
 import { createRouter } from "./router.ts";
 import { runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -33,6 +34,12 @@ app.whenReady().then(async () => {
   const probeOut = process.argv.find((arg) => arg.startsWith("--probe-out="))?.split("=")[1];
   if (probeOut !== undefined) {
     await runGuiCliProbe(probeOut, "/opt/homebrew/bin/claude", tmpdir());
+    app.quit();
+    return;
+  }
+  const lmsProbeOut = process.argv.find((arg) => arg.startsWith("--lms-probe="))?.split("=")[1];
+  if (lmsProbeOut !== undefined) {
+    await runLmsProbe(lmsProbeOut);
     app.quit();
     return;
   }

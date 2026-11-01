@@ -14,11 +14,12 @@ Allowed paths:
 ## Explain this feature
 <!-- Input → processing → storage → output; Mac/server/Claude roles; automatic/manual; failures. -->
 
-## Human QA
-QA record:
-Build/commit and run steps:
-Actual reviewer experience and result:
-<!-- Keep pending until a human has tried it. -->
+## Developer self-QA (major feature checkpoints only)
+<!-- Routine tasks: N/A. No peer QA or separate QA card is required. -->
+Build/commit:
+Core flow tried by the responsible developer / result:
+Known issue / next step:
+<!-- Do not fabricate a developer test. The implementing developer can continue after their own functional check. -->
 
 ## Changes and handoff
 CR/ADR:

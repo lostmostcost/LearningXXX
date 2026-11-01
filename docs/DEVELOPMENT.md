@@ -25,7 +25,7 @@ Update Notion owner/start/branch after success. Each person should hold one impl
 Read current locks: `git ls-remote origin 'refs/heads/claims/*'`.
 Local receipts are in Git's common directory under learningxxx-claims, shared by worktrees. Preserve the receipt until release. If network response is uncertain, retain it and inspect remote refs before retrying; never force-steal.
 
-After QA/merge or a documented handoff:
+After appropriate checks/merge (and developer self-testing at major feature checkpoints), or a documented handoff:
 ```sh
 python3 scripts/claim.py release WBS-001
 ```
@@ -41,7 +41,7 @@ Include uncommitted/untracked paths in review; the scope script checks committed
 Shared root/config changes use a shared task; unrelated directories do not imply permission to change shared APIs.
 
 ## Completion
-Self-review + passing CI → author may merge their own PR. Peer approval is optional. Feature explanation and actual human QA remain required before WBS Done.
+Self-review + passing CI → author may merge their own PR. Routine tasks then proceed to Done without QA cards or peer QA. Only major feature checkpoints WBS-020/028/031 require the responsible developer to directly test the feature and record a brief self-QA result. No peer approval is needed; WBS-029 summarizes existing results.
 Notion dates, assignees and QA outcomes are blank until real work occurs.
 CI currently checks the WBS graph and coordination tooling. It does not run LMS, Claude, GUI, recording or transcription.
 

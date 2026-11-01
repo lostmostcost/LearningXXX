@@ -21,16 +21,16 @@
 - Identify WBS/REQ IDs, spec version, allowed paths, dependency commits and acceptance tests.
 - Do not label unrun tests, unimplemented features, human QA or decisions as completed.
 - Explain each completed feature to a person: result, flow, execution location, data, automatic/manual boundary, failure recovery and hands-on steps.
-- Human QA is required; AI cannot supply a human's signoff.
+- Routine tasks do not require human QA, peer QA, a separate QA card or peer approval. At major feature checkpoints (WBS-020 A flow, WBS-028 recording/transcription, WBS-031 app modification), the responsible developer directly tries the feature and records a short self-QA result, then continues. WBS-029 summarizes existing results rather than requiring another QA round. Do not fabricate the developer's actions.
 - Update Notion WBS/QA and relevant spec via approved CR. Do not silently replace current specs with old snapshots.
 - Report actual commands/results, limitations, next steps. Escalate scope changes as decisions, not assumptions.
 
 ## Git
 Branch: feat|fix|spike/WBS-NNN-short-name.
 Commit: type(scope): concrete behavior [WBS-NNN].
-PR: task link, REQ IDs, behavior, tests, feature explanation, QA record, known limitations.
+PR: task link, REQ IDs, behavior, appropriate checks, feature explanation and known limitations. Self-QA notes only for major feature checkpoints; no mandatory QA record for every task.
 Initial repository bootstrap uses PM-BOOTSTRAP; subsequent product work uses WBS IDs.
-Self-review and passing CI allow each developer to merge their own PR without peer approval. Human QA remains required for WBS Done and can follow merge. No force pushes to main.
+Self-review and passing CI allow each developer to merge their own PR without peer approval. Routine tasks can reach Done after appropriate checks and merge. Major feature checkpoints require only the implementing developer's own functional self-test; no second developer approval. No force pushes to main.
 Use scripts/claim.py on host (needs Git authentication). Never force-steal active claims.
 
 ## Checks

@@ -26,3 +26,26 @@ textarea { width: 100%; min-height: 80px; resize: vertical; }
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); }
 [role="tab"] { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; }
 [role="tab"][aria-selected="true"] { background: var(--focus); border-color: var(--focus); color: var(--bg); font-weight: 600; }
+details { margin: 8px 0; }
+summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+.entries { list-style: none; margin: 4px 0 8px; padding: 0; }
+.entry { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; width: 100%; text-align: left; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.entry:hover { background: var(--bg); }
+.entry[aria-pressed="true"] { border-color: var(--focus); background: var(--bg); }
+.entry .kind { font-size: 11px; color: var(--muted); min-width: 2.5em; }
+.entry .title { flex: 1 1 9em; min-width: 0; overflow-wrap: anywhere; }
+.badge { font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); }
+.due.soon { color: #b26a00; border-color: #b26a00; }
+.due.overdue { color: #c62828; border-color: #c62828; }
+p.due { font-weight: 600; font-size: 15px; }
+.empty { font-size: 12px; margin: 4px 8px; }
+.viewer-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.viewer-head h2 { flex: 1; }
+.meta { font-size: 12px; }
+.source-link { color: var(--focus); white-space: nowrap; }
+.notice-box { color: var(--text) !important; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.pdf-toolbar { display: flex; align-items: center; gap: 6px; margin: 8px 0; position: sticky; top: -16px; background: var(--bg); padding: 4px 0; }
+.pdf-toolbar button { min-width: 32px; }
+.pdf-page { overflow: auto; }
+.pdf-page canvas { display: block; max-width: none; border: 1px solid var(--line); background: #fff; }
+button:disabled { cursor: default; opacity: 0.5; }

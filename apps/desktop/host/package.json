@@ -1,0 +1,24 @@
+{
+  "name": "@learningxxx/desktop-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/main.cjs",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "start": "pnpm run build && electron ."
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "electron": "44.9.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@learningxxx/contracts": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

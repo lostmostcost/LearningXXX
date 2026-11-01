@@ -1,16 +1,9 @@
-# WBS-NNN · 기능 설명과 QA
-- Spec/REQ:
-- Build/commit:
-- User result:
-- Flow (3–6 steps):
-- Runs on (Mac/server/Claude):
-- Files read/written and retention:
-- Automatic vs manual:
-- Failure/recovery:
-- Run commands:
-- Human steps / expected:
-- Actual experience:
-- Tester / date:
-- Result: NOT RUN
-- Defects and retest:
+# 주요 기능 · 개발자 자가 테스트 (선택 양식)
 
+일반 WBS에는 이 양식을 요구하지 않습니다. A 주요 흐름(WBS-020), B 녹음·전사(WBS-028), 앱 수정(WBS-031)이 완성됐을 때 담당 개발자 본인이 직접 확인하고 WBS/PR에 짧게 기록하면 됩니다. 상대 QA·승인은 필요하지 않습니다.
+
+- 기능 / WBS / commit:
+- 직접 사용한 핵심 흐름:
+- 결과 / 알려진 문제:
+- 작동 구조·실행 방법:
+- 다음 단계:

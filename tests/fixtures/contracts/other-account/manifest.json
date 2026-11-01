@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "course": {
+    "id": "11111111-1111-4111-8111-000000000002",
+    "accountKey": "acct_synthbeta002",
+    "termId": "2026-2",
+    "sourceCourseId": "SYN-COURSE-001",
+    "title": "합성 과목 A (디지털 논리 예제)"
+  },
+  "weeks": [
+    { "id": "22222222-2222-4222-8222-000000000011", "courseId": "11111111-1111-4111-8111-000000000002", "sourceWeekId": "W01", "label": "1주차", "order": 0 }
+  ],
+  "revision": 1,
+  "syncRunId": "55555555-5555-4555-8555-000000000011",
+  "generatedAt": "2026-11-01T04:00:00Z",
+  "items": [
+    {
+      "resource": {
+        "id": "33333333-3333-4333-8333-000000000011",
+        "courseId": "11111111-1111-4111-8111-000000000002",
+        "weekId": "22222222-2222-4222-8222-000000000011",
+        "kind": "file",
+        "source": "lms",
+        "sourceId": "FILE-0001",
+        "sourceUrl": "https://lms.example.test/courses/SYN-COURSE-001/files/FILE-0001",
+        "title": "불 대수 기초 (합성 슬라이드)",
+        "revision": 1,
+        "updatedAt": "2026-10-30T01:00:00Z"
+      },
+      "assets": [
+        {
+          "id": "44444444-4444-4444-8444-000000000011",
+          "resourceId": "33333333-3333-4333-8333-000000000011",
+          "mediaType": "application/pdf",
+          "bytes": 48213,
+          "sha256": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+          "storageKey": "originals/3a/3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b.pdf",
+          "originalName": "week01-boolean.pdf"
+        }
+      ]
+    }
+  ],
+  "tombstones": []
+}

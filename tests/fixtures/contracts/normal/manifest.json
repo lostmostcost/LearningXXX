@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "course": {
+    "id": "11111111-1111-4111-8111-000000000001",
+    "accountKey": "acct_synthalpha01",
+    "termId": "2026-2",
+    "sourceCourseId": "SYN-COURSE-001",
+    "title": "합성 과목 A (디지털 논리 예제)"
+  },
+  "weeks": [
+    { "id": "22222222-2222-4222-8222-000000000001", "courseId": "11111111-1111-4111-8111-000000000001", "sourceWeekId": "W01", "label": "1주차", "order": 0 },
+    { "id": "22222222-2222-4222-8222-000000000002", "courseId": "11111111-1111-4111-8111-000000000001", "sourceWeekId": "W02", "label": "2주차 (보강)", "order": 1 }
+  ],
+  "revision": 3,
+  "syncRunId": "55555555-5555-4555-8555-000000000001",
+  "generatedAt": "2026-11-01T03:00:00Z",
+  "items": [
+    {
+      "resource": {
+        "id": "33333333-3333-4333-8333-000000000001",
+        "courseId": "11111111-1111-4111-8111-000000000001",
+        "weekId": "22222222-2222-4222-8222-000000000001",
+        "kind": "file",
+        "source": "lms",
+        "sourceId": "FILE-0001",
+        "sourceUrl": "https://lms.example.test/courses/SYN-COURSE-001/files/FILE-0001",
+        "title": "불 대수 기초 (합성 슬라이드)",
+        "revision": 2,
+        "updatedAt": "2026-10-30T01:00:00Z"
+      },
+      "assets": [
+        {
+          "id": "44444444-4444-4444-8444-000000000001",
+          "resourceId": "33333333-3333-4333-8333-000000000001",
+          "mediaType": "application/pdf",
+          "bytes": 48213,
+          "sha256": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+          "storageKey": "originals/3a/3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b.pdf",
+          "originalName": "week01-boolean.pdf"
+        }
+      ]
+    },
+    {
+      "resource": {
+        "id": "33333333-3333-4333-8333-000000000002",
+        "courseId": "11111111-1111-4111-8111-000000000001",
+        "kind": "notice",
+        "source": "lms",
+        "sourceId": "NOTICE-0001",
+        "sourceUrl": "https://lms.example.test/courses/SYN-COURSE-001/announcements/NOTICE-0001",
+        "title": "합성 공지: 강의실 변경",
+        "revision": 1,
+        "updatedAt": "2026-10-28T23:30:00Z"
+      },
+      "assets": []
+    },
+    {
+      "resource": {
+        "id": "33333333-3333-4333-8333-000000000003",
+        "courseId": "11111111-1111-4111-8111-000000000001",
+        "weekId": "22222222-2222-4222-8222-000000000002",
+        "kind": "assignment",
+        "source": "lms",
+        "sourceId": "ASSIGN-0001",
+        "title": "합성 과제 1: 진리표 작성",
+        "revision": 1,
+        "updatedAt": "2026-10-29T00:00:00Z"
+      },
+      "assets": [],
+      "assignment": {
+        "resourceId": "33333333-3333-4333-8333-000000000003",
+        "dueAt": "2026-11-07T14:59:00Z",
+        "timezone": "Asia/Seoul",
+        "timezoneBasis": "source_explicit"
+      }
+    },
+    {
+      "resource": {
+        "id": "33333333-3333-4333-8333-000000000004",
+        "courseId": "11111111-1111-4111-8111-000000000001",
+        "weekId": "22222222-2222-4222-8222-000000000002",
+        "kind": "file",
+        "source": "manual",
+        "sourceId": "manual-0001",
+        "title": "직접 올린 합성 메모",
+        "revision": 1,
+        "updatedAt": "2026-10-31T05:00:00Z"
+      },
+      "assets": [
+        {
+          "id": "44444444-4444-4444-8444-000000000002",
+          "resourceId": "33333333-3333-4333-8333-000000000004",
+          "mediaType": "application/pdf",
+          "bytes": 1024,
+          "sha256": "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c",
+          "storageKey": "originals/b5/b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c.pdf",
+          "originalName": "my-notes.pdf"
+        }
+      ]
+    }
+  ],
+  "tombstones": [
+    { "resourceId": "33333333-3333-4333-8333-000000000099", "removedAt": "2026-10-31T00:00:00Z", "reason": "hidden_at_source" }
+  ]
+}

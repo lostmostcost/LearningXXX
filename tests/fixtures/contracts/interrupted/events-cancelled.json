@@ -1,0 +1,18 @@
+[
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000021", "runId": "99999999-9999-4999-8999-000000000004", "seq": 0,
+    "occurredAt": "2026-11-03T04:00:00Z", "type": "run.started",
+    "payload": {
+      "appSessionId": "66666666-6666-4666-8666-000000000002", "cliSessionId": "77777777-7777-4777-8777-000000000002",
+      "mode": "independent", "apiKeySource": "none", "tools": ["Read", "Glob", "Grep"], "mcpServers": []
+    }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000022", "runId": "99999999-9999-4999-8999-000000000004", "seq": 1,
+    "occurredAt": "2026-11-03T04:00:02Z", "type": "text.delta", "payload": { "text": "첨부한 파일을 보면" }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000023", "runId": "99999999-9999-4999-8999-000000000004", "seq": 2,
+    "occurredAt": "2026-11-03T04:00:03Z", "type": "run.cancelled", "payload": { "processExited": true, "artifactsWritten": [] }
+  }
+]

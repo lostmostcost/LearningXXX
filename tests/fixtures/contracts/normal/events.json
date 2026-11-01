@@ -1,0 +1,28 @@
+[
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000001", "runId": "99999999-9999-4999-8999-000000000001", "seq": 0,
+    "occurredAt": "2026-11-01T03:10:00Z", "type": "run.started",
+    "payload": {
+      "appSessionId": "66666666-6666-4666-8666-000000000001", "cliSessionId": "77777777-7777-4777-8777-000000000001",
+      "mode": "course", "apiKeySource": "none", "tools": ["Read", "Write", "Edit"], "mcpServers": []
+    }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000002", "runId": "99999999-9999-4999-8999-000000000001", "seq": 1,
+    "occurredAt": "2026-11-01T03:10:01Z", "type": "text.delta", "payload": { "text": "드모르간 법칙은 " }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000003", "runId": "99999999-9999-4999-8999-000000000001", "seq": 2,
+    "occurredAt": "2026-11-01T03:10:02Z", "type": "tool.requested",
+    "payload": { "toolUseId": "toolu_synthetic_01", "tool": "Write", "targetKeys": ["outputs/summary-week01.md"], "decision": "allowed" }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000004", "runId": "99999999-9999-4999-8999-000000000001", "seq": 3,
+    "occurredAt": "2026-11-01T03:10:04Z", "type": "artifact.created",
+    "payload": { "outputKey": "outputs/summary-week01.md", "operation": "created" }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000005", "runId": "99999999-9999-4999-8999-000000000001", "seq": 4,
+    "occurredAt": "2026-11-01T03:10:05Z", "type": "run.completed", "payload": { "exitCode": 0 }
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000011", "runId": "99999999-9999-4999-8999-000000000002", "seq": 0,
+    "occurredAt": "2026-11-02T01:05:00Z", "type": "run.started",
+    "payload": {
+      "appSessionId": "66666666-6666-4666-8666-000000000001", "cliSessionId": "77777777-7777-4777-8777-000000000001",
+      "mode": "course", "apiKeySource": "none", "tools": ["Read"], "mcpServers": []
+    }
+  },
+  {
+    "schemaVersion": 1, "eventId": "88888888-8888-4888-8888-000000000012", "runId": "99999999-9999-4999-8999-000000000002", "seq": 1,
+    "occurredAt": "2026-11-02T01:05:01Z", "type": "run.failed",
+    "payload": {
+      "exitCode": 1,
+      "error": { "code": "CLI_AUTH_REQUIRED", "message": "Claude 로그인이 만료되었습니다. 터미널에서 claude를 실행해 다시 로그인하세요.", "retryable": false }
+    }
+  }
+]

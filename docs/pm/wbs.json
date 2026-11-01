@@ -276,12 +276,16 @@
         "WBS-006"
       ],
       "areas": [
-        "ui",
-        "host"
+        "host",
+        "shared",
+        "ui"
       ],
       "paths": [
-        "apps/desktop/ui/",
-        "apps/desktop/host/"
+        "apps/desktop/",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "docs/pm/wbs.json",
+        "docs/decisions/"
       ],
       "spec": "SPEC-003",
       "requirements": [

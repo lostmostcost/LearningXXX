@@ -3,6 +3,7 @@ import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
+import { ChatPanel } from "./ChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
@@ -131,11 +132,12 @@ export function App() {
         {panel("viewer", "자료 뷰어", (
           <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} />
         ))}
-        {panel("chat", "채팅", (
+        {panel("chat", "채팅", window.host ? (
+          <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} />
+        ) : (
           <>
             <h2>채팅</h2>
-            <p>세션이 없습니다. 파일을 직접 첨부해 질문할 수도 있습니다.</p>
-            <textarea aria-label="메시지 입력" disabled placeholder="채팅 연결은 후속 작업에서 제공됩니다" />
+            <p>앱 안에서 실행하면 채팅할 수 있습니다.</p>
           </>
         ))}
       </main>

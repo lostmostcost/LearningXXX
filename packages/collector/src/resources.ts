@@ -1,0 +1,308 @@
+import { Asset, AssignmentMetadata, ManifestItem, Resource } from "@learningxxx/contracts";
+import type { AppError, CollectionManifest, Course, Week } from "@learningxxx/contracts";
+import { z } from "zod";
+import type { AssetStore } from "./asset-store.ts";
+import type { CanvasClient } from "./canvas-client.ts";
+import { stableId } from "./discovery.ts";
+import { CollectionError, collectionError } from "./errors.ts";
+import { DEFAULT_RETRY, withRetry, type RetryPolicy } from "./retry.ts";
+
+type Item = z.infer<typeof ManifestItem>;
+type Tombstone = CollectionManifest["tombstones"][number];
+export type ResourceError = AppError & { resourceSourceId?: string };
+
+const SourceId = z.union([z.number().int(), z.string().min(1)]).transform(String);
+const Text = z.string().nullish().transform((v) => v ?? undefined);
+
+const ModuleItem = z.object({
+  type: z.string(),
+  content_id: SourceId.optional(),
+  html_url: Text,
+});
+
+const CanvasFile = z.object({
+  id: SourceId,
+  display_name: z.string().min(1),
+  filename: Text,
+  "content-type": Text,
+  size: z.number().int().nonnegative(),
+  url: Text,
+  modified_at: Text,
+  updated_at: Text,
+  locked_for_user: z.boolean().optional(),
+  hidden_for_user: z.boolean().optional(),
+});
+type CanvasFile = z.infer<typeof CanvasFile>;
+
+const CanvasAssignment = z.object({
+  id: SourceId,
+  name: z.string().min(1),
+  due_at: Text,
+  html_url: Text,
+  updated_at: Text,
+  created_at: Text,
+  quiz_id: SourceId.optional(),
+});
+
+const CanvasAnnouncement = z.object({
+  id: SourceId,
+  title: z.string().min(1),
+  html_url: Text,
+  posted_at: Text,
+  created_at: Text,
+  attachments: z.array(CanvasFile.partial({ size: true }).extend({ size: z.number().int().nonnegative() })).optional(),
+});
+
+export interface ResourceCollectionInput {
+  client: CanvasClient;
+  store: AssetStore;
+  course: Course;
+  weeks: Week[];
+  /** Last good manifest of this course: unchanged originals are reused and kept on failure. */
+  previous?: CollectionManifest | undefined;
+  now?: () => Date;
+  /** Bounded retry for transient failures (WBS-009); tests pass a fake sleep. */
+  retry?: RetryPolicy;
+}
+
+export interface ResourceCollectionResult {
+  items: Item[];
+  tombstones: Tombstone[];
+  /** One entry per failed listing or resource; a non-empty list makes the sync run `partial`. */
+  errors: ResourceError[];
+  /** Module item types that have no Resource kind yet (pages, discussions, links, …). */
+  skippedTypes: Record<string, number>;
+}
+
+/**
+ * Collects files (from weekly modules), announcements and assignments of one
+ * course into contract items (WBS-008). Each resource fails on its own and
+ * keeps its previous good item; only an expired login stops the whole run.
+ * Revisions rise only when content changes, never on a title edit.
+ */
+export async function collectResources(input: ResourceCollectionInput): Promise<ResourceCollectionResult> {
+  const { client, store, course, weeks, previous } = input;
+  const now = input.now ?? (() => new Date());
+  const cid = course.sourceCourseId;
+  const errors: ResourceError[] = [];
+  const skippedTypes: Record<string, number> = {};
+  const prevItems = new Map((previous?.items ?? []).map((i) => [i.resource.id, i]));
+  const items = new Map<string, Item>();
+  const complete = { file: true, notice: true, assignment: true };
+  const hidden = new Set<string>();
+
+  const retry = input.retry ?? DEFAULT_RETRY;
+  const attempt = async <T>(sourceId: string | undefined, work: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await withRetry(work, retry);
+    } catch (error) {
+      if (!(error instanceof CollectionError) || error.appError.code === "AUTH_REQUIRED") throw error;
+      errors.push({ ...error.appError, ...(sourceId === undefined ? {} : { resourceSourceId: sourceId }) });
+      return undefined;
+    }
+  };
+  /** Keeps the previous good item when a resource could not be collected this time. */
+  const keepPrevious = (id: string) => {
+    const prev = prevItems.get(id);
+    if (prev) items.set(id, prev);
+  };
+
+  // 1. Weekly modules link files and assignments to weeks; the first (earliest) week wins.
+  const fileWeek = new Map<string, { weekId: string; url: string | undefined }>();
+  const assignmentWeek = new Map<string, string>();
+  const quizWeek = new Map<string, string>();
+  for (const week of [...weeks].sort((a, b) => a.order - b.order)) {
+    const raw = await attempt(undefined, () => client.getList(`/api/v1/courses/${cid}/modules/${week.sourceWeekId}/items?per_page=100`));
+    if (raw === undefined) {
+      complete.file = complete.assignment = false;
+      continue;
+    }
+    for (const entry of raw) {
+      const item = ModuleItem.safeParse(entry);
+      if (!item.success) continue;
+      const { type, content_id: contentId } = item.data;
+      if (type === "File" && contentId && !fileWeek.has(contentId)) fileWeek.set(contentId, { weekId: week.id, url: item.data.html_url });
+      else if (type === "Assignment" && contentId && !assignmentWeek.has(contentId)) assignmentWeek.set(contentId, week.id);
+      else if (type === "Quiz" && contentId && !quizWeek.has(contentId)) quizWeek.set(contentId, week.id);
+      else if (type !== "File" && type !== "Assignment" && type !== "Quiz") skippedTypes[type] = (skippedTypes[type] ?? 0) + 1;
+    }
+  }
+
+  const resource = (kind: Resource["kind"], sourceId: string, fields: { weekId?: string | undefined; title: string; url?: string | undefined; updatedAt: string }) => ({
+    id: stableId("resource", course.id, kind, sourceId),
+    courseId: course.id,
+    ...(fields.weekId ? { weekId: fields.weekId } : {}),
+    kind,
+    source: "lms" as const,
+    sourceId,
+    ...(sameOriginHttps(fields.url, client) ? { sourceUrl: fields.url } : {}),
+    title: fields.title,
+    updatedAt: fields.updatedAt,
+  });
+
+  const assetFor = async (resourceId: string, file: CanvasFile): Promise<z.infer<typeof Asset>> => {
+    const id = stableId("asset", resourceId, file.id);
+    const prev = prevItems.get(resourceId)?.assets.find((a) => a.id === id);
+    const prevResource = prevItems.get(resourceId)?.resource;
+    // A file resource's updatedAt is the file's modification time; notice attachments get a new id when replaced.
+    const sameVersion = prevResource?.kind !== "file" || toUtc(file.modified_at ?? file.updated_at)?.at === prevResource.updatedAt;
+    // Unchanged at the source and intact on disk: reuse without downloading again.
+    if (prev && prev.bytes === file.size && sameVersion && (await store.verify(prev.storageKey, prev.sha256))) {
+      return { ...prev, originalName: file.display_name };
+    }
+    if (!file.url) throw collectionError("SOURCE_CHANGED", "LMS가 이 파일의 다운로드 주소를 주지 않았습니다.");
+    const { body, contentType } = await client.download(file.url);
+    const name = file.filename ?? file.display_name;
+    const stored = await store.put(body, { expectedBytes: file.size, extension: extensionOf(name) });
+    return Asset.parse({
+      id,
+      resourceId,
+      mediaType: mediaType(file["content-type"] ?? contentType),
+      bytes: stored.bytes,
+      sha256: stored.sha256,
+      storageKey: stored.storageKey,
+      originalName: file.display_name,
+    });
+  };
+
+  // 2. Files referenced from modules.
+  for (const [fileId, link] of fileWeek) {
+    const id = stableId("resource", course.id, "file", fileId);
+    const done = await attempt(fileId, async () => {
+      const file = parse(CanvasFile, await client.getObject(`/api/v1/courses/${cid}/files/${fileId}`));
+      if (file.locked_for_user || file.hidden_for_user) {
+        hidden.add(id);
+        return true;
+      }
+      const updatedAt = toUtc(file.modified_at ?? file.updated_at)?.at ?? keepTime(prevItems.get(id), now);
+      const res = resource("file", fileId, { weekId: link.weekId, title: file.display_name, url: link.url, updatedAt });
+      items.set(id, withRevision({ resource: res, assets: [await assetFor(id, file)] }, prevItems.get(id)));
+      return true;
+    });
+    if (!done) keepPrevious(id);
+  }
+
+  // 3. Announcements: course-level notices, attachments kept as assets.
+  const announcements = await attempt(undefined, () => client.getList(`/api/v1/courses/${cid}/discussion_topics?only_announcements=true&per_page=100`));
+  if (announcements === undefined) complete.notice = false;
+  for (const raw of announcements ?? []) {
+    const parsed = CanvasAnnouncement.safeParse(raw);
+    if (!parsed.success) {
+      errors.push(collectionError("SOURCE_CHANGED", "LMS 공지 형식이 예상과 다릅니다.").appError);
+      complete.notice = false;
+      continue;
+    }
+    const a = parsed.data;
+    const posted = toUtc(a.posted_at ?? a.created_at)?.at;
+    if (posted === undefined) continue; // not published yet
+    const id = stableId("resource", course.id, "notice", a.id);
+    const done = await attempt(a.id, async () => {
+      const res = resource("notice", a.id, { title: a.title, url: a.html_url, updatedAt: posted });
+      const assets = [];
+      for (const file of a.attachments ?? []) assets.push(await assetFor(id, { ...file, display_name: file.display_name ?? file.filename ?? "첨부" }));
+      items.set(id, withRevision({ resource: res, assets }, prevItems.get(id)));
+      return true;
+    });
+    if (!done) keepPrevious(id);
+  }
+
+  // 4. Assignments, linked to a week through an Assignment or Quiz module item.
+  const assignments = await attempt(undefined, () => client.getList(`/api/v1/courses/${cid}/assignments?per_page=100`));
+  if (assignments === undefined) complete.assignment = false;
+  for (const raw of assignments ?? []) {
+    const parsed = CanvasAssignment.safeParse(raw);
+    if (!parsed.success) {
+      errors.push(collectionError("SOURCE_CHANGED", "LMS 과제 형식이 예상과 다릅니다.").appError);
+      complete.assignment = false;
+      continue;
+    }
+    const a = parsed.data;
+    const id = stableId("resource", course.id, "assignment", a.id);
+    const weekId = assignmentWeek.get(a.id) ?? (a.quiz_id ? quizWeek.get(a.quiz_id) : undefined);
+    const due = toUtc(a.due_at);
+    const updatedAt = toUtc(a.updated_at ?? a.created_at)?.at ?? keepTime(prevItems.get(id), now);
+    const res = resource("assignment", a.id, { weekId, title: a.name, url: a.html_url, updatedAt });
+    const assignment = AssignmentMetadata.parse({
+      resourceId: id,
+      dueAt: due?.at ?? null,
+      timezone: "Asia/Seoul",
+      timezoneBasis: due?.assumed ? "assumed_asia_seoul" : "source_explicit",
+      ...(sameOriginHttps(a.html_url, client) ? { submissionUrl: a.html_url } : {}),
+    });
+    items.set(id, withRevision({ resource: res, assets: [], assignment }, prevItems.get(id)));
+  }
+
+  // 5. Tombstones only for kinds whose listing completed, so a failed listing never "deletes" anything.
+  const removedAt = utc(now());
+  const tombstones = new Map<string, Tombstone>();
+  for (const t of previous?.tombstones ?? []) if (!items.has(t.resourceId)) tombstones.set(t.resourceId, t);
+  for (const [id, prev] of prevItems) {
+    if (items.has(id) || tombstones.has(id) || !complete[prev.resource.kind]) continue;
+    tombstones.set(id, { resourceId: id, removedAt, reason: hidden.has(id) ? "hidden_at_source" : "deleted_at_source" });
+  }
+  // A listing failed or this resource failed: the previous good item stays.
+  for (const [id, prev] of prevItems) if (!items.has(id) && !tombstones.has(id)) items.set(id, prev);
+
+  return {
+    items: [...items.values()].sort((a, b) => a.resource.id.localeCompare(b.resource.id)).map((i) => ManifestItem.parse(i)),
+    tombstones: [...tombstones.values()].sort((a, b) => a.resourceId.localeCompare(b.resourceId)),
+    errors,
+    skippedTypes,
+  };
+}
+
+/**
+ * Revision rises only when content changes: file bytes (hash), a notice's post
+ * time or attachments, an assignment's deadline. Title edits keep the revision.
+ */
+function withRevision(item: Omit<Item, "resource"> & { resource: Omit<Resource, "revision"> }, prev: Item | undefined): Item {
+  const fingerprint = (i: { resource: { kind: string; updatedAt: string }; assets: { sha256: string }[]; assignment?: { dueAt: string | null } | undefined }) =>
+    JSON.stringify([
+      i.assets.map((a) => a.sha256).sort(),
+      i.resource.kind === "notice" ? i.resource.updatedAt : null,
+      i.assignment?.dueAt ?? null,
+    ]);
+  const revision = prev === undefined ? 1 : fingerprint(prev) === fingerprint(item) ? prev.resource.revision : prev.resource.revision + 1;
+  return { ...item, resource: Resource.parse({ ...item.resource, revision }) };
+}
+
+const utc = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/**
+ * Canvas sends ISO 8601 with a zone. A value without one is read as Seoul
+ * time and flagged, so the UI can say the zone was assumed (SPEC-001).
+ */
+export function toUtc(value: string | undefined): { at: string; assumed: boolean } | undefined {
+  if (!value) return undefined;
+  const assumed = !/(Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  const date = new Date(assumed ? `${value}+09:00` : value);
+  return Number.isNaN(date.getTime()) ? undefined : { at: utc(date), assumed };
+}
+
+const keepTime = (prev: Item | undefined, now: () => Date) => prev?.resource.updatedAt ?? utc(now());
+
+function sameOriginHttps(url: string | undefined, client: CanvasClient): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.origin === client.origin;
+  } catch {
+    return false;
+  }
+}
+
+function mediaType(raw: string | undefined): string {
+  const type = raw?.split(";")[0]?.trim().toLowerCase() ?? "";
+  return /^[a-z]+\/[0-9a-z.+-]+$/.test(type) ? type : "application/octet-stream";
+}
+
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+function parse<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  throw collectionError("SOURCE_CHANGED", "LMS 응답 형식이 예상과 다릅니다.");
+}

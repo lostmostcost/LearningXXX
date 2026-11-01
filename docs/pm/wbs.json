@@ -360,7 +360,13 @@
         "cli"
       ],
       "paths": [
-        "packages/cli-adapter/"
+        "packages/cli-adapter/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json",
+        "AGENTS.md",
+        "docs/specs/OPS-001.md",
+        "docs/DEVELOPMENT.md",
+        ".github/pull_request_template.md"
       ],
       "spec": "SPEC-002",
       "requirements": [
@@ -370,7 +376,8 @@
       "status": "Backlog",
       "branch": "feat/WBS-014-cli-adapter",
       "url": "https://app.notion.com/p/40bbd7ec20cd817f8313fba1c5d130ad?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 영역 밖 예외(OPS-001 v0.2.1, 이문찬 승인): 새 workspace 패키지의 pnpm-lock.yaml importer 항목. area-shared는 WBS-007이 선점 중이며 claim은 건드리지 않았다. 병합 직전 main 갱신 후 lockfile을 컨테이너에서 재생성·frozen 설치로 검사한다. 같은 승인으로 영역 밖 예외 규칙을 AGENTS.md, OPS-001 snapshot, DEVELOPMENT.md, PR 템플릿에 반영하고 이 기록을 위해 docs/pm/wbs.json을 수정했다."
     },
     {
       "id": "WBS-015",

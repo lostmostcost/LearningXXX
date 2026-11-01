@@ -4,6 +4,7 @@ REQ IDs:
 Spec version:
 Claimed areas:
 Allowed paths:
+Out-of-area changes: <!-- None, or files + reason + claim holder; requires the OPS-001 pre-merge check. -->
 
 ## User-visible behavior and why
 <!-- Concrete trigger, before/after; no invented implementation history. -->

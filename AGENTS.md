@@ -4,7 +4,9 @@
 1. Read README.md, docs/specs/PRD-001.md, relevant SPEC, OPS-001 and QA-001.
 2. Read current Notion WBS and approved CRs. Snapshot statuses are not current authorization.
 3. Confirm task is Ready, dependencies Done, and you hold task + area claims.
-4. Work only in the WBS allowlist. Shared contracts, root manifests and migrations require a shared task/claim. Never edit another claimed area.
+4. Work only in the WBS allowlist and keep out-of-area edits to a minimum. Shared contracts, root manifests and migrations require a shared task/claim.
+5. Exception (OPS-001 영역 밖 예외): when waiting for another claim would block the task and the responsible developer approves, edit only the minimum files outside the area. Never delete or overwrite another person's claim ref. Record the files and reason in the task's `paths`/`scope_note` in docs/pm/wbs.json and in the PR's "Out-of-area changes" section, and tell the claim holder.
+6. Merge such a PR only after a thorough check: update from main and review every out-of-area line; if the claim holder merged first, regenerate generated files (e.g. pnpm-lock.yaml) in the container instead of hand-merging; pass the full container checks (frozen lockfile), a fresh-clone check and scripts/check_scope.py; record the commands and results in the PR. If any check fails, do not merge.
 
 ## Non-negotiable requirements
 - Personal macOS app, KHU LMS, initially one semester/course.

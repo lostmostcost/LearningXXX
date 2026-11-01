@@ -33,7 +33,7 @@ python3 scripts/claim.py release WBS-001
 Release deletes all recorded refs atomically with an expected-SHA lease; it cannot remove a newer owner's claim. No expiry or automatic takeover. A lost clone/receipt requires an explicitly coordinated manual recovery by both humans.
 
 The script does not synchronize Notion or verify live Ready/dependency state: `--ready-confirmed` is your explicit acknowledgment after reading Notion, not an automated gate.
-Changing task areas requires a shared planning change first. No edits outside the WBS paths. Check a branch's allowed paths:
+Changing task areas requires a shared planning change first. Keep edits inside the WBS paths. An out-of-area edit is an approved exception only (OPS-001 영역 밖 예외): minimum files, recorded in `paths`/`scope_note` and the PR, the claim holder informed, and a thorough pre-merge check (fresh main, line-by-line review of out-of-area diffs, regenerated generated files, full container checks with the frozen lockfile, fresh clone, scope check). Check a branch's allowed paths:
 ```sh
 python3 scripts/check_scope.py WBS-001 origin/main
 ```

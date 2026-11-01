@@ -19,13 +19,14 @@ import { BASE, C, lms, noWait } from "./fake-lms.ts";
 
 const accountKey = "acct_synthalpha01";
 
-function setup(options: { store?: (inner: AssetStore) => AssetStore } = {}) {
+function setup(options: { store?: (inner: AssetStore) => AssetStore; wrapFetch?: (fetch: typeof globalThis.fetch) => typeof globalThis.fetch } = {}) {
   const fake = lms();
   const root = mkdtempSync(join(tmpdir(), "wbs009-"));
   const inner = createDirectoryStore(root);
   const store = options.store ? options.store(inner) : inner;
   const waits: number[] = [];
-  const client = new CanvasClient({ baseUrl: BASE, fetch: fake.fetch, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
+  const fetch = options.wrapFetch ? options.wrapFetch(fake.fetch) : fake.fetch;
+  const client = new CanvasClient({ baseUrl: BASE, fetch, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
   const run = () => collectCourse({ client, store, root, accountKey, sourceCourseId: "1001", retry: noWait(waits) });
   const calls = (path: string) => fake.state.calls.filter((c) => c.url === `${BASE}${path}`).length;
   return { ...fake, root, run, waits, calls };
@@ -89,11 +90,18 @@ describe("one run at a time", () => {
   });
 
   test("two simultaneous starts: exactly one runs", async () => {
-    const { run } = setup();
-    const results = await Promise.allSettled([run(), run()]);
-    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
-    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
-    assert.equal((rejected.reason as CollectionError).appError.code, "RUN_ALREADY_ACTIVE");
+    // The first run is held inside the LMS call, so the second start always meets a live lock.
+    // Without the gate a fast first run could finish first, and two back-to-back runs are allowed.
+    let open: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const { run } = setup({ wrapFetch: (fetch) => async (input, init) => { await gate; return fetch(input, init); } });
+    const first = run();
+    // If the lock were missing, the second run would wait on the gate too: fail after 2 s instead of hanging.
+    const timeout = new Promise<string>((resolve) => setTimeout(() => resolve("no lock: second run started"), 2000).unref());
+    const second = await Promise.race([run().then(() => "second run finished", (e: unknown) => e), timeout]);
+    open();
+    assert.equal((second as CollectionError).appError?.code, "RUN_ALREADY_ACTIVE", String(second));
+    assert.equal((await first).syncRun.status, "succeeded");
   });
 
   test("a lock left by a dead process is taken over", async () => {

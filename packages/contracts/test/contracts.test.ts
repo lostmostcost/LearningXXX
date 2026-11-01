@@ -111,6 +111,7 @@ describe("producer → consumer round trip", () => {
       "files.chooseFolder": { appSessionId: sid },
       "files.removeFolder": { appSessionId: sid, folder: "/tmp/synthetic" },
       "files.changes": { runId: sid },
+      "files.sessionChanges": { appSessionId: sid },
       "files.restore": { runId: sid },
       "files.trash": { appSessionId: sid, key: "notes/a.md" },
     };

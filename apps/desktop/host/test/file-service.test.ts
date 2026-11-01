@@ -223,6 +223,37 @@ test("the history lives outside the workspace the CLI can read", async () => {
   assert.equal(copy.startsWith(dataRoot), true);
 });
 
+test("only the latest run can be restored, so later work is never erased", async () => {
+  let content = "first";
+  const { sessions, files, dataRoot } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), content));
+  const session = courseSession(sessions);
+  const dir = workspace(dataRoot, session);
+  writeFileSync(join(dir, "a.md"), "original");
+  const older = await runOnce(sessions, session.appSessionId);
+  content = "second";
+  const newer = await runOnce(sessions, session.appSessionId);
+  assert.equal(await code(files.restore({ runId: older.runId })), "INVALID_REQUEST");
+  assert.equal(readFileSync(join(dir, "a.md"), "utf8"), "second");
+  await files.restore({ runId: newer.runId });
+  assert.equal(readFileSync(join(dir, "a.md"), "utf8"), "first");
+});
+
+test("session history lists cut-off runs after a restart, newest first", async () => {
+  const { sessions, reopen, dataRoot } = setup((req) => writeFileSync(join(req.workspacePath, `${req.runId}.md`), "x"), "none");
+  const session = courseSession(sessions);
+  const run = await runOnce(sessions, session.appSessionId);
+  assert.equal(existsSync(join(workspace(dataRoot, session), `${run.runId}.md`)), true);
+  const restarted = reopen();
+  assert.deepEqual(restarted.changesFor(session.appSessionId).map((r) => r.runId), [run.runId]);
+});
+
+test("a run that changed nothing is left out of session history", async () => {
+  const { sessions } = setup();
+  const session = courseSession(sessions);
+  await runOnce(sessions, session.appSessionId);
+  assert.deepEqual(sessions.changesFor(session.appSessionId), []);
+});
+
 test("a workspace too large to copy is compared but marked not restorable", async () => {
   const history = new RunHistory(mkdtempSync(join(tmpdir(), "wbs017-h-")), () => NOW);
   const dir = mkdtempSync(join(tmpdir(), "wbs017-big-"));

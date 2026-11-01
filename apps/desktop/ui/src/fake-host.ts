@@ -63,6 +63,19 @@ export function installFakeHost(courseTitle: string): void {
       update(session.appSessionId, { lastUsedAt: now() });
       return ok({ run });
     },
+    // Canned history so the file panel can be tried; nothing touches real files.
+    "files.sessionChanges": (p) => ok({
+      records: sessions.find((s) => s.appSessionId === p.appSessionId)?.mode === "course"
+        ? [{ runId: crypto.randomUUID(), appSessionId: p.appSessionId, recordedAt: now(), snapshotKept: true, changes: [
+            { key: "notes/summary.md", change: "created", restorable: true },
+            { key: "notes/week1.md", change: "modified", restorable: true },
+          ] }]
+        : [],
+    }),
+    "files.chooseFolder": (p) => ok({ session: update(String(p.appSessionId), { externalFolders: ["/tmp/synthetic-folder"] }) }),
+    "files.removeFolder": (p) => ok({ session: update(String(p.appSessionId), { externalFolders: [] }) }),
+    "files.restore": () => ok({ restored: ["notes/week1.md", "notes/summary.md"], skipped: [] }),
+    "files.trash": () => ok({ trashed: true }),
     "run.cancel": (p) => {
       const entry = runs.get(String(p.runId));
       if (!entry) return fail("NOT_FOUND", "실행을 찾을 수 없습니다.");

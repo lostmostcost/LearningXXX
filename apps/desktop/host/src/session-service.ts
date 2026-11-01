@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AppError, Run, Session } from "@learningxxx/contracts";
-import type { ErrorCode, IpcRequest, RunEvent } from "@learningxxx/contracts";
+import type { ErrorCode, IpcRequest, RunChanges, RunEvent } from "@learningxxx/contracts";
 import type { RunRequest, StartOutcome } from "@learningxxx/cli-adapter";
 import type { RunHistory } from "./run-history.ts";
 import type { SessionStore, StoredState } from "./session-store.ts";
@@ -89,6 +89,16 @@ export class SessionService {
 
   get(appSessionId: string): Session {
     return this.#session(appSessionId);
+  }
+
+  /** Runs that changed something in this session, newest first. */
+  changesFor(appSessionId: string): RunChanges[] {
+    this.#session(appSessionId);
+    return this.#state.runs
+      .filter((run) => run.appSessionId === appSessionId)
+      .flatMap((run) => this.history?.changes(run.runId) ?? [])
+      .filter((record) => record.changes.length > 0)
+      .reverse();
   }
 
   isActive(appSessionId: string): boolean {

@@ -12,7 +12,7 @@ import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
 import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
-import { runUiSmoke } from "./ui-smoke.ts";
+import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
 const INVOKE_CHANNEL = "host:invoke";
@@ -102,6 +102,12 @@ app.whenReady().then(async () => {
     }
     return router(envelope);
   });
+  const filesSmokeDir = process.argv.find((arg) => arg.startsWith("--files-smoke="))?.split("=")[1];
+  if (filesSmokeDir !== undefined) {
+    await runFilesSmoke(uiEntry, filesSmokeDir);
+    app.quit();
+    return;
+  }
   const window = createWindow();
   const smokeDir = process.argv.find((arg) => arg.startsWith("--ui-smoke="))?.split("=")[1];
   if (smokeDir !== undefined) {

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 
 /**
  * Self-check for the real window, run with --ui-smoke=<dir>. It exercises what
@@ -66,4 +66,47 @@ export async function runUiSmoke(window: BrowserWindow, dir: string): Promise<vo
   report.wideAgain = await state();
   report.problems = problems;
   writeFileSync(join(dir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+}
+
+/** Clicks the first enabled button with this label; reports whether it existed. */
+const click = (label: string) =>
+  `(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === ${JSON.stringify(label)} && !x.disabled); b?.click(); return !!b; })()`;
+
+/**
+ * The file panel in a real window, against the synthetic host. The window has
+ * no preload on purpose: `?fixture` installs its stand-in only when no real host
+ * exists, so no real file, dialog or CLI is reached. Run with --files-smoke=<dir>.
+ */
+export async function runFilesSmoke(uiEntry: string, dir: string): Promise<void> {
+  mkdirSync(dir, { recursive: true });
+  const window = new BrowserWindow({ width: 1280, height: 800, show: false, webPreferences: { sandbox: true, contextIsolation: true } });
+  const { webContents } = window;
+  const problems: string[] = [];
+  webContents.on("console-message", (details) => {
+    if (details.level === "warning" || details.level === "error") problems.push(details.message.slice(0, 200));
+  });
+  await window.loadFile(uiEntry, { search: "fixture" });
+  await wait(1200);
+  const run = async (code: string) => {
+    const value: unknown = await webContents.executeJavaScript(code);
+    await wait(250);
+    return value;
+  };
+  const text = () => webContents.executeJavaScript(`document.querySelector('section.files')?.innerText ?? null`) as Promise<string | null>;
+  const report: Record<string, unknown> = {};
+  report.createCourse = await run(click("과목 세션 만들기"));
+  report.courseSection = await text();
+  report.addFolder = await run(click("외부 폴더 추가"));
+  report.afterFolder = await text();
+  writeFileSync(join(dir, "files.png"), (await webContents.capturePage()).toPNG());
+  report.askRestore = await run(click("이 실행 전으로 되돌리기"));
+  report.restoreIsTwoStep = await text();
+  report.confirmRestore = await run(click("되돌리기 확인"));
+  report.afterRestore = await text();
+  report.trash = await run(click("휴지통으로"));
+  report.afterTrash = await text();
+  report.createIndependent = await run(click("독립 세션 만들기"));
+  report.independentSection = await text();
+  report.problems = problems;
+  writeFileSync(join(dir, "files-report.json"), `${JSON.stringify(report, null, 2)}\n`);
 }

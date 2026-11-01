@@ -86,6 +86,10 @@ export class FileService {
   async restore({ runId }: IpcRequest<"files.restore">): Promise<IpcResponse<"files.restore">> {
     const record = this.#o.history.changes(runId) ?? fail("NOT_FOUND", "이 실행의 변경 기록이 없습니다.");
     const session = this.#idle(record.appSessionId);
+    // An older baseline would also erase what later runs changed.
+    if (this.#o.sessions.changesFor(record.appSessionId)[0]?.runId !== runId) {
+      fail("INVALID_REQUEST", "가장 최근 실행만 되돌릴 수 있습니다.");
+    }
     const restored: string[] = [];
     const skipped: string[] = [];
     for (const { key, change, restorable } of record.changes) {

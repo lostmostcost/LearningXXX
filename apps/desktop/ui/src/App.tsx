@@ -1,7 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
+import { buildLibrary, type Entry } from "./library.ts";
+import { LibraryPanel } from "./LibraryPanel.tsx";
+import { openPdfInBrowser } from "./pdf-browser.ts";
+import { Viewer } from "./Viewer.tsx";
+
+/**
+ * `?fixture` shows the synthetic course (WBS-013 acceptance). The host has no
+ * course list or local asset channel yet (WBS-012), so the app itself shows
+ * the empty state.
+ */
+const FIXTURE_MODE = new URLSearchParams(window.location.search).has("fixture");
+const library = FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined;
+const loadAsset = FIXTURE_MODE ? loadFixtureAsset : undefined;
 
 function useWindowWidth(): number {
   const [width, setWidth] = useState(window.innerWidth);
@@ -16,11 +30,14 @@ function useWindowWidth(): number {
 export function App() {
   const narrow = isNarrow(useWindowWidth());
   const [view, setView] = useState<NarrowView>("materials");
-  const [status, setStatus] = useState("확인 중");
+  const [status, setStatus] = useState(FIXTURE_MODE ? "합성 데이터(fixture) 모드" : "확인 중");
+  const [selected, setSelected] = useState<Entry>();
+  const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
 
   useEffect(() => {
+    if (FIXTURE_MODE) return;
     void invoke("collection.status", {}).then((result) => {
       if (!result.ok) setStatus(result.error.message);
       else setStatus(result.data.lastSucceeded ? "수집 완료" : "아직 수집하지 않음");
@@ -53,7 +70,7 @@ export function App() {
       <header className="topbar">
         <strong>LearningXXX</strong>
         <span role="status">수집: {status}</span>
-        <span>과목 없음 · 세션 없음</span>
+        <span>{library ? library.course.title : "과목 없음"} · 세션 없음</span>
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">
             <button role="tab" aria-selected={view === "materials"} onClick={() => setView("materials")}>자료</button>
@@ -62,7 +79,9 @@ export function App() {
         ) : null}
       </header>
       <main className="panels">
-        {panel("library", "과목과 자료", (
+        {panel("library", "과목과 자료", library ? (
+          <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={setSelected} now={now} />
+        ) : (
           <>
             <h2>과목</h2>
             <p>아직 자료가 없습니다.</p>
@@ -71,10 +90,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <>
-            <h2>자료</h2>
-            <p>왼쪽에서 자료를 선택하면 여기에서 열립니다.</p>
-          </>
+          <Viewer entry={selected} {...(loadAsset ? { loadAsset } : {})} open={openPdfInBrowser} now={now} />
         ))}
         {panel("chat", "채팅", (
           <>

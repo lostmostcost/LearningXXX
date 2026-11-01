@@ -334,7 +334,9 @@
         "ui"
       ],
       "paths": [
-        "apps/desktop/ui/"
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-003",
       "requirements": [
@@ -344,7 +346,8 @@
       "status": "Backlog",
       "branch": "feat/WBS-013-viewer",
       "url": "https://app.notion.com/p/40bbd7ec20cd8119a201fe259c2bc792?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 영역 밖 예외(OPS-001 v0.2.1, 이문찬 승인): apps/desktop/ui에 pdfjs-dist 6.4.299 의존성을 추가해 pnpm-lock.yaml이 바뀐다(pdfjs-dist와 선택 설치 @napi-rs/canvas, 설치 스크립트는 실행하지 않음). area-shared는 WBS-034가 선점 중이며 claim은 건드리지 않았다. 병합 직전 main 갱신 후 lockfile을 컨테이너에서 재생성·frozen 설치로 검사한다. 이 기록을 위해 docs/pm/wbs.json을 수정했다."
     },
     {
       "id": "WBS-014",

@@ -25,6 +25,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
       const changes = sessions.history?.changes(runId);
       return changes ? { changes } : {};
     },
+    "files.sessionChanges": async ({ appSessionId }) => ({ records: sessions.changesFor(appSessionId) }),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
   };

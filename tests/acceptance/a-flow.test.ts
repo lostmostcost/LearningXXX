@@ -145,7 +145,7 @@ test("course file output → persisted summary → restore to test Trash; explic
   assert.deepEqual(changes!.changes, [{ key: "notes/summary.md", change: "created", restorable: true }]);
   const path = join(h.dataRoot, session.workspaceKey, "notes/summary.md");
   assert.equal(readFileSync(path, "utf8"), "synthetic\n");
-  assert.deepEqual(await h.ok("files.trash", { appSessionId: session.appSessionId, key: "notes/summary.md" }), { trashed: false });
+  assert.deepEqual(await h.ok("files.trash", { appSessionId: session.appSessionId, runId: run.runId, key: "notes/summary.md" }), { trashed: false });
   assert.equal(h.trash.length, 0);
   assert.deepEqual(await h.ok("files.restore", { runId: run.runId }), { restored: ["notes/summary.md"], skipped: [] });
   assert.deepEqual(h.trash, [path]);

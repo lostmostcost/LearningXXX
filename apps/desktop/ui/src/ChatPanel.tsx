@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, type Transcript, type Turn } from "./chat.ts";
 import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft } from "./composer.ts";
+import { FilesSection } from "./FilesSection.tsx";
 import { invoke, onHostPush } from "./host-api.ts";
 import { INTENT_LABEL, type SelectedText, type SelectionRequest } from "./selection.ts";
 
@@ -190,6 +191,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
           {active.mode === "independent" ? (
             <p role="note" className="notice-box">독립 세션: 과목 자료, 이전 대화, 메모를 보지 않습니다. 직접 첨부한 것만 전달됩니다.</p>
           ) : null}
+          <FilesSection key={active.appSessionId} session={active} running={running} onChanged={() => void reload()} />
           <ol className="transcript">
             {transcript.turns.filter((t) => t.appSessionId === active.appSessionId).map((turn) => (
               <TurnView

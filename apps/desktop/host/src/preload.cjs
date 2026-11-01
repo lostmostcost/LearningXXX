@@ -17,6 +17,7 @@ const CHANNELS = new Set([
   "files.chooseFolder",
   "files.removeFolder",
   "files.changes",
+  "files.sessionChanges",
   "files.restore",
   "files.trash",
 ]);

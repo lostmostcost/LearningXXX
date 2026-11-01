@@ -111,8 +111,9 @@ describe("producer → consumer round trip", () => {
       "files.chooseFolder": { appSessionId: sid },
       "files.removeFolder": { appSessionId: sid, folder: "/tmp/synthetic" },
       "files.changes": { runId: sid },
+      "files.sessionChanges": { appSessionId: sid },
       "files.restore": { runId: sid },
-      "files.trash": { appSessionId: sid, key: "notes/a.md" },
+      "files.trash": { appSessionId: sid, runId: sid, key: "notes/a.md" },
     };
     for (const channel of Object.keys(C.IpcChannels) as C.IpcChannel[]) {
       const schema = C.IpcChannels[channel].request as z.ZodType;

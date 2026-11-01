@@ -111,6 +111,7 @@ export class RunHistory {
       appSessionId: base.appSessionId,
       recordedAt: this.#now(),
       snapshotKept: base.snapshotKept,
+      externalFolders: base.externals,
       changes: [
         ...diff(base.files, scanHashed(base.workspace).files, base.snapshotKept),
         ...base.externals.flatMap((root, i) => diff(base.externalFiles[i] ?? {}, scanLight(root), false, `external-${i}/`)),

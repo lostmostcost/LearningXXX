@@ -74,13 +74,18 @@ export const IpcChannels = {
     request: z.object({ runId: Id }),
     response: z.object({ changes: RunChanges.optional() }),
   },
+  /** Every recorded change in a session, newest first, including runs cut off by a quit. */
+  "files.sessionChanges": {
+    request: z.object({ appSessionId: Id }),
+    response: z.object({ records: z.array(RunChanges) }),
+  },
   "files.restore": {
     request: z.object({ runId: Id }),
     response: z.object({ restored: z.array(z.string()), skipped: z.array(z.string()) }),
   },
   /** Moves one file to the macOS Trash after the host asks the user, showing its path. */
   "files.trash": {
-    request: z.object({ appSessionId: Id, key: z.string().min(1) }),
+    request: z.object({ appSessionId: Id, runId: Id, key: z.string().min(1) }),
     response: z.object({ trashed: z.boolean() }),
   },
   "run.cancel": {

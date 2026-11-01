@@ -938,6 +938,37 @@
       "branch": "feat/WBS-034-lms-login",
       "url": "https://app.notion.com/p/40bbd7ec20cd817ca74ce231371ed831?pvs=204",
       "qa_mode": "appropriate_checks_only"
+    },
+    {
+      "id": "WBS-035",
+      "title": "파일 작업 화면 연결",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-016",
+        "WBS-017"
+      ],
+      "areas": [
+        "host",
+        "shared",
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/",
+        "packages/contracts/",
+        "docs/pm/wbs.json",
+        "tests/acceptance/a-flow.test.ts"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-009"
+      ],
+      "acceptance": "세션별 외부 폴더 선택·해제, 실행별 변경 목록과 복구 가능 여부, 복구, 확인 후 휴지통 이동을 화면에 제공한다. 앱 재시작 후에도 끊긴 실행의 변경을 볼 수 있고 독립 세션에는 외부 폴더 기능을 제공하지 않는다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-035-file-ui",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81c2bb10ff0d8380a660?pvs=204",
+      "qa_mode": "appropriate_checks_only"
     }
   ],
   "qaPolicy": {

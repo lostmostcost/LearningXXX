@@ -66,3 +66,8 @@ button:disabled { cursor: default; opacity: 0.5; }
 blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--line); color: var(--muted); }
 .composer { position: sticky; bottom: -16px; background: var(--bg); padding: 8px 0; border-top: 1px solid var(--line); }
 .composer-actions { justify-content: flex-end; }
+
+.files { flex: 0 0 auto; max-height: 40vh; overflow-y: auto; margin: 8px 0; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.files li { overflow-wrap: anywhere; }
+.files summary { cursor: pointer; }
+.run-changes { margin-top: 8px; }

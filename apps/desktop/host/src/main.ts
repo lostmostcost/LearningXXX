@@ -2,15 +2,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
-import { skeletonHandlers } from "./handlers.ts";
+import { createCliRunner } from "./cli-runner.ts";
+import { createHandlers } from "./handlers.ts";
 import { runLmsProbe } from "./lms-probe.ts";
 import { createRouter } from "./router.ts";
+import { SessionService } from "./session-service.ts";
+import { SessionStore } from "./session-store.ts";
 import { runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
 const INVOKE_CHANNEL = "host:invoke";
+const PUSH_CHANNEL = "host:push";
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
-const router = createRouter(skeletonHandlers);
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -43,6 +46,16 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
+  const dataRoot = join(app.getPath("userData"), "data");
+  const sessions = new SessionService({
+    dataRoot,
+    store: new SessionStore(join(dataRoot, "app-state.json")),
+    startCli: createCliRunner(),
+    onEvent: (event) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "run.event", event });
+    },
+  });
+  const router = createRouter(createHandlers(sessions));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

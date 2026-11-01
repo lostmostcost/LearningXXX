@@ -19,4 +19,10 @@ contextBridge.exposeInMainWorld("host", {
     if (!CHANNELS.has(channel)) return Promise.reject(new Error("unknown channel"));
     return ipcRenderer.invoke("host:invoke", { schemaVersion: 1, channel, payload });
   },
+  // The listener receives only the message, never the Electron event object.
+  onPush(listener) {
+    const forward = (_event, message) => listener(message);
+    ipcRenderer.on("host:push", forward);
+    return () => ipcRenderer.removeListener("host:push", forward);
+  },
 });

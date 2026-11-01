@@ -392,10 +392,13 @@
         "WBS-014"
       ],
       "areas": [
-        "host"
+        "host",
+        "shared"
       ],
       "paths": [
-        "apps/desktop/host/"
+        "apps/desktop/host/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-002",
       "requirements": [

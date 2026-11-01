@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
@@ -59,6 +60,28 @@ export const IpcChannels = {
   "run.start": {
     request: z.object({ requestId: Id, draft: ComposerDraft }),
     response: z.object({ run: Run }),
+  },
+  /** Opens the system folder picker in the host; the renderer never names a path. */
+  "files.chooseFolder": {
+    request: z.object({ appSessionId: Id }),
+    response: z.object({ session: Session }),
+  },
+  "files.removeFolder": {
+    request: z.object({ appSessionId: Id, folder: z.string().min(1) }),
+    response: z.object({ session: Session }),
+  },
+  "files.changes": {
+    request: z.object({ runId: Id }),
+    response: z.object({ changes: RunChanges.optional() }),
+  },
+  "files.restore": {
+    request: z.object({ runId: Id }),
+    response: z.object({ restored: z.array(z.string()), skipped: z.array(z.string()) }),
+  },
+  /** Moves one file to the macOS Trash after the host asks the user, showing its path. */
+  "files.trash": {
+    request: z.object({ appSessionId: Id, key: z.string().min(1) }),
+    response: z.object({ trashed: z.boolean() }),
   },
   "run.cancel": {
     request: z.object({ runId: Id }),

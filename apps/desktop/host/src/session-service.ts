@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { AppError, Run, Session } from "@learningxxx/contracts";
 import type { ErrorCode, IpcRequest, RunEvent } from "@learningxxx/contracts";
 import type { RunRequest, StartOutcome } from "@learningxxx/cli-adapter";
+import type { RunHistory } from "./run-history.ts";
 import type { SessionStore, StoredState } from "./session-store.ts";
 
 export type StartCli = (request: RunRequest, signal: AbortSignal) => Promise<StartOutcome>;
@@ -13,6 +14,8 @@ export interface SessionServiceOptions {
   store: SessionStore;
   startCli: StartCli;
   onEvent?: (event: RunEvent) => void;
+  /** Receives the service clock. Omitted only by tests of unrelated behaviour. */
+  history?: (now: () => string) => RunHistory;
   model?: string;
   now?: () => Date;
   newId?: () => string;
@@ -45,12 +48,14 @@ export class SessionService {
   readonly #active = new Map<string, { runId: string; abort: AbortController }>();
   readonly #now: () => string;
   readonly #newId: () => string;
+  readonly history: RunHistory | undefined;
 
   constructor(options: SessionServiceOptions) {
     this.#options = options;
     const now = options.now ?? (() => new Date());
     this.#now = () => now().toISOString().replace(/\.\d{3}Z$/, "Z");
     this.#newId = options.newId ?? randomUUID;
+    this.history = options.history?.(this.#now);
     this.#state = options.store.load();
     this.#recover();
   }
@@ -62,6 +67,8 @@ export class SessionService {
     this.#state.runs = this.#state.runs.map((run) => {
       if (TERMINAL.has(run.status)) return run;
       changed = true;
+      // The summary of what the cut-off run left behind is the recovery path.
+      this.#recordChanges(run.runId);
       return Run.parse({ ...run, status: "interrupted", endedAt, errorCode: "RUN_INTERRUPTED" });
     });
     this.#state.sessions = this.#state.sessions.map((session) => {
@@ -70,6 +77,26 @@ export class SessionService {
       return Session.parse({ ...session, status: "interrupted" });
     });
     if (changed) this.#save();
+  }
+
+  #recordChanges(runId: string): void {
+    try {
+      this.history?.finish(runId);
+    } catch {
+      // A failed summary must not turn a finished run into a failed one.
+    }
+  }
+
+  get(appSessionId: string): Session {
+    return this.#session(appSessionId);
+  }
+
+  isActive(appSessionId: string): boolean {
+    return this.#active.has(appSessionId);
+  }
+
+  setExternalFolders(appSessionId: string, externalFolders: string[]): Session {
+    return this.#updateSession(appSessionId, { externalFolders });
   }
 
   #save(): void {
@@ -159,6 +186,9 @@ export class SessionService {
     this.#updateSession(appSessionId, { status: "running", lastUsedAt: startedAt });
 
     const cliSessionId = session.cliSessionId ?? this.#newId();
+    const workspacePath = join(this.#options.dataRoot, session.workspaceKey);
+    const externalFolders = session.externalFolders ?? [];
+    this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
     const outcome: StartOutcome = await this.#options
       .startCli(
         {
@@ -167,7 +197,8 @@ export class SessionService {
           mode: session.mode,
           cliSessionId,
           resume: session.cliSessionId !== undefined,
-          workspacePath: join(this.#options.dataRoot, session.workspaceKey),
+          workspacePath,
+          ...(externalFolders.length > 0 ? { writableDirs: externalFolders } : {}),
           prompt: buildPrompt(draft),
           ...(this.#options.model === undefined ? {} : { model: this.#options.model }),
         },
@@ -176,6 +207,7 @@ export class SessionService {
       .catch(() => ({ ok: false, error: AppError.parse({ code: "INTERNAL", message: "실행을 시작하지 못했습니다.", retryable: false }) }));
 
     if (!outcome.ok) {
+      this.#recordChanges(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       // Cancelled before the CLI opened: the user stopped it, nothing failed.
@@ -209,6 +241,7 @@ export class SessionService {
         this.#updateRun(runId, { status: "interrupted", endedAt: this.#now(), errorCode: "RUN_INTERRUPTED" });
         this.#updateSession(appSessionId, { status: "interrupted" });
       }
+      this.#recordChanges(runId);
       this.#active.delete(appSessionId);
     }
   }

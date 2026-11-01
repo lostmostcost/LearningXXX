@@ -28,6 +28,8 @@ export interface RunRequest {
   workspacePath: string;
   /** Absolute folders holding copies of user-confirmed attachments, passed as --add-dir. */
   attachmentDirs?: readonly string[];
+  /** Absolute folders the user granted for writing. Course sessions only. */
+  writableDirs?: readonly string[];
   prompt: string;
   model?: string;
 }
@@ -99,9 +101,12 @@ function validate(req: RunRequest, env: NodeJS.ProcessEnv): AppError | undefined
     return appError("FORBIDDEN_CREDENTIAL_ENV", MESSAGES.FORBIDDEN_CREDENTIAL_ENV, { names: forbidden.join(",") });
   }
   const ids = [req.runId, req.appSessionId, req.cliSessionId].every((v) => Id.safeParse(v).success);
-  const dirs = isDir(req.workspacePath) && (req.attachmentDirs ?? []).every(isDir);
+  const dirs = isDir(req.workspacePath) && [...(req.attachmentDirs ?? []), ...(req.writableDirs ?? [])].every(isDir);
   if (!ids || !dirs || req.prompt.trim() === "") {
     return appError("INVALID_REQUEST", MESSAGES.INVALID_REQUEST, { ids, dirs });
+  }
+  if (req.mode === "independent" && req.writableDirs?.length) {
+    return appError("ISOLATION_VIOLATION", MESSAGES.ISOLATION_VIOLATION, { reason: "external folder" });
   }
   if (req.mode === "independent" && !UUID.test(basename(req.workspacePath))) {
     // A course name in the path is itself context (WBS-002 #3).
@@ -132,6 +137,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   const violation = req.mode === "independent" ? "ISOLATION_VIOLATION" : "SCOPE_VIOLATION";
   const workspace = realpathSync(req.workspacePath);
   const attachments = (req.attachmentDirs ?? []).map((d) => realpathSync(d));
+  const writable = (req.writableDirs ?? []).map((d) => realpathSync(d));
   const home = opts.env.HOME;
   const mask = (text: string) => {
     let out = text.split(req.workspacePath).join("<workspace>").split(workspace).join("<workspace>");
@@ -161,7 +167,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
     );
   };
 
-  const child = spawn(opts.cliPath, buildArgs({ ...req, attachmentDirs: attachments }), {
+  const child = spawn(opts.cliPath, buildArgs({ ...req, attachmentDirs: attachments, writableDirs: writable }), {
     cwd: workspace,
     env: childEnv(opts.env),
     stdio: ["pipe", "pipe", "pipe"],
@@ -208,7 +214,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
       emit("run.failed", { ...(exitCode !== null ? { exitCode } : {}), error: pendingFailure });
     } else if (cancelled) {
       // Report what the run already changed on disk before it stopped.
-      const kept = [...written].filter((key) => existsSync(join(workspace, key)));
+      const kept = [...written].filter((key) => existsSync(absoluteOf(key)));
       emit("run.cancelled", { processExited, artifactsWritten: kept });
     } else if (exitCode === 0 && result && result.is_error === false && result.subtype === "success") {
       emit("run.completed", { exitCode: 0 });
@@ -230,8 +236,14 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   const targetKey = (raw: string): string => {
     const target = realTarget(isAbsolute(raw) ? raw : resolve(workspace, raw));
     if (within(workspace, target)) return relative(workspace, target).split(sep).join("/") || ".";
+    const external = writable.findIndex((root) => within(root, target));
+    if (external !== -1) return `external-${external}/${relative(writable[external]!, target).split(sep).join("/")}`;
     const i = attachments.findIndex((root) => within(root, target));
     return i === -1 ? "<outside>" : `attachment-${i}/${relative(attachments[i]!, target).split(sep).join("/")}`;
+  };
+  const absoluteOf = (key: string): string => {
+    const match = /^external-(\d+)\/(.*)$/.exec(key);
+    return match ? join(writable[Number(match[1])]!, match[2]!) : join(workspace, key);
   };
 
   const onInit = (init: Json) => {

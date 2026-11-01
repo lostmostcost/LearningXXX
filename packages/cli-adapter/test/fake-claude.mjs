@@ -90,6 +90,15 @@ switch (scenario) {
     result({ result: "done" });
     process.exit(0);
   }
+  case "write_external": {
+    const target = join(process.env.FAKE_EXTERNAL, "report.md");
+    assistant("msg_1", [{ type: "tool_use", id: "toolu_w1", name: "Write", input: { file_path: target, content: "x" } }]);
+    writeFileSync(target, "synthetic\n");
+    toolResult("toolu_w1", undefined, "File created", { type: "create" });
+    assistant("msg_2", [{ type: "text", text: "done" }]);
+    result({ result: "done" });
+    process.exit(0);
+  }
   case "outside_denied":
     assistant("msg_1", [{ type: "tool_use", id: "toolu_r1", name: "Read", input: { file_path: "/etc/hosts" } }]);
     toolResult("toolu_r1", true, "/etc/hosts is outside the working directory");

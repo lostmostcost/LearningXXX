@@ -14,6 +14,11 @@ const CHANNELS = new Set([
   "session.archive",
   "run.start",
   "run.cancel",
+  "files.chooseFolder",
+  "files.removeFolder",
+  "files.changes",
+  "files.restore",
+  "files.trash",
 ]);
 
 contextBridge.exposeInMainWorld("host", {

@@ -23,6 +23,11 @@ export const Session = z
     title: z.string().min(1).max(200),
     createdAt: UtcTimestamp,
     lastUsedAt: UtcTimestamp,
+    /**
+     * Absolute folders the user granted to this one session for writing. Never
+     * inherited, and never present on an independent session (SPEC-002).
+     */
+    externalFolders: z.array(z.string().startsWith("/")).optional(),
     /** Archive hides; it is not delete and does not reset CLI memory. */
     archivedAt: UtcTimestamp.optional(),
     status: z.enum(["idle", "running", "interrupted"]),
@@ -33,6 +38,7 @@ export const Session = z
     }
     if (s.mode === "independent") {
       if (s.courseId) ctx.addIssue({ code: "custom", message: "independent session must not carry courseId" });
+      if (s.externalFolders?.length) ctx.addIssue({ code: "custom", message: "independent session must not hold external folders" });
       if (!/^sessions\/[0-9a-f-]{36}$/.test(s.workspaceKey)) {
         ctx.addIssue({ code: "custom", message: "independent workspace must be sessions/<uuid> (no course name in path)" });
       }

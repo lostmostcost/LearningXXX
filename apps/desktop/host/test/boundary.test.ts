@@ -17,7 +17,7 @@ test("renderer isolation stays on", () => {
 });
 
 test("preload exposes exactly the contract channels", () => {
-  const listed = [...read("../src/preload.cjs").matchAll(/^\s+"([a-z]+\.[a-z]+)",$/gm)].map((m) => m[1]);
+  const listed = [...read("../src/preload.cjs").matchAll(/^\s+"([a-z]+\.[a-zA-Z]+)",$/gm)].map((m) => m[1]);
   assert.deepEqual(listed.sort(), Object.keys(IpcChannels).sort());
 });
 

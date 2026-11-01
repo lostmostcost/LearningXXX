@@ -6,6 +6,7 @@ export * from "./common.ts";
 export * from "./errors.ts";
 export * from "./lms.ts";
 export * from "./sessions.ts";
+export * from "./files.ts";
 export * from "./events.ts";
 export * from "./ipc.ts";
 

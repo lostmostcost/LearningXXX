@@ -159,6 +159,37 @@ describe("normal runs", () => {
   });
 });
 
+describe("external folders the user granted", () => {
+  it("allows writing there, reports the file, and adds the folder to the CLI", async () => {
+    const f = fixture();
+    const opts = { cliPath: f.cli, env: env(f, "write_external", { FAKE_EXTERNAL: f.outside }) };
+    const outcome = await A.startRun(request(f, { mode: "course", workspacePath: f.course, writableDirs: [f.outside] }), opts);
+    const events = await collect(outcome);
+    assert.deepEqual(
+      events.flatMap((e) => (e.type === "artifact.created" ? [e.payload.outputKey] : [])),
+      ["external-0/report.md"],
+    );
+    assert.equal(last(events).type, "run.completed");
+    assert.ok(invocations(f)[0]?.argv.includes(f.outside));
+  });
+
+  it("stops the run when that folder was not granted", async () => {
+    const f = fixture();
+    const opts = { cliPath: f.cli, env: env(f, "write_external", { FAKE_EXTERNAL: f.outside }) };
+    const events = await collect(await A.startRun(request(f, { mode: "course", workspacePath: f.course }), opts));
+    const end = last(events);
+    assert.equal(end.type, "run.failed");
+    if (end.type === "run.failed") assert.equal(end.payload.error.code, "SCOPE_VIOLATION");
+  });
+
+  it("is refused for an independent session before anything starts", async () => {
+    const f = fixture();
+    const outcome = await run(f, "normal", { writableDirs: [f.outside] });
+    assert.equal(startError(outcome).code, "ISOLATION_VIOLATION");
+    assert.deepEqual(invocations(f), []);
+  });
+});
+
 describe("no fallback: each failure is explained and nothing is retried", () => {
   it("refuses forbidden credential variables before spawning, without echoing values", async () => {
     const f = fixture();

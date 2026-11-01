@@ -1,7 +1,7 @@
 # SPEC-003 · macOS 화면·자료·자유 채팅
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.1 · Notion is authoritative; refresh after approved changes.
 
 ## 화면 원칙
 REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. 큰 도구 버튼 대시보드를 필수 진입 화면으로 만들지 않는다. 초기 이미지 시안은 참고이며 최신 회의의 자유 채팅 결정을 따른다.
@@ -27,7 +27,7 @@ ComposerDraft: text, attachmentIds[], selection{assetId, page?,start?,end?,text}
 키보드로 과목·자료·입력창 이동, 선택 상태, 명료한 버튼 이름을 제공한다. 원문 뷰어 확대와 패널 크기 변경을 지원하는 방향으로 구현한다.
 
 ## 지원 형식 결정
-PDF 우선은 제안이며 WBS-003에서 실제 과목 자료를 확인해 합의한다. PDF 텍스트 추출 불가, 암호 문서, 스캔본은 별도 상태로 표시한다. PPT/Word/HWP는 필요 근거와 변환 품질을 확인하고 추가한다.
+WBS-003의 사용자 결정으로 A 단계 문서 지원은 PDF 우선으로 확정했다. 대상은 2026학년도 2학기 논리회로(Canvas 95899)이며 공개된 주차별 PDF 18개를 초기 검수 표본으로 사용한다. PDF 텍스트 추출 불가, 암호 문서, 스캔본은 별도 상태로 표시한다. PPT/Word/HWP는 필요 근거와 변환 품질을 확인하고 추가한다.
 
 ## 수용 시나리오
 질문이 어떤 자료·선택·캡처를 포함하는지 전송 전에 알 수 있다. 세션 변경 중 오발송되지 않는다. 선택 번역은 선택하지 않은 문서 전체를 임의 첨부하지 않는다. 답변을 읽고 관련 원문으로 돌아갈 수 있다. 독립 세션에서 과목을 열어두어도 자동 첨부되지 않는다. 요약은 요청 없이 백그라운드로 생기지 않는다.

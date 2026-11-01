@@ -58,7 +58,10 @@
         "shared"
       ],
       "paths": [
-        "docs/decisions/"
+        "docs/decisions/",
+        "docs/specs/PRD-001.md",
+        "docs/specs/SPEC-003.md",
+        "docs/pm/wbs.json"
       ],
       "spec": "PRD-001",
       "requirements": [
@@ -760,4 +763,3 @@
     }
   ]
 }
-

@@ -13,9 +13,13 @@ Status: In Progress; this records user decisions, not feature implementation or 
 - Source course ID: 95899
 - Evidence: explicit user selection in the project conversation.
 
+## Confirmed document support
+
+- A document support: PDF first, explicitly selected by the user on 2026-11-01.
+- Initial sample: 18 exposed weekly course PDFs; text extraction and circuit-diagram quality remain to be tested.
+
 ## Pending
 
-- Actual course material formats, based on a source inventory.
 - Translation languages.
 - Allowed file creation/edit/delete scope and recovery policy.
 - Meaning and scope of manual app modification.
@@ -34,6 +38,6 @@ Local archive comparison:
 - 16 PDFs in the separate user assignment folder; these are not counted as source lecture PDFs.
 - Announcement attachments locally include 1 PNG and 2 PDFs.
 
-Recommendation, pending user decision: PDF-first document support for A; consider PNG announcement attachments. Audio/transcript files provide B test samples. Audio files do not establish preservation of original video. No PPT/HWP requirement was observed in this inventory.
+Confirmed by user: PDF-first document support for A. PNG announcement support remains a proposal. Audio/transcript files provide B test samples. Audio files do not establish preservation of original video. No PPT/HWP requirement was observed in this inventory.
 
 Limits: module metadata and filenames only; no fresh binary downloads, checksum comparison, PDF text-extraction test, scan classification or content-quality check. Announcement and assignment attachments on the server were not exhaustively queried. The legacy archive implementation was used only for this authorized investigation; no code was copied into the product. Recorder implementation files were not consulted.

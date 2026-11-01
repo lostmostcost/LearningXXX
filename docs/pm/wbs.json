@@ -58,7 +58,7 @@
         "shared"
       ],
       "paths": [
-        "docs/decisions/"
+        "docs/"
       ],
       "spec": "PRD-001",
       "requirements": [
@@ -66,8 +66,8 @@
         "REQ-003",
         "REQ-006"
       ],
-      "acceptance": "대상 학기/과목, 문서 형식, 번역 언어, 사용 기간과 표본, 합격 수치, 앱 수정 의미, 파일 작업 범위를 두 사람이 결정한다. 학교 데이터 자체는 commit하지 않는다.",
-      "status": "Ready",
+      "acceptance": "대상 학기·과목, PDF 우선 지원, 영어↔한국어 번역, 선택 외부 폴더 생성/수정 및 확인 후 휴지통 삭제, 요청 기반 앱 코드 수정 포함, 기간·횟수 없이 기능별 QA, 착수 후48–72시간 목표를 사용자 결정으로 기록하고 관련 기획·로드맵에 반영한다.",
+      "status": "In Progress",
       "branch": "spike/WBS-003-product-decisions",
       "url": "https://app.notion.com/p/40bbd7ec20cd813f8550ff9f394bbbc6?pvs=204"
     },
@@ -701,12 +701,13 @@
     },
     {
       "id": "WBS-029",
-      "title": "전체 MVP 반복 사용·피드백 처리",
+      "title": "전체 MVP 기능별 사용자 QA·피드백 처리",
       "phase": "MVP 검수",
       "priority": "P0",
       "deps": [
         "WBS-020",
-        "WBS-028"
+        "WBS-028",
+        "WBS-031"
       ],
       "areas": [
         "acceptance"
@@ -725,9 +726,10 @@
         "REQ-006",
         "REQ-007",
         "REQ-008",
-        "REQ-009"
+        "REQ-009",
+        "REQ-011"
       ],
-      "acceptance": "합의한 기간/표본으로 A+B를 반복 사용한다. blocker는 별도 bug WBS로 분리하고 다시 검수한다. 두 사람의 실제 판정 없이 완료하지 않는다.",
+      "acceptance": "기간·횟수 기준 없이 A+B와 REQ-011의 기능별 수용 시나리오를 실제 사용해 검수한다. blocker는 별도 bug WBS로 분리하고 다시 검수한다. 두 사람의 실제 판정 없이 완료하지 않는다.",
       "status": "Backlog",
       "branch": "feat/WBS-029-mvp-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81bf91c9c309dfb4a0ca?pvs=204"
@@ -757,7 +759,36 @@
       "status": "Backlog",
       "branch": "feat/WBS-030-release",
       "url": "https://app.notion.com/p/40bbd7ec20cd815389e1c14ba604b08c?pvs=204"
+    },
+    {
+      "id": "WBS-031",
+      "title": "요청 기반 앱 코드 수정·빌드·복구",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-004",
+        "WBS-005",
+        "WBS-006",
+        "WBS-014",
+        "WBS-016",
+        "WBS-017"
+      ],
+      "areas": [
+        "app-modifier",
+        "host"
+      ],
+      "paths": [
+        "packages/app-modifier/",
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-005",
+      "requirements": [
+        "REQ-011"
+      ],
+      "acceptance": "사용자 요청으로 공식 구독 CLI가 지정 소스 checkout을 수정하고 diff·검증·빌드·재시작 경로를 제공한다. 실패 시 마지막 정상 앱과 소스를 복구한다. 무요청 자동 수정·경로 밖 변경을 막고 삭제는 확인 후 휴지통으로 이동한다. 사람이 작은 실제 수정 및 실패 복구를 검수한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-031-app-modifier",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8118b6cac151dbc01744?pvs=204"
     }
   ]
 }
-

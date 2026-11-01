@@ -24,7 +24,7 @@
 지금 host에는 과목 목록과 로컬 원본을 읽는 채널이 없다(WBS-012에서 연결). 그래서 앱은 빈 상태를 보이고, `?fixture`를 붙인 경우에만 합성 과목을 보인다. 자료 원본은 renderer가 직접 읽지 않고 `AssetLoader`로 받는다.
 
 ## 보안 설정
-`index.html` CSP에 pdf.js용으로 `worker-src 'self'`, `connect-src 'self'`(CMap·글꼴 파일), `'wasm-unsafe-eval'`(이미지 디코더), `img-src blob:`를 더했다. 외부 주소는 여전히 허용하지 않는다. pdf.js 6에는 `eval`이 없다.
+`index.html` CSP에 pdf.js용으로 `worker-src 'self'`, `connect-src 'self'`(CMap·글꼴·이미지 디코더 파일), `img-src blob:`를 더했다. 외부 주소와 `unsafe-eval`(wasm 포함)은 여전히 허용하지 않는다. pdf.js 6에는 `eval`이 없고, WebAssembly 대신 JS 이미지 디코더(`useWasm: false`)를 쓴다. host의 boundary 테스트가 이 CSP를 검사한다.
 
 ## 직접 확인
 ```sh

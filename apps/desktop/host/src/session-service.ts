@@ -178,6 +178,8 @@ export class SessionService {
     if (!outcome.ok) {
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
+      // Cancelled before the CLI opened: the user stopped it, nothing failed.
+      if (abort.signal.aborted) return this.#updateRun(runId, { status: "cancelled", endedAt: this.#now() });
       return this.#updateRun(runId, { status: "failed", endedAt: this.#now(), errorCode: outcome.error.code });
     }
     const run = this.#updateRun(runId, { status: "streaming" });
@@ -196,7 +198,11 @@ export class SessionService {
           finished = true;
           this.#finish(run, event);
         }
-        this.#options.onEvent?.(event);
+        try {
+          this.#options.onEvent?.(event);
+        } catch {
+          // A closed window must not cut the run short; the record above is already saved.
+        }
       }
     } finally {
       if (!finished) {

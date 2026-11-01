@@ -282,3 +282,34 @@ test("a corrupt state file is kept aside, not overwritten", () => {
   assert.equal(existsSync(path), false);
   assert.ok(readdirSync(dataRoot).some((name) => name.startsWith("app-state.json.corrupt-")));
 });
+
+test("a failing push to the window does not cut the run short", async () => {
+  const { dataRoot, store } = setup();
+  const service = new SessionService({ dataRoot, store, startCli: completing, onEvent: () => { throw new Error("window closed"); } });
+  const session = service.create({ mode: "course", courseId: COURSE, title: "a" });
+  const started = await run(service, session.appSessionId);
+  await tick();
+  await tick();
+  const saved = store.load().runs.find((r) => r.runId === started.runId);
+  assert.equal(saved?.status, "completed");
+  assert.equal(service.list({ includeArchived: false })[0]?.status, "idle");
+});
+
+test("cancelling before the CLI opens is recorded as cancelled, not failed", async () => {
+  const waiting: StartCli = (_req, signal) =>
+    new Promise<StartOutcome>((resolve) =>
+      signal.addEventListener("abort", () =>
+        resolve({ ok: false, error: { code: "RUN_INTERRUPTED", message: "시작하기 전에 실행을 취소했습니다.", retryable: false } }),
+      ),
+    );
+  const { service, calls } = setup(waiting);
+  const session = service.create({ mode: "course", courseId: COURSE, title: "a" });
+  const pending = run(service, session.appSessionId);
+  await tick();
+  service.cancel({ runId: calls[0]!.runId });
+  const result = await pending;
+  assert.equal(result.status, "cancelled");
+  assert.equal(result.errorCode, undefined);
+  Run.parse(result);
+  assert.equal(service.list({ includeArchived: false })[0]?.status, "idle");
+});

@@ -1,7 +1,7 @@
 # SPEC-003 · macOS 화면·자료·자유 채팅
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204
-Snapshot: 2026-11-01 · v0.1.1 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.2 · Notion is authoritative; refresh after approved changes.
 
 ## 화면 원칙
 REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. 큰 도구 버튼 대시보드를 필수 진입 화면으로 만들지 않는다. 초기 이미지 시안은 참고이며 최신 회의의 자유 채팅 결정을 따른다.
@@ -20,7 +20,7 @@ REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. 큰 �
 ## 입력과 응답 계약
 ComposerDraft: text, attachmentIds[], selection{assetId, page?,start?,end?,text}?, captureIds[], targetSessionId.
 전송 시 세션과 첨부가 고정된다. 실행 중 다른 자료를 열어도 이미 보낸 입력이 몰래 바뀌지 않는다. 첨부 제거는 전송 전만 영향을 주고 과거 메시지 이력은 보존한다. unsupported 문서는 원본 열기와 지원 형식 안내로 처리한다. OCR·모든 Office 형식 지원을 자동 범위 확대하지 않는다.
-번역 언어 선택은 미결정 사항이다. 초기 언어를 하드코딩하여 합의로 간주하지 않는다. 생성 답변은 검증된 강의 정답인 것처럼 표시하지 않는다.
+MVP 번역은 사용자 결정으로 영어 ↔ 한국어를 지원한다. 선택 텍스트의 번역 방향을 영어→한국어 또는 한국어→영어로 지정하며 ‘쉬운 설명’은 별도 기능으로 유지한다. 생성 답변은 검증된 강의 정답인 것처럼 표시하지 않는다.
 
 ## UI 상태와 복구
 전송 대기/응답 중/취소/권한 요청/오류/사용량 제한을 구분한다. 실패 재시도는 같은 요청 재전송 여부를 사용자에게 드러낸다. 첨부 준비 중에는 전송 버튼을 잠그고 파일별 실패를 보여준다. 캡처 취소는 채팅을 전송하지 않는다. 자료 다운로드 중 기존 자료는 계속 읽을 수 있다.

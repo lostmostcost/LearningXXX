@@ -18,12 +18,13 @@ Status: In Progress; this records user decisions, not feature implementation or 
 - A document support: PDF first, explicitly selected by the user on 2026-11-01.
 - Initial sample: 18 exposed weekly course PDFs; text extraction and circuit-diagram quality remain to be tested.
 
-## Pending
+## Confirmed remaining decisions
 
-- Translation languages.
-- Allowed file creation/edit/delete scope and recovery policy.
-- Meaning and scope of manual app modification.
-- Real-use period, samples, measurement method and QA acceptance thresholds.
+- Translation: English ↔ Korean. Easy explanation remains a separate action.
+- File operations: create/edit in explicitly user-selected external folders as well as the app workspace. Delete only after confirmation, using macOS Trash. Preserve original learning assets and do not automatically grant external-folder access to independent sessions.
+- App modification: user-initiated in-app requests may cause the official subscription CLI to propose and perform app source changes; includes build/restart and recovery validation. Full MVP requirement REQ-011, SPEC-005, WBS-031. No unrequested autonomous self-modification.
+- QA: feature-based human QA only; no fixed usage duration or minimum repetition count. STT engine quality criteria are decided in WBS-021.
+- Delivery target: full MVP within 48–72 hours from development kickoff. This is a target, not evidence of technical feasibility or completion.
 
 ## Material inventory evidence · 2026-11-01
 

@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.1 · Notion is authoritative; refresh after approved changes.
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.
@@ -30,8 +30,8 @@ idle → starting → streaming → awaiting_permission 또는 completed/failed/
 구독 로그인을 유지하면서 이 접근 경계를 실제로 강제할 수 있는지 G0에서 확인한다. CLI 권한 설정은 보안 경계라고 가정하지 않는다. 격리 검증 실패 시 REQ-005 완료로 표시하지 않고 설계 변경을 협의한다.
 
 ## 파일 작업
-생성/수정은 사용자가 선택한 앱 workspace 내부에서 수행한다. 원본 학습 자료는 읽기 전용으로 보존하고 산출물은 outputs 아래 버전 관리한다. 삭제는 앱 작업파일 범위와 복구 정책 확정 후 제공한다. 경로 정규화·상위 탈출·symlink·외부 경로를 검사한다. 광범위한 Bash 자동 허용으로 이를 무력화하지 않는다. G0에서는 별도 disposable fixture만 생성·수정·삭제한다.
-변경 전 대상·의도, 변경 후 파일 목록·요약·복구 방법을 보인다. 실제 삭제 UI의 확인 수준은 ADR로 확정한다.
+생성/수정은 앱 workspace와 사용자가 명시적으로 선택한 외부 폴더에서 수행한다. 선택하지 않은 외부 폴더에는 권한을 확장하지 않는다. 원본 학습 자료는 읽기 전용으로 보존하고 산출물은 outputs 아래 버전 관리한다. 삭제는 사용자의 확인 후 macOS 휴지통으로 이동한다. 앱 기능으로 영구 삭제하지 않는다. 경로 정규화·상위 탈출·symlink·외부 경로를 검사한다. 광범위한 Bash 자동 허용으로 이를 무력화하지 않는다. G0에서는 별도 disposable fixture만 생성·수정·삭제한다.
+변경 전 대상·의도, 변경 후 파일 목록·요약·복구 방법을 보인다. 삭제 확인에는 대상 경로를 표시한다. 선택한 외부 폴더 권한이 독립 세션에 자동 승계되지 않도록 세션별 명시 입력·접근 범위와 분리한다.
 
 ## 수용 시나리오
 같은 세션 재개 시 테스트 사실을 회상하고 다른 세션에 섞이지 않는다. 독립 세션은 이전 과목의 고유 canary 문자열을 요청·파일 접근·답변 어디에서도 얻지 못해야 한다. 사용자가 canary 파일을 직접 첨부하면 그때만 참조 가능하다. 이는 모델 답변 한 번만 보는 테스트가 아니라 전달 payload·실제 도구 접근·작업 경로를 함께 관찰하는 검사다.

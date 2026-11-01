@@ -34,6 +34,7 @@ Actual collector + directory store → actual LibraryService/IPC router → view
 | REQ-001 credentials/failures | API environment refused without subprocess; CLI auth expiry, weekly limit, wrong session and reported outside access produce terminal host state, no automatic retry/leaked canary |
 | Duplicate/cancel | Collection lock, requestId dedup, partial output preserved on cancellation and no resend on reopen |
 | WBS-017 regression integration | Actual subprocess writes → host snapshot/change list → test Trash restore; explicit delete refusal preserves file |
+| File panel (WBS-035, A-003) | The IPC calls `FilesSection` makes plus its helpers (`files.ts`): folder grant only for course sessions (host also refuses), granted folder passed only to that session's run, per-session newest-first history, folder-name display, non-restorable external changes explained, declined Trash prompt keeps the file, another session cannot name a change, confirmed Trash moves (not deletes), only the latest run can be undone, history survives restart, a removed folder is no longer passed and a write there fails with `SCOPE_VIOLATION`. Picker, Trash prompt and Trash are the harness's |
 | Attachment boundary (WBS-036) | Real preparation → explicit confirmation → run-specific read-only copy → synthetic CLI reads the selected bytes; unconfirmed/foreign/removed IDs refused, original preserved, temporary run copy removed |
 | Capture boundary (WBS-037) | Escape stages nothing; denied permission (not retryable) and tool failure (retryable) are reported; preview equals the bytes sent; unconfirmed, foreign-session and capture-as-file IDs refused before any CLI call; confirmed capture copied read-only to that run only, read by the synthetic CLI, temporary copy and capture folder removed. The Mac selection tool and permission prompt are replaced by the harness |
 
@@ -41,14 +42,14 @@ The fake CLI only reports simulated tool events; these tests do not prove the re
 
 ## Current result and blocking gaps
 
-Development suite: **15 PASS, 0 FAIL, 1 TODO** (A-003). Strict `--require-ready`: **BLOCKED, exit 1**. Not a completed A gate or developer self-QA.
+Development suite: **16 PASS, 0 FAIL, 0 TODO**. Strict `--require-ready`: **PASS, exit 0**. This completes the synthetic A integration gate (WBS-019); it is not the developer self-QA (WBS-020).
 
 | ID | Missing existing MVP workflow | Evidence / follow-up |
 | --- | --- | --- |
 | A-001 | Implemented in WBS-036: course/local-file preparation and explicit confirmation, session/account/hash validation, run-specific read-only copy and delivery | Integration assertions now run. Native picker is separate from synthetic UI verification. [WBS-036](https://app.notion.com/p/40bbd7ec20cd80859c5beaa0b854e853) |
 | A-002 | Implemented in WBS-037: user region selection (`screencapture -i`), cancel, permission/failure errors, preview, explicit confirmation, session/account/hash validation, run-specific read-only copy | Integration assertions run with a synthetic capture source. Real Mac selection and screen-recording permission are WBS-020 self-test items. [WBS-037](https://app.notion.com/p/40bbd7ec20cd807293acdabd8db8d182) |
-| A-003 | WBS-035 file controls are implemented; acceptance UI/native assertion is still TODO | Do not confuse the remaining TODO with missing product implementation. [Backlog](https://app.notion.com/p/40bbd7ec20cd819e83a7e8546333465a) |
+| A-003 | Implemented in WBS-035; acceptance assertions added in WBS-019 (file panel IPC + `files.ts` helpers) | Rendering of `FilesSection` itself, the native folder picker and the real macOS Trash are WBS-020 self-test items. [WBS-019](https://app.notion.com/p/40bbd7ec20cd81cf8cdee0e7883c68da) |
 
-Replace each TODO with assertions that exercise the implemented workflow using prepared/registered IDs (not fabricated IDs). Add the UI/native confirmation evidence, rerun strict mode, then complete WBS-019 and start WBS-020 developer functional self-test. WBS-019 remains Blocked while the remaining required paths/evidence are missing. No extra peer/human QA card is introduced for this work.
+All former TODOs now run against the implemented workflows with prepared/registered IDs (not fabricated IDs), and strict mode passes. Next is WBS-020: the responsible developer tries the real app on a Mac (real LMS sign-in, Claude subscription CLI, native pickers, capture permission, Trash). No extra peer/human QA card is introduced for this work.
 
 Unrun here: real LMS login/expiry, subscription CLI calls, actual Mac screenshots/capture permissions and Trash, native app rendering, real translation quality, and developer hands-on A self-test. The logged-in Claude account was not used.

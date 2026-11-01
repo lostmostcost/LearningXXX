@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
@@ -10,6 +10,8 @@ import { viewTarget } from "../../apps/desktop/ui/src/document.ts";
 import { openPdf, type PdfLib } from "../../apps/desktop/ui/src/pdf.ts";
 import { emptyDraft, freeze, withSelection } from "../../apps/desktop/ui/src/composer.ts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp } from "../../apps/desktop/ui/src/chat.ts";
+import { canGrantFolders, canTrash, displayKey, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "../../apps/desktop/ui/src/files.ts";
+import type { RunChanges } from "../../packages/contracts/src/index.ts";
 import { CAPTURE_PNG, harness, until, STORAGE } from "./harness.ts";
 
 const requireUi = createRequire(new URL("../../apps/desktop/ui/package.json", import.meta.url));
@@ -262,7 +264,76 @@ test("A-002: a selected region is previewed, explicitly confirmed and copied to 
   assert.equal(existsSync(dir), false, "temporary run copy removed after the run");
   await until(() => readdirSync(h.root).every((n) => !n.startsWith("learningxxx-capture-")));
 });
-test.todo("A-ready: file scope/change summary/restore/trash controls connected to UI (A-003)");
+test("A-003: the file panel's folder grant, change history, Trash and restore work end to end", async (t) => {
+  // Drives the same IPC calls FilesSection makes and its decision helpers (files.ts). The native folder
+  // picker, Trash prompt and Trash itself are the harness's; real Mac behaviour is a WBS-020 self-test item.
+  const h = await harness(t);
+  const { session } = await h.ok("session.create", { mode: "course", courseId: randomUUID(), title: "files panel" });
+  const { session: free } = await h.ok("session.create", { mode: "independent", title: "no folders" });
+  assert.equal(canGrantFolders(session), true);
+  assert.equal(canGrantFolders(free), false, "the panel hides folder grants in independent sessions");
+  const refused = await h.call("files.chooseFolder", { appSessionId: free.appSessionId });
+  assert.ok(!refused.ok && refused.error.code === "SCOPE_VIOLATION", "and the host refuses them anyway");
+
+  const external = realpathSync(h.state.external);
+  const granted = (await h.ok("files.chooseFolder", { appSessionId: session.appSessionId })).session;
+  assert.deepEqual(granted.externalFolders, [external]);
+
+  h.state.scenario = "write_external";
+  const first = (await h.ok("run.start", { requestId: randomUUID(), draft: draft(session.appSessionId) })).run;
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  const firstCall = h.calls()[0]!;
+  assert.equal(firstCall.argv[firstCall.argv.indexOf("--add-dir") + 1], external, "a granted folder reaches only this session's run");
+  h.state.scenario = "write_file";
+  const second = (await h.ok("run.start", { requestId: randomUUID(), draft: draft(session.appSessionId) })).run;
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  h.state.scenario = "write_file";
+  const elsewhere = (await h.ok("run.start", { requestId: randomUUID(), draft: draft(free.appSessionId) })).run;
+  await until(() => !h.sessions().isActive(free.appSessionId));
+
+  const { records } = await h.ok("files.sessionChanges", { appSessionId: session.appSessionId });
+  const shown = recordsFor(records, session.appSessionId);
+  assert.deepEqual(shown.map((r) => r.runId), [second.runId, first.runId], "newest first, this session only");
+  assert.ok(!shown.some((r) => r.runId === elsewhere.runId));
+  const [latest, older] = shown as [RunChanges, RunChanges];
+  assert.deepEqual(latest.changes.map((c) => [c.key, c.change, c.restorable]), [["notes/summary.md", "created", true]]);
+  assert.equal(older.changes.length, 1);
+  const externalKey = older.changes[0]!.key;
+  assert.equal(displayKey(externalKey, older.externalFolders), "external/report.md", "people see the folder name, not an index");
+  assert.equal(hasRestorable(older), false);
+  assert.match(recoveryNote(older), /외부 폴더의 변경은 되돌릴 수 없습니다/);
+  assert.match(recoveryNote(latest), /새 파일은 휴지통으로 갑니다/);
+  assert.ok(canTrash(older.changes[0]!));
+
+  const reportPath = join(external, "report.md");
+  h.state.confirm = false;
+  assert.deepEqual(await h.ok("files.trash", { appSessionId: session.appSessionId, runId: first.runId, key: externalKey }), { trashed: false });
+  assert.ok(existsSync(reportPath), "declining the prompt keeps the file");
+  const foreign = await h.call("files.trash", { appSessionId: free.appSessionId, runId: first.runId, key: externalKey });
+  assert.ok(!foreign.ok && foreign.error.code === "SCOPE_VIOLATION", "another session cannot name this change");
+  h.state.confirm = true;
+  assert.deepEqual(await h.ok("files.trash", { appSessionId: session.appSessionId, runId: first.runId, key: externalKey }), { trashed: true });
+  assert.deepEqual(h.trash, [reportPath], "moved to the Trash, not deleted");
+
+  const tooOld = await h.call("files.restore", { runId: first.runId });
+  assert.ok(!tooOld.ok && tooOld.error.code === "INVALID_REQUEST", "only the latest run can be undone, as the panel shows");
+  const restored = await h.ok("files.restore", { runId: second.runId });
+  assert.equal(restoreSummary(restored), "1개를 되돌렸습니다.");
+  assert.equal(existsSync(join(h.dataRoot, session.workspaceKey, "notes/summary.md")), false);
+  assert.equal(h.trash.length, 2);
+
+  h.restart();
+  assert.equal((await h.ok("files.sessionChanges", { appSessionId: session.appSessionId })).records.length, 2, "history survives a restart");
+  const revoked = (await h.ok("files.removeFolder", { appSessionId: session.appSessionId, folder: external })).session;
+  assert.deepEqual(revoked.externalFolders ?? [], []);
+  h.state.scenario = "write_external";
+  const afterRevoke = (await h.ok("run.start", { requestId: randomUUID(), draft: draft(session.appSessionId) })).run;
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  assert.ok(!h.calls().at(-1)!.argv.includes(external), "a removed folder is no longer passed");
+  const outcome = h.store.load().runs.find((r) => r.runId === afterRevoke.runId)!;
+  assert.equal(outcome.status, "failed");
+  assert.equal(outcome.errorCode, "SCOPE_VIOLATION", "a write there is now outside the session's scope");
+});
 
 
 test("A-001: cancelled attachment runs remove only the temporary run copy", async (t) => {

@@ -19,6 +19,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "session.list": async (request) => ({ sessions: sessions.list(request) }),
     "session.rename": async (request) => ({ session: sessions.rename(request) }),
     "session.archive": async (request) => ({ session: sessions.archive(request) }),
+    // Escape or closing the selection returns nothing: an empty answer, not an error.
+    "captures.start": async (request) => {
+      const capture = await inputs().capture(request);
+      return capture ? { capture } : {};
+    },
     "attachments.chooseLocal": async (request) => ({ attachment: await inputs().chooseLocal(request) }),
     "attachments.prepareAsset": async (request) => ({ attachment: await inputs().prepareAsset(request) }),
     "attachments.confirm": async (request) => ({ attachment: inputs().confirm(request) }),

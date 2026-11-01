@@ -31,6 +31,8 @@ export const HostErrorCode = z.enum([
   "SCOPE_VIOLATION",
   "NOT_FOUND",
   "INTERNAL",
+  "CAPTURE_PERMISSION_DENIED",
+  "CAPTURE_FAILED",
 ]);
 
 export const ErrorCode = z.enum([
@@ -50,6 +52,7 @@ const NEVER_RETRYABLE: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   "SCHEMA_VERSION_UNSUPPORTED",
   "SCOPE_VIOLATION",
   "UNSUPPORTED_FORMAT",
+  "CAPTURE_PERMISSION_DENIED",
 ]);
 
 /**

@@ -11,6 +11,8 @@ export interface Attachment {
   name: string;
   status: "preparing" | "unconfirmed" | "ready" | "failed";
   bytes?: number;
+  kind?: "file" | "capture";
+  preview?: string;
   error?: string;
 }
 
@@ -78,8 +80,8 @@ export function freeze(draft: Draft, targetSessionId: string): ComposerDraft {
   if (draft.attachments.some((a) => a.status !== "ready")) throw new Error("attachment is not confirmed");
   return ComposerDraft.parse({
     text: draft.text,
-    attachmentIds: draft.attachments.map((a) => a.id),
-    captureIds: [],
+    attachmentIds: draft.attachments.filter((a) => a.kind !== "capture").map((a) => a.id),
+    captureIds: draft.attachments.filter((a) => a.kind === "capture").map((a) => a.id),
     targetSessionId,
     intent: draft.intent,
     ...(draft.selection ? { selection: draft.selection } : {}),

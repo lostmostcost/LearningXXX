@@ -96,3 +96,81 @@ test("course attachment records explicit provenance and rejects duplicate IDs", 
   service.confirm({ appSessionId: a, attachmentId: item.id });
   assert.throws(() => service.forRun(a, randomUUID(), [item.id, item.id]), errorCode("INVALID_REQUEST"));
 });
+
+// WBS-037: captures share the staged-copy rules, with their own kind.
+const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64"));
+function withCapture(t: TestContext, capture: () => Promise<Uint8Array | undefined>) {
+  const base = setup(t);
+  const service = new AttachmentService({ ...base.options, capture });
+  return { ...base, service };
+}
+
+test("a capture is staged unconfirmed, then delivered only as a capture of its own session", async (t) => {
+  const { service, a, b, dataRoot } = withCapture(t, async () => PNG);
+  const shot = (await service.capture({ appSessionId: a }))!;
+  assert.equal(shot.attachment.provenance, "capture");
+  assert.equal(shot.attachment.mediaType, "image/png");
+  assert.equal(shot.attachment.confirmed, false);
+  assert.deepEqual(shot.preview, PNG);
+  assert.throws(() => service.forRun(a, randomUUID(), [], [shot.attachment.id]), errorCode("INVALID_REQUEST"), "unconfirmed");
+  service.confirm({ appSessionId: a, attachmentId: shot.attachment.id });
+  assert.throws(() => service.forRun(a, randomUUID(), [shot.attachment.id]), errorCode("INVALID_REQUEST"), "a capture is not a file attachment");
+  assert.throws(() => service.forRun(b, randomUUID(), [], [shot.attachment.id]), errorCode("SCOPE_VIOLATION"), "other session");
+  const runId = randomUUID();
+  const run = service.forRun(a, runId, [], [shot.attachment.id]);
+  const [name] = readdirSync(run.dirs[0]!);
+  assert.ok(name!.endsWith(".png"));
+  assert.deepEqual(new Uint8Array(readFileSync(join(run.dirs[0]!, name!))), PNG);
+  const manifest = JSON.parse(readFileSync(join(dataRoot, "attachments/manifests", `${runId}.json`), "utf8"));
+  assert.equal(manifest[0].provenance, "capture");
+});
+
+test("a file attachment cannot be sent as a capture, and a changed capture is refused", async (t) => {
+  const { service, a, dataRoot } = withCapture(t, async () => PNG);
+  const file = (await service.chooseLocal({ appSessionId: a }))!;
+  service.confirm({ appSessionId: a, attachmentId: file.id });
+  assert.throws(() => service.forRun(a, randomUUID(), [], [file.id]), errorCode("INVALID_REQUEST"));
+  const shot = (await service.capture({ appSessionId: a }))!;
+  service.confirm({ appSessionId: a, attachmentId: shot.attachment.id });
+  const staged = join(dataRoot, "attachments/staged", shot.attachment.id, "input.png");
+  chmodSync(staged, 0o600);
+  writeFileSync(staged, "tampered");
+  assert.throws(() => service.forRun(a, randomUUID(), [], [shot.attachment.id]), errorCode("CHECKSUM_MISMATCH"));
+});
+
+test("escape stages nothing; one selection at a time; an account switch mid-selection is refused", async (t) => {
+  let answer: Uint8Array | undefined;
+  let release: () => void = () => {};
+  const { service, a, state, dataRoot } = withCapture(t, () => new Promise((resolve) => { release = () => resolve(answer); }));
+  const cancelled = service.capture({ appSessionId: a });
+  await assert.rejects(service.capture({ appSessionId: a }), errorCode("RUN_ALREADY_ACTIVE"));
+  release();
+  assert.equal(await cancelled, undefined);
+  assert.deepEqual(readdirSync(join(dataRoot, "attachments/staged")), []);
+  answer = PNG;
+  const switched = service.capture({ appSessionId: a });
+  state.accountKey = "acct_b";
+  release();
+  await assert.rejects(switched, errorCode("SCOPE_VIOLATION"));
+  assert.deepEqual(readdirSync(join(dataRoot, "attachments/staged")), []);
+});
+
+test("without a capture source the button fails plainly", async (t) => {
+  const { service, a } = setup(t);
+  await assert.rejects(service.capture({ appSessionId: a }), errorCode("CAPTURE_FAILED"));
+});
+
+test("after a restart unconfirmed captures are dropped; confirmed captures and files stay", async (t) => {
+  const { service, options, a, dataRoot } = withCapture(t, async () => PNG);
+  const loose = (await service.capture({ appSessionId: a }))!;
+  const kept = (await service.capture({ appSessionId: a }))!;
+  service.confirm({ appSessionId: a, attachmentId: kept.attachment.id });
+  const file = (await service.chooseLocal({ appSessionId: a }))!;
+  assert.ok(existsSync(join(dataRoot, "attachments/staged", loose.attachment.id)));
+  const restarted = new AttachmentService({ ...options, capture: async () => PNG });
+  assert.equal(existsSync(join(dataRoot, "attachments/staged", loose.attachment.id)), false, "the unconfirmed screenshot is deleted, not just refused");
+  assert.throws(() => restarted.forRun(a, randomUUID(), [], [loose.attachment.id]), errorCode("INVALID_REQUEST"));
+  const run = restarted.forRun(a, randomUUID(), [], [kept.attachment.id]);
+  assert.equal(readdirSync(run.dirs[0]!).length, 1);
+  restarted.confirm({ appSessionId: a, attachmentId: file.id });
+});

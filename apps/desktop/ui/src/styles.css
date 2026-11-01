@@ -71,3 +71,5 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .files li { overflow-wrap: anywhere; }
 .files summary { cursor: pointer; }
 .run-changes { margin-top: 8px; }
+
+.capture-preview { display: block; max-width: 100%; max-height: 200px; object-fit: contain; border: 1px solid var(--line); margin: 4px 0; }

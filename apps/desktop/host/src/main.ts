@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from "electron";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
@@ -9,6 +9,7 @@ import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
 import { createLmsClient, openLoginWindow } from "./lms-session.ts";
+import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
 import { SessionService } from "./session-service.ts";
@@ -68,6 +69,7 @@ app.whenReady().then(async () => {
   });
   await library.init();
   const attachments = new AttachmentService({
+    capture: () => captureRegion({ permission: () => systemPreferences.getMediaAccessStatus("screen") }),
     dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),
     readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId),
     chooseLocal: async () => {

@@ -12,6 +12,7 @@ import { SessionService } from "../../apps/desktop/host/src/session-service.ts";
 import { SessionStore } from "../../apps/desktop/host/src/session-store.ts";
 import { RunHistory } from "../../apps/desktop/host/src/run-history.ts";
 import { AttachmentService } from "../../apps/desktop/host/src/attachment-service.ts";
+import { captureRegion } from "../../apps/desktop/host/src/native-capture.ts";
 import { FileService } from "../../apps/desktop/host/src/file-service.ts";
 import { createRouter } from "../../apps/desktop/host/src/router.ts";
 import { createHandlers } from "../../apps/desktop/host/src/handlers.ts";
@@ -20,6 +21,11 @@ import { makeSyntheticPdf } from "../../apps/desktop/ui/src/synthetic-pdf.ts";
 export const LMS = "https://lms.example.test";
 export const STORAGE = "https://storage.example.test";
 export const PDF = makeSyntheticPdf({ pages: ["Boolean algebra selected excerpt", "UNSELECTED_PAGE_CANARY"] });
+/** 1×1 PNG with a text marker after IEND, so the fake CLI's echo proves which bytes it read. */
+export const CAPTURE_PNG = new Uint8Array([
+  ...Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64"),
+  ...Buffer.from("CAPTURE_SELECTED_REGION_CANARY"),
+]);
 
 export async function until(check: () => boolean | Promise<boolean>) {
   const deadline = Date.now() + 5000;
@@ -39,7 +45,9 @@ export async function harness(t: TestContext) {
   writeFileSync(cli, `#!${process.execPath}\n${readFileSync(new URL("../../packages/cli-adapter/test/fake-claude.mjs", import.meta.url), "utf8")}`);
   chmodSync(cli, 0o755);
   const state = { user: 42, offline: false, expired: false, scenario: "ok", confirm: false, loginCount: 0,
-    pickedFile: undefined as string | undefined, extraEnv: {} as NodeJS.ProcessEnv, external: join(root, "external") };
+    pickedFile: undefined as string | undefined, extraEnv: {} as NodeJS.ProcessEnv, external: join(root, "external"),
+    /** Synthetic stand-in for the Mac region selection: an image, Escape, a denied permission or a tool failure. */
+    capture: "png" as "png" | "cancel" | "denied" | "fail" };
   mkdirSync(state.external);
   const network: { url: string; headers: Headers }[] = [];
   const progress: SyncRun[] = [], events: RunEvent[] = [], trash: string[] = [];
@@ -68,7 +76,13 @@ export async function harness(t: TestContext) {
   const store = new SessionStore(join(dataRoot, "app-state.json"));
   let sessions: SessionService;
   const attachments = new AttachmentService({ dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),
-    readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId), chooseLocal: async () => state.pickedFile });
+    readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId), chooseLocal: async () => state.pickedFile,
+    capture: () => captureRegion({ platform: "darwin", tempRoot: root, permission: () => (state.capture === "denied" ? "denied" : "granted"),
+      run: async (output) => {
+        if (state.capture === "cancel") throw Object.assign(new Error("escape"), { code: 1 });
+        if (state.capture === "fail") throw Object.assign(new Error("tool failed"), { code: 2 });
+        writeFileSync(output, CAPTURE_PNG);
+      } }) });
   const options = { dataRoot, store, attachments, history: (now: () => string) => new RunHistory(join(dataRoot, "history"), now),
     startCli: (req: Parameters<typeof startRun>[0], signal: AbortSignal) => startRun(req, {
       cliPath: cli, signal, killGraceMs: 10,

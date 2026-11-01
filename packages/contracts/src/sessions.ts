@@ -106,7 +106,7 @@ export const PreparedAttachment = z.object({
   mediaType: z.string().min(1),
   bytes: z.number().int().nonnegative(),
   contentHash: Sha256,
-  provenance: z.enum(["course_asset", "local_file"]),
+  provenance: z.enum(["course_asset", "local_file", "capture"]),
   sourceAssetId: Id.optional(),
   confirmed: z.boolean(),
 });

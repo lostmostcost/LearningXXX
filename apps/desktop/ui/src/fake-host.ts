@@ -43,6 +43,12 @@ export function installFakeHost(courseTitle: string): void {
       const next = (p.archived ? { ...rest, archivedAt: now() } : rest) as Session;
       return ok({ session: update(String(p.appSessionId), next) });
     },
+    "captures.start": (p) => {
+      const item = { id: crypto.randomUUID(), appSessionId: String(p.appSessionId), name: "화면 캡처.png", bytes: 68, mediaType: "image/png", contentHash: "0".repeat(64), provenance: "capture", confirmed: false };
+      staged.set(item.id, item);
+      const preview = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII="), (c) => c.charCodeAt(0));
+      return ok({ capture: { attachment: item, preview } });
+    },
     "attachments.chooseLocal": (p) => {
       const item = { id: crypto.randomUUID(), appSessionId: String(p.appSessionId), name: "synthetic.txt", bytes: 42, mediaType: "text/plain", contentHash: "0".repeat(64), provenance: "local_file", confirmed: false };
       staged.set(item.id, item); return ok({ attachment: item });

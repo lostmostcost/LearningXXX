@@ -103,6 +103,7 @@ describe("producer → consumer round trip", () => {
       "session.list": { includeArchived: false },
       "session.rename": { appSessionId: sid, title: "이름" },
       "session.archive": { appSessionId: sid, archived: true },
+      "captures.start": { appSessionId: sid },
       "attachments.chooseLocal": { appSessionId: sid },
       "attachments.prepareAsset": { appSessionId: sid, courseId: sid, assetId: sid },
       "attachments.confirm": { appSessionId: sid, attachmentId: sid },

@@ -38,6 +38,7 @@ export interface ArgsInput {
   cliSessionId: string;
   resume: boolean;
   attachmentDirs: readonly string[];
+  writableDirs?: readonly string[] | undefined;
   model?: string | undefined;
 }
 
@@ -75,7 +76,7 @@ export function buildArgs(input: ArgsInput): string[] {
       ...COURSE_TOOLS,
     );
   }
-  for (const dir of input.attachmentDirs) args.push("--add-dir", dir);
+  for (const dir of [...input.attachmentDirs, ...(input.writableDirs ?? [])]) args.push("--add-dir", dir);
   args.push(input.resume ? "--resume" : "--session-id", input.cliSessionId);
   return args;
 }

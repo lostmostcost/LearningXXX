@@ -452,10 +452,15 @@
         "WBS-015"
       ],
       "areas": [
-        "host"
+        "cli",
+        "host",
+        "shared"
       ],
       "paths": [
-        "apps/desktop/host/"
+        "apps/desktop/host/",
+        "packages/cli-adapter/",
+        "packages/contracts/",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-002",
       "requirements": [

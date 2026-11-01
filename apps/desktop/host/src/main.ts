@@ -1,13 +1,15 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
+import { FileService } from "./file-service.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
 import { createLmsClient, openLoginWindow } from "./lms-session.ts";
 import { createRouter } from "./router.ts";
+import { RunHistory } from "./run-history.ts";
 import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
 import { runUiSmoke } from "./ui-smoke.ts";
@@ -53,6 +55,7 @@ app.whenReady().then(async () => {
     dataRoot,
     store: new SessionStore(join(dataRoot, "app-state.json")),
     startCli: createCliRunner(),
+    history: (now) => new RunHistory(join(dataRoot, "history"), now),
     onEvent: (event) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "run.event", event });
     },
@@ -71,7 +74,28 @@ app.whenReady().then(async () => {
     },
   });
   await library.init();
-  const router = createRouter(createHandlers(sessions, library));
+  const files = new FileService({
+    dataRoot,
+    sessions,
+    history: sessions.history!,
+    chooseFolder: async () => {
+      const picked = await dialog.showOpenDialog({ title: "작업 폴더 선택", properties: ["openDirectory", "createDirectory"] });
+      return picked.canceled ? undefined : picked.filePaths[0];
+    },
+    confirmTrash: async (path) => {
+      const { response } = await dialog.showMessageBox({
+        type: "warning",
+        message: "이 파일을 휴지통으로 옮길까요?",
+        detail: path,
+        buttons: ["취소", "휴지통으로 이동"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      return response === 1;
+    },
+    trash: (path) => shell.trashItem(path),
+  });
+  const router = createRouter(createHandlers(sessions, library, files));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

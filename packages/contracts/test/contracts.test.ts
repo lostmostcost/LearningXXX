@@ -82,6 +82,15 @@ describe("producer → consumer round trip", () => {
     assert.deepEqual(C.checkEventStream(consumed), []);
   });
 
+  it("an independent session cannot hold an external folder", () => {
+    const base = {
+      appSessionId: crypto.randomUUID(), mode: "independent", workspaceKey: `sessions/${crypto.randomUUID()}`, title: "t",
+      createdAt: "2026-11-02T00:00:00Z", lastUsedAt: "2026-11-02T00:00:00Z", status: "idle",
+    };
+    assert.ok(C.Session.safeParse(base).success);
+    assert.equal(C.Session.safeParse({ ...base, externalFolders: ["/tmp/x"] }).success, false);
+  });
+
   it("every IPC channel round-trips a valid request through the host validator", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
@@ -99,6 +108,11 @@ describe("producer → consumer round trip", () => {
         draft: { text: "", attachmentIds: [], captureIds: [], targetSessionId: sid, intent: "translate_en_ko", selection: { assetId: sid, page: 3, text: "Boolean algebra" } },
       },
       "run.cancel": { runId: sid },
+      "files.chooseFolder": { appSessionId: sid },
+      "files.removeFolder": { appSessionId: sid, folder: "/tmp/synthetic" },
+      "files.changes": { runId: sid },
+      "files.restore": { runId: sid },
+      "files.trash": { appSessionId: sid, key: "notes/a.md" },
     };
     for (const channel of Object.keys(C.IpcChannels) as C.IpcChannel[]) {
       const schema = C.IpcChannels[channel].request as z.ZodType;

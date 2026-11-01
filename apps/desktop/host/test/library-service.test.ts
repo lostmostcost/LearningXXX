@@ -150,7 +150,7 @@ test("another account on the same Mac does not see the first account's courses",
 
 test("the library channels pass the contract through the router, bytes included", async () => {
   const { library } = await collected();
-  const router = createRouter(createHandlers({} as SessionService, library));
+  const router = createRouter(createHandlers({} as SessionService, library, {} as never));
   const call = (channel: string, payload: unknown) => router({ schemaVersion: SCHEMA_VERSION, channel, payload });
   const courses = await call("library.courses", {});
   assert.ok(courses.ok);

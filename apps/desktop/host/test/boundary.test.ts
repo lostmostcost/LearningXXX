@@ -62,10 +62,21 @@ test("host code never reads session cookies or credentials", () => {
   // WBS-039: the one exception is the LearningX token, which LearningX only accepts as a bearer header.
   const session = read("../src/lms-session.ts");
   const cookieUses = session.match(/cookies\.\w+\([^)]*\)/g) ?? [];
-  assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)"]);
+  // WBS-040: the saved-details sign-in reads one cookie by name (the SSO CSRF token, see school-login.ts).
+  assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.get({ url, name })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)"]);
   assert.match(session, /const LEARNINGX_TOKEN = "xn_api_token";/);
   for (const [name, source] of [["lms-session.ts", session], ["lms-probe.ts", read("../src/lms-probe.ts")]] as const) {
     assert.doesNotMatch(source, /document\.cookie|executeJavaScript|password/i, name);
   }
   assert.doesNotMatch(read("../src/lms-probe.ts"), /cookies\./, "lms-probe.ts");
+});
+
+test("saved sign-in details are never logged and only go to the school (WBS-040)", () => {
+  for (const name of ["credential-store.ts", "credential-service.ts", "school-login.ts"]) {
+    assert.doesNotMatch(read(`../src/${name}`), /console\.|process\.std(out|err)/, name);
+  }
+  const login = read("../src/school-login.ts");
+  for (const url of login.match(/https:\/\/[a-z0-9.-]+/g) ?? []) {
+    assert.match(url, /^https:\/\/(e-campus|khcanvas)\.khu\.ac\.kr$/, url);
+  }
 });

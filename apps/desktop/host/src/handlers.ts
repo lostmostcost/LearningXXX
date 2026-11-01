@@ -1,14 +1,20 @@
 import type { AttachmentService } from "./attachment-service.ts";
+import type { CredentialService } from "./credential-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
+  const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   return {
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
+    "credentials.status": async () => signIn().status(),
+    "credentials.saveSchool": (request) => signIn().saveSchool(request),
+    "credentials.saveCanvasToken": (request) => signIn().saveCanvasToken(request),
+    "credentials.clear": async (request) => signIn().clear(request),
     "library.courses": async () => ({ courses: await library.courses() }),
     "library.manifest": async ({ courseId }) => {
       const manifest = await library.manifest(courseId);

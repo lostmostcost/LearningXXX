@@ -1,0 +1,76 @@
+import { useEffect, useRef, useState } from "react";
+import type { CredentialStatus } from "@learningxxx/contracts";
+import { invoke } from "./host-api.ts";
+import { signInSummary } from "./signin.ts";
+
+/**
+ * Saves the school ID/password and the Canvas access token on this Mac
+ * (encrypted with the Keychain). Fields are cleared after each attempt, and
+ * the host only ever answers whether something is saved.
+ */
+export function SignInSettings({ onChange }: { onChange?: (status: CredentialStatus) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [status, setStatus] = useState<CredentialStatus>();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [schoolId, setSchoolId] = useState("");
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
+
+  const apply = (next: CredentialStatus) => {
+    setStatus(next);
+    onChange?.(next);
+  };
+  useEffect(() => {
+    void invoke("credentials.status", {}).then((r) => { if (r.ok) apply(r.data); });
+  }, []);
+
+  const run = async (work: () => ReturnType<typeof invoke<"credentials.status">>, done: string) => {
+    setBusy(true);
+    setMessage("확인 중…");
+    const result = await work();
+    setBusy(false);
+    setPassword("");
+    setToken("");
+    if (result.ok) {
+      apply(result.data);
+      setMessage(done);
+    } else {
+      setMessage(result.error.message);
+    }
+  };
+
+  return (
+    <>
+      <button type="button" onClick={() => { setMessage(""); dialog.current?.showModal(); }}>{signInSummary(status)}</button>
+      <dialog ref={dialog} className="signin" aria-label="로그인 설정">
+        <h2>로그인 설정</h2>
+        <p>이 Mac에만 저장되며 키체인으로 암호화됩니다. 앱은 학교 로그인과 Canvas에만 보냅니다.</p>
+        {status && !status.available ? <p role="alert">이 Mac에서는 안전한 저장소를 쓸 수 없어 저장할 수 없습니다.</p> : null}
+
+        <form onSubmit={(e) => { e.preventDefault(); void run(() => invoke("credentials.saveSchool", { schoolId, password }), "학교 로그인을 확인하고 저장했습니다. 다음 수집부터 자동으로 로그인합니다."); }}>
+          <h3>학교 통합 로그인 (강의 자료에 필요)</h3>
+          <p className="meta">
+            {status?.school ? (status.schoolRejected ? "저장됨 — 학교가 비밀번호를 거부해 자동 로그인을 멈췄습니다. 다시 저장하세요." : "저장됨") : "저장 안 됨"}
+          </p>
+          <label>아이디(학번) <input autoComplete="username" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} required /></label>
+          <label>비밀번호 <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          <p className="meta">저장할 때 한 번 로그인해 확인합니다. 틀리면 저장하지 않고, 다시 시도하지도 않습니다.</p>
+          <button type="submit" disabled={busy}>확인 후 저장</button>
+          {status?.school ? <button type="button" disabled={busy} onClick={() => void run(async () => invoke("credentials.clear", { which: "school" }), "학교 로그인 정보를 지웠습니다.")}>지우기</button> : null}
+        </form>
+
+        <form onSubmit={(e) => { e.preventDefault(); void run(() => invoke("credentials.saveCanvasToken", { token }), "Canvas 토큰을 확인하고 저장했습니다."); }}>
+          <h3>Canvas 액세스 토큰 (선택)</h3>
+          <p className="meta">{status?.canvasToken ? "저장됨" : "저장 안 됨"} · 이캠퍼스 → 계정 → 설정 → 새 액세스 토큰에서 발급합니다. 공지·과제 수집에 쓰입니다.</p>
+          <label>토큰 <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} required /></label>
+          <button type="submit" disabled={busy}>확인 후 저장</button>
+          {status?.canvasToken ? <button type="button" disabled={busy} onClick={() => void run(async () => invoke("credentials.clear", { which: "canvasToken" }), "Canvas 토큰을 지웠습니다.")}>지우기</button> : null}
+        </form>
+
+        <p role="status">{message}</p>
+        <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
+      </dialog>
+    </>
+  );
+}

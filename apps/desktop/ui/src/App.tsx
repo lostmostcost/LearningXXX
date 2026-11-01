@@ -7,6 +7,7 @@ import { ChatPanel } from "./ChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
+import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
 import type { PageLocation, SelectedText, SelectionIntent, SelectionRequest } from "./selection.ts";
@@ -131,6 +132,7 @@ export function App() {
         <strong>LearningXXX</strong>
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
+        {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
         <span>{library ? library.course.title : "과목 없음"} · {activeSessionId ? "세션 선택됨" : "세션 없음"}</span>
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">

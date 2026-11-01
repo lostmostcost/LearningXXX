@@ -5,6 +5,10 @@ const { contextBridge, ipcRenderer } = require("electron");
 const CHANNELS = new Set([
   "collection.run",
   "collection.status",
+  "credentials.status",
+  "credentials.saveSchool",
+  "credentials.saveCanvasToken",
+  "credentials.clear",
   "library.manifest",
   "library.courses",
   "library.asset",

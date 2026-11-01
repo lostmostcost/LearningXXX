@@ -85,7 +85,7 @@ export const IpcChannels = {
   },
   /** Moves one file to the macOS Trash after the host asks the user, showing its path. */
   "files.trash": {
-    request: z.object({ appSessionId: Id, key: z.string().min(1) }),
+    request: z.object({ appSessionId: Id, runId: Id, key: z.string().min(1) }),
     response: z.object({ trashed: z.boolean() }),
   },
   "run.cancel": {

@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { RunChanges, Session } from "@learningxxx/contracts";
-import { canGrantFolders, canTrash, displayKey, hasRestorable, recoveryNote, restoreSummary } from "../src/files.ts";
+import { canGrantFolders, canTrash, displayKey, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "../src/files.ts";
 
 const record = (over: Partial<RunChanges> = {}): RunChanges =>
   RunChanges.parse({
-    runId: randomUUID(), appSessionId: randomUUID(), recordedAt: "2026-11-02T00:00:00Z", snapshotKept: true,
+    runId: randomUUID(), appSessionId: randomUUID(), recordedAt: "2026-11-02T00:00:00Z", snapshotKept: true, externalFolders: [],
     changes: [{ key: "a.md", change: "modified", restorable: true }], ...over,
   });
 
@@ -14,6 +14,17 @@ test("external keys show the folder name, not an index", () => {
   assert.equal(displayKey("external-1/r.md", ["/a/first", "/b/second"]), "second/r.md");
   assert.equal(displayKey("external-5/r.md", []), "외부 폴더/r.md");
   assert.equal(displayKey("notes/a.md"), "notes/a.md");
+});
+
+test("a list that arrived for another session is dropped", () => {
+  const mine = record();
+  assert.deepEqual(recordsFor([record(), mine], mine.appSessionId), [mine]);
+});
+
+test("the panel is rebuilt per session, so nothing carries across a switch", async () => {
+  const { readFileSync } = await import("node:fs");
+  const panel = readFileSync(new URL("../src/ChatPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /<FilesSection key=\{active\.appSessionId\}/);
 });
 
 test("only an existing file can go to the Trash", () => {

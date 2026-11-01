@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunChanges, Session } from "@learningxxx/contracts";
-import { CHANGE_LABEL, canGrantFolders, canTrash, displayKey, hasRestorable, recoveryNote, restoreSummary } from "./files.ts";
+import { CHANGE_LABEL, canGrantFolders, canTrash, displayKey, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "./files.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 
 /**
@@ -9,15 +9,19 @@ import { invoke, onHostPush } from "./host-api.ts";
  * Every path is chosen or confirmed in the host; this panel only sends keys.
  */
 export function FilesSection({ session, running, onChanged }: { session: Session; running: boolean; onChanged: () => void }) {
-  const [records, setRecords] = useState<RunChanges[]>([]);
+  const [loaded, setLoaded] = useState<RunChanges[]>([]);
+  const latestLoad = useRef(0);
   const [notice, setNotice] = useState<string>();
   const [confirming, setConfirming] = useState<string>();
   const { appSessionId } = session;
   const folders = session.externalFolders ?? [];
+  const records = recordsFor(loaded, appSessionId);
 
   const load = useCallback(async () => {
+    const generation = (latestLoad.current += 1);
     const result = await invoke("files.sessionChanges", { appSessionId });
-    if (result.ok) setRecords(result.data.records);
+    if (generation !== latestLoad.current) return; // A newer request owns the list.
+    if (result.ok) setLoaded(result.data.records);
     else setNotice(result.error.message);
   }, [appSessionId]);
 
@@ -70,9 +74,9 @@ export function FilesSection({ session, running, onChanged }: { session: Session
               <ul className="entries">
                 {record.changes.map((change) => (
                   <li key={change.key}>
-                    <span className="badge">{CHANGE_LABEL[change.change]}</span> {displayKey(change.key, folders)}{" "}
+                    <span className="badge">{CHANGE_LABEL[change.change]}</span> {displayKey(change.key, record.externalFolders)}{" "}
                     {canTrash(change) ? (
-                      <button disabled={running} title={busy ?? "확인 후 휴지통으로 옮깁니다"} onClick={() => void act(() => invoke("files.trash", { appSessionId, key: change.key }), (d: { trashed: boolean }) => (d.trashed ? "휴지통으로 옮겼습니다." : "취소했습니다."))}>휴지통으로</button>
+                      <button disabled={running} title={busy ?? "확인 후 휴지통으로 옮깁니다"} onClick={() => void act(() => invoke("files.trash", { appSessionId, runId: record.runId, key: change.key }), (d: { trashed: boolean }) => (d.trashed ? "휴지통으로 옮겼습니다." : "취소했습니다."))}>휴지통으로</button>
                     ) : null}
                   </li>
                 ))}

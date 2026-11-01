@@ -19,6 +19,11 @@ export const RunChanges = z.object({
   appSessionId: Id,
   recordedAt: UtcTimestamp,
   changes: z.array(FileChange),
+  /**
+   * The folders granted during this run. `external-<n>` keys index this list,
+   * never the session's current grants, which can change afterwards.
+   */
+  externalFolders: z.array(z.string()),
   /** False when the workspace was too large to copy before the run. */
   snapshotKept: z.boolean(),
 });

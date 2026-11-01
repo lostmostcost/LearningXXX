@@ -957,7 +957,8 @@
         "apps/desktop/ui/",
         "apps/desktop/host/",
         "packages/contracts/",
-        "docs/pm/wbs.json"
+        "docs/pm/wbs.json",
+        "tests/acceptance/a-flow.test.ts"
       ],
       "spec": "SPEC-002",
       "requirements": [

@@ -124,16 +124,6 @@ test("restore through a symlink never overwrites the file it points at (review P
   assert.equal(lstatSync(join(dir, "notes.md")).isSymbolicLink(), true);
 });
 
-test("trash never follows a link to another file in the workspace", async () => {
-  const { sessions, files, dataRoot, confirmed } = setup();
-  const session = courseSession(sessions);
-  const dir = workspace(dataRoot, session);
-  writeFileSync(join(dir, "real.md"), "x");
-  symlinkSync(join(dir, "real.md"), join(dir, "link.md"));
-  assert.equal(await code(files.trash({ appSessionId: session.appSessionId, key: "link.md" })), "SCOPE_VIOLATION");
-  assert.deepEqual(confirmed, []);
-});
-
 test("a failed snapshot fails the run and leaves the session usable (review P1)", async () => {
   const dataRoot = realpathSync(mkdtempSync(join(tmpdir(), "wbs017-")));
   let broken = true;
@@ -278,31 +268,93 @@ test("a symlink in the workspace is not followed when snapshotting", async () =>
 });
 
 test("trash asks first, showing the full path, and honours a refusal", async () => {
-  const { sessions, files, dataRoot, trashed, confirmed, state } = setup();
+  const { sessions, files, dataRoot, trashed, confirmed, state } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
   const session = courseSession(sessions);
+  const { appSessionId } = session;
+  const { runId } = await runOnce(sessions, appSessionId);
   const path = join(workspace(dataRoot, session), "a.md");
-  writeFileSync(path, "x");
   state.confirm = false;
-  assert.deepEqual(await files.trash({ appSessionId: session.appSessionId, key: "a.md" }), { trashed: false });
+  assert.deepEqual(await files.trash({ appSessionId, runId, key: "a.md" }), { trashed: false });
   assert.deepEqual(trashed, []);
   assert.deepEqual(confirmed, [path]);
   state.confirm = true;
-  assert.deepEqual(await files.trash({ appSessionId: session.appSessionId, key: "a.md" }), { trashed: true });
+  assert.deepEqual(await files.trash({ appSessionId, runId, key: "a.md" }), { trashed: true });
   assert.deepEqual(trashed, [path]);
 });
 
-test("trash cannot reach outside the session, including through a symlink", async () => {
-  const { sessions, files, dataRoot, outside, confirmed } = setup();
+test("trash only accepts a change this run recorded", async () => {
+  const { sessions, files, dataRoot, confirmed } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
   const session = courseSession(sessions);
-  const dir = workspace(dataRoot, session);
-  writeFileSync(join(outside, "secret.txt"), "x");
-  symlinkSync(join(outside, "secret.txt"), join(dir, "link.txt"));
+  const { appSessionId } = session;
+  const { runId } = await runOnce(sessions, appSessionId);
   mkdirSync(join(dataRoot, "library"));
   writeFileSync(join(dataRoot, "library/original.pdf"), "x");
-  for (const key of ["link.txt", "../../../../library/original.pdf", "/etc/hosts", "external-0/x"]) {
-    assert.equal(await code(files.trash({ appSessionId: session.appSessionId, key })), "SCOPE_VIOLATION", key);
+  for (const key of ["../../../../library/original.pdf", "/etc/hosts", "external-0/x", "other.md"]) {
+    assert.equal(await code(files.trash({ appSessionId, runId, key })), "SCOPE_VIOLATION", key);
   }
   assert.deepEqual(confirmed, []);
+});
+
+test("trash refuses a recorded file that became a link", async () => {
+  const { sessions, files, dataRoot, confirmed } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
+  const session = courseSession(sessions);
+  const { appSessionId } = session;
+  const dir = workspace(dataRoot, session);
+  const { runId } = await runOnce(sessions, appSessionId);
+  writeFileSync(join(dir, "real.md"), "keep");
+  rmSync(join(dir, "a.md"));
+  symlinkSync(join(dir, "real.md"), join(dir, "a.md"));
+  assert.equal(await code(files.trash({ appSessionId, runId, key: "a.md" })), "SCOPE_VIOLATION");
+  assert.deepEqual(confirmed, []);
+});
+
+test("a run of session A cannot be used from session B (PR #23 review)", async () => {
+  const { sessions, files, dataRoot, confirmed } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
+  const a = courseSession(sessions);
+  const b = courseSession(sessions);
+  const { runId } = await runOnce(sessions, a.appSessionId);
+  writeFileSync(join(workspace(dataRoot, b), "a.md"), "b's own file");
+  assert.equal(await code(files.trash({ appSessionId: b.appSessionId, runId, key: "a.md" })), "SCOPE_VIOLATION");
+  assert.deepEqual(confirmed, []);
+});
+
+function twoFolders() {
+  const folderA = realpathSync(mkdtempSync(join(tmpdir(), "wbs035-a-")));
+  const folderB = realpathSync(mkdtempSync(join(tmpdir(), "wbs035-b-")));
+  writeFileSync(join(folderB, "report.md"), "b's unrelated file");
+  const context = setup((req) => writeFileSync(join(req.writableDirs![0]!, "report.md"), "from the run"));
+  return { ...context, folderA, folderB };
+}
+
+test("a past external change never slides onto another folder (PR #23 review)", async () => {
+  const { sessions, files, state, trashed, confirmed, folderA, folderB } = twoFolders();
+  const { appSessionId } = courseSession(sessions);
+  state.picked = folderA;
+  await files.chooseFolder({ appSessionId });
+  state.picked = folderB;
+  await files.chooseFolder({ appSessionId });
+  const { runId } = await runOnce(sessions, appSessionId);
+  assert.deepEqual(sessions.history!.changes(runId)?.externalFolders, [folderA, folderB]);
+  files.removeFolder({ appSessionId, folder: folderA });
+  assert.equal(await code(files.trash({ appSessionId, runId, key: "external-0/report.md" })), "SCOPE_VIOLATION");
+  assert.deepEqual(confirmed, []);
+  assert.deepEqual(trashed, []);
+});
+
+test("a past external change follows its folder when the order changes", async () => {
+  const { sessions, files, state, trashed, folderA, folderB } = twoFolders();
+  const { appSessionId } = courseSession(sessions);
+  state.picked = folderA;
+  await files.chooseFolder({ appSessionId });
+  const { runId } = await runOnce(sessions, appSessionId);
+  files.removeFolder({ appSessionId, folder: folderA });
+  state.picked = folderB;
+  await files.chooseFolder({ appSessionId });
+  state.picked = folderA;
+  await files.chooseFolder({ appSessionId });
+  assert.deepEqual(sessions.get(appSessionId).externalFolders, [folderB, folderA]);
+  await files.trash({ appSessionId, runId, key: "external-0/report.md" });
+  assert.deepEqual(trashed, [join(folderA, "report.md")]);
 });
 
 test("a chosen folder reaches that session's runs only", async () => {

@@ -191,7 +191,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
           {active.mode === "independent" ? (
             <p role="note" className="notice-box">독립 세션: 과목 자료, 이전 대화, 메모를 보지 않습니다. 직접 첨부한 것만 전달됩니다.</p>
           ) : null}
-          <FilesSection session={active} running={running} onChanged={() => void reload()} />
+          <FilesSection key={active.appSessionId} session={active} running={running} onChanged={() => void reload()} />
           <ol className="transcript">
             {transcript.turns.filter((t) => t.appSessionId === active.appSessionId).map((turn) => (
               <TurnView

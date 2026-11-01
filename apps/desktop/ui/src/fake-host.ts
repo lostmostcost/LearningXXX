@@ -66,7 +66,7 @@ export function installFakeHost(courseTitle: string): void {
     // Canned history so the file panel can be tried; nothing touches real files.
     "files.sessionChanges": (p) => ok({
       records: sessions.find((s) => s.appSessionId === p.appSessionId)?.mode === "course"
-        ? [{ runId: crypto.randomUUID(), appSessionId: p.appSessionId, recordedAt: now(), snapshotKept: true, changes: [
+        ? [{ runId: crypto.randomUUID(), appSessionId: p.appSessionId, recordedAt: now(), snapshotKept: true, externalFolders: [], changes: [
             { key: "notes/summary.md", change: "created", restorable: true },
             { key: "notes/week1.md", change: "modified", restorable: true },
           ] }]

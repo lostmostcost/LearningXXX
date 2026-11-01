@@ -10,6 +10,10 @@ export function displayKey(key: string, folders: readonly string[] = []): string
   return `${folder?.split("/").pop() ?? "외부 폴더"}/${match[2]}`;
 }
 
+/** A list that arrived late for another session is never shown or acted on. */
+export const recordsFor = (records: readonly RunChanges[], appSessionId: string) =>
+  records.filter((record) => record.appSessionId === appSessionId);
+
 /** Only a file that still exists can be moved to the Trash. */
 export const canTrash = (change: FileChange) => change.change !== "deleted";
 

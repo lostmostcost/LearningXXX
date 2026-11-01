@@ -1,0 +1,9 @@
+{
+  "name": "LearningXXX shared tooling",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "tools",
+  "workspaceFolder": "/workspace",
+  "overrideCommand": true,
+  "shutdownAction": "stopCompose"
+}
+

@@ -1,0 +1,12 @@
+.git
+outputs
+data
+recordings
+downloads
+.env*
+.claude
+.claims
+node_modules
+.venv
+__pycache__
+

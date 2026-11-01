@@ -1,0 +1,763 @@
+{
+  "schemaVersion": 1,
+  "snapshotDate": "2026-11-01",
+  "statusSource": "Notion; status here is a snapshot, never an execution authorization",
+  "tasks": [
+    {
+      "id": "WBS-001",
+      "title": "구독 CLI·파일·재개 기술 스파이크",
+      "phase": "G0 검증",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "cli"
+      ],
+      "paths": [
+        "spikes/cli/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-001",
+        "REQ-004"
+      ],
+      "acceptance": "로그인된 공식 CLI로 요청/응답, 지정 fixture 생성·수정·삭제, 같은 session ID 재개를 기록한다. API 인증 없이 성공한 실행 증거와 버전/실패 경계를 남긴다.",
+      "status": "Ready",
+      "branch": "spike/WBS-001-cli-proof",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81388a3cf7d2c4014516?pvs=204"
+    },
+    {
+      "id": "WBS-002",
+      "title": "독립 세션 접근 경계 검증",
+      "phase": "G0 검증",
+      "priority": "P0",
+      "deps": [
+        "WBS-001"
+      ],
+      "areas": [
+        "cli"
+      ],
+      "paths": [
+        "spikes/cli/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-005"
+      ],
+      "acceptance": "과목·기억·부모 설정·MCP·symlink canary를 준비하고 새 독립 session의 payload와 도구 접근을 검사한다. 구독을 유지한 격리 실패 시 ADR로 진행 조건을 재결정한다.",
+      "status": "Backlog",
+      "branch": "spike/WBS-002-isolation",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81c1ad68defbcae5a203?pvs=204"
+    },
+    {
+      "id": "WBS-003",
+      "title": "실제 과목·형식·언어·QA 지표 결정",
+      "phase": "G0 검증",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "docs/decisions/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [
+        "REQ-002",
+        "REQ-003",
+        "REQ-006"
+      ],
+      "acceptance": "대상 학기/과목, 문서 형식, 번역 언어, 사용 기간과 표본, 합격 수치, 앱 수정 의미, 파일 작업 범위를 두 사람이 결정한다. 학교 데이터 자체는 commit하지 않는다.",
+      "status": "Ready",
+      "branch": "spike/WBS-003-product-decisions",
+      "url": "https://app.notion.com/p/40bbd7ec20cd813f8550ff9f394bbbc6?pvs=204"
+    },
+    {
+      "id": "WBS-004",
+      "title": "UI·서버 런타임과 배치 ADR",
+      "phase": "G0 검증",
+      "priority": "P0",
+      "deps": [
+        "WBS-001",
+        "WBS-002",
+        "WBS-003"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "docs/decisions/"
+      ],
+      "spec": "ARCH-001",
+      "requirements": [
+        "REQ-001",
+        "REQ-010"
+      ],
+      "acceptance": "UI framework·host IPC·서버 런타임·호스팅·인증·전달 방식을 비교 후 선택한다. 구독/마이크/격리 검증과 모순이 없고 선택 이유·대안을 기록한다.",
+      "status": "Backlog",
+      "branch": "spike/WBS-004-architecture",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81188be2f2c8b2445feb?pvs=204"
+    },
+    {
+      "id": "WBS-005",
+      "title": "두 Mac 공통 환경·선점·CI 재현",
+      "phase": "G1 기반",
+      "priority": "P0",
+      "deps": [
+        "WBS-004"
+      ],
+      "areas": [
+        "infra",
+        "shared"
+      ],
+      "paths": [
+        "infra/",
+        "scripts/",
+        "tests/tooling/",
+        "compose.yaml",
+        ".github/",
+        ".devcontainer/"
+      ],
+      "spec": "OPS-001",
+      "requirements": [
+        "REQ-010"
+      ],
+      "acceptance": "각자 clone 후 컨테이너 검사와 host checklist를 실행한다. 같은 작업/영역 동시 선점 시 하나만 성공하고 해제는 소유자만 가능한지 재현한다. 초기 scaffold 검증을 제품 구현 완료로 간주하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-005-dev-environment",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8167833cebabeb6db83f?pvs=204"
+    },
+    {
+      "id": "WBS-006",
+      "title": "데이터·IPC·오류 계약과 합성 fixture",
+      "phase": "G1 기반",
+      "priority": "P0",
+      "deps": [
+        "WBS-004"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "tests/fixtures/"
+      ],
+      "spec": "ARCH-001",
+      "requirements": [
+        "REQ-002",
+        "REQ-003",
+        "REQ-004"
+      ],
+      "acceptance": "Course/Resource/Manifest/Session/Run/event schema와 버전을 고정한다. 정상·만료·중단·다른 계정 fixture, producer/consumer 호환 검사를 제공한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-006-contracts",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81348fa0e5ef35a200fc?pvs=204"
+    },
+    {
+      "id": "WBS-007",
+      "title": "서버 LMS 인증·과목·주차 탐색",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-005",
+        "WBS-006"
+      ],
+      "areas": [
+        "collector"
+      ],
+      "paths": [
+        "services/collector/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "새 구현으로 읽기 전용 과목/주차를 수집한다. 기존 archive 코드를 복사·호출하지 않는다. 로그인 만료를 분리하며 비밀 없는 fixture로 파서 검증한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-007-lms-discovery",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81c18d42cfc1f061859a?pvs=204"
+    },
+    {
+      "id": "WBS-008",
+      "title": "서버 자료·공지·과제·첨부 수집",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-007"
+      ],
+      "areas": [
+        "collector"
+      ],
+      "paths": [
+        "services/collector/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "자료 종류/출처/주차/마감/첨부를 정규화한다. 같은 수집 2회 중복 없음, 수정 revision, 부분 실패, 해시 무결성을 검증한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-008-lms-resources",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81dfb749db6d2a30e986?pvs=204"
+    },
+    {
+      "id": "WBS-009",
+      "title": "예약 수집·재시도·변경 추적",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-008"
+      ],
+      "areas": [
+        "collector"
+      ],
+      "paths": [
+        "services/collector/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "합의한 주기로 실행하고 auth_required·부분 실패·tombstone을 표시한다. 중단 재시도와 중복 스케줄의 멱등성을 검증한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-009-scheduler",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8147a1f5f11c4efbbaef?pvs=204"
+    },
+    {
+      "id": "WBS-010",
+      "title": "서버 manifest·asset 전달 서비스",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-005",
+        "WBS-006"
+      ],
+      "areas": [
+        "sync"
+      ],
+      "paths": [
+        "services/sync/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "인증된 계정별 manifest와 asset 전달 API를 구현한다. 서로 다른 계정 차단, 버전 불일치, 무결성 실패, 재전달 멱등 테스트를 통과한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-010-delivery",
+      "url": "https://app.notion.com/p/40bbd7ec20cd816fafb9dc41f26ed547?pvs=204"
+    },
+    {
+      "id": "WBS-011",
+      "title": "macOS shell·host IPC·화면 골격",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-005",
+        "WBS-006"
+      ],
+      "areas": [
+        "ui",
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003"
+      ],
+      "acceptance": "과목/자료/채팅 패널과 typed host 경계를 구현한다. renderer 임의 명령 실행이 없고 빈 상태·키보드 이동·창 크기 변경을 확인한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-011-desktop-shell",
+      "url": "https://app.notion.com/p/40bbd7ec20cd815da9edc527b23e5a2f?pvs=204"
+    },
+    {
+      "id": "WBS-012",
+      "title": "Mac 수신·로컬 자료 저장·오프라인",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-010",
+        "WBS-011"
+      ],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "manifest→임시 다운로드→해시→원자 확정 흐름과 로컬 인덱스를 구현한다. 중간 종료와 offline에서도 기존 정상본·사용자 메모가 유지된다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-012-local-sync",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81c79284de0a894dc8eb?pvs=204"
+    },
+    {
+      "id": "WBS-013",
+      "title": "주차 자료 뷰어·공지·과제 표시",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-011"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003"
+      ],
+      "acceptance": "합의 형식 뷰어와 주차/공지/마감·원문 열기를 fixture로 구현한다. 지원 불가·텍스트 없는 문서 상태를 표시한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-013-viewer",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8119a201fe259c2bc792?pvs=204"
+    },
+    {
+      "id": "WBS-014",
+      "title": "공식 CLI 실행·stream·취소 adapter",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-002",
+        "WBS-005",
+        "WBS-006"
+      ],
+      "areas": [
+        "cli"
+      ],
+      "paths": [
+        "packages/cli-adapter/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-001"
+      ],
+      "acceptance": "구독 CLI를 인자 배열로 실행하고 JSON event·오류·취소를 정규화한다. 인증 없음/사용량 제한/버전 문제/API 설정 충돌에서 자동 fallback하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-014-cli-adapter",
+      "url": "https://app.notion.com/p/40bbd7ec20cd817f8313fba1c5d130ad?pvs=204"
+    },
+    {
+      "id": "WBS-015",
+      "title": "세션 저장·재개·보관·독립 모드",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-011",
+        "WBS-014"
+      ],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-004",
+        "REQ-005"
+      ],
+      "acceptance": "app session↔CLI session 매핑, 단일 실행, 과목 복수 세션, 보관·재개 및 검증된 독립 workspace를 구현한다. 재시작 및 canary 회귀를 통과한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-015-sessions",
+      "url": "https://app.notion.com/p/40bbd7ec20cd810c80d4dc7f31cf1a8d?pvs=204"
+    },
+    {
+      "id": "WBS-016",
+      "title": "첨부·캡처·자유 채팅 composer",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-013",
+        "WBS-015"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-009"
+      ],
+      "acceptance": "첨부/선택/캡처 미리보기와 전송 고정, streaming·취소·오류·권한 UI를 구현한다. 세션 전환 오발송·캡처 취소·준비중 전송을 검사한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-016-chat",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81818edbd237287a6dec?pvs=204"
+    },
+    {
+      "id": "WBS-017",
+      "title": "제한된 파일 산출·변경·복구",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-015"
+      ],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-009"
+      ],
+      "acceptance": "합의한 작업공간 경계·생성/수정/삭제 정책과 변경 요약을 구현한다. 원본 보호·경로 탈출·symlink·중단 복구를 검증한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-017-file-scope",
+      "url": "https://app.notion.com/p/40bbd7ec20cd815f84bff0635d0af824?pvs=204"
+    },
+    {
+      "id": "WBS-018",
+      "title": "선택 텍스트 번역·쉬운 설명",
+      "phase": "A 핵심경험",
+      "priority": "P1",
+      "deps": [
+        "WBS-016"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-006"
+      ],
+      "acceptance": "합의 언어로 선택 텍스트와 원문 위치만 명시 입력한다. 독립 session에 과목 전체를 주입하지 않고 답변→원문 이동을 확인한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-018-selection-tools",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8156a1fdc2ee9598b847?pvs=204"
+    },
+    {
+      "id": "WBS-019",
+      "title": "A 통합·장애·계정 경계 회귀",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-009",
+        "WBS-012",
+        "WBS-016",
+        "WBS-017",
+        "WBS-018"
+      ],
+      "areas": [
+        "acceptance"
+      ],
+      "paths": [
+        "tests/acceptance/"
+      ],
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006"
+      ],
+      "acceptance": "서버→Mac→뷰어→첨부→CLI→재개 전체 흐름을 검증한다. 만료·오프라인·중복·격리 실패를 검출하고 수정은 해당 모듈의 별도 claim 작업으로 처리한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-019-a-integration",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81cf8cdee0e7883c68da?pvs=204"
+    },
+    {
+      "id": "WBS-020",
+      "title": "A 기능 설명·두 사람 실사용 QA",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-019"
+      ],
+      "areas": [
+        "acceptance"
+      ],
+      "paths": [
+        "docs/qa/",
+        "tests/acceptance/"
+      ],
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006"
+      ],
+      "acceptance": "각 기능의 작동 구조를 설명하고 두 사람이 정한 실제 과목 시나리오를 사용한다. 피드백·수정·재검수 증거를 연결해야 A gate를 통과한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-020-a-qa",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81b0a224f1b376bdb48a?pvs=204"
+    },
+    {
+      "id": "WBS-021",
+      "title": "STT 엔진·실행 위치·품질 실험",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-020"
+      ],
+      "areas": [
+        "transcriber"
+      ],
+      "paths": [
+        "spikes/stt/",
+        "services/transcriber/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "한국어/전문용어/잡음 표본으로 엔진·시간·자원·비용을 비교한다. 실행 위치와 합격 수치 결정, 원본의 외부 전송 여부를 ADR로 기록한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-021-stt-proof",
+      "url": "https://app.notion.com/p/40bbd7ec20cd8136a5d3ddf0e7bb73b8?pvs=204"
+    },
+    {
+      "id": "WBS-022",
+      "title": "녹음·영상·전사 job 계약 확장",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-021"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "tests/fixtures/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "Recording/MediaAsset/TranscriptSegment/Job 및 멱등 키·오류·버전 계약을 추가한다. A 소비자 하위호환과 fixture를 확인한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-022-media-contracts",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81b48fd8d73acdea2c8f?pvs=204"
+    },
+    {
+      "id": "WBS-023",
+      "title": "대면 강의 녹음·권한·원본 복구",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-022"
+      ],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007"
+      ],
+      "acceptance": "마이크 권한·시작/중지·청크 보존·원본 확정·job 등록을 구현한다. 잠자기·강제 종료·디스크 부족에서 손실/복구 범위를 검증한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-023-recording",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81e0892be7f90ea834e1?pvs=204"
+    },
+    {
+      "id": "WBS-024",
+      "title": "온라인 강의 다운로드·원본 검증",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-022"
+      ],
+      "areas": [
+        "collector"
+      ],
+      "paths": [
+        "services/collector/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-008"
+      ],
+      "acceptance": "공식 접근 권한 안의 영상 소스를 새로 구현한다. recorder skill을 열람/참고하지 않는다. 만료/중단/재시도/완성 검증과 원본 보존을 구현한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-024-video-download",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81349da7f72114c37641?pvs=204"
+    },
+    {
+      "id": "WBS-025",
+      "title": "자동 전사 큐·worker·재시도",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-022"
+      ],
+      "areas": [
+        "transcriber"
+      ],
+      "paths": [
+        "services/transcriber/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "합의 엔진으로 원본 확정 시 자동 전사한다. job 멱등·lease 만료·취소·버전별 결과 보존·오류 재시도를 검증한다. 자동 요약을 실행하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-025-transcription",
+      "url": "https://app.notion.com/p/40bbd7ec20cd817f8684ec3e9f33c8a3?pvs=204"
+    },
+    {
+      "id": "WBS-026",
+      "title": "원본 재생·타임스탬프 전사 UI",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-022"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "fixture로 녹음/영상 진행·실패·원본 열기·전사 구간 재생·채팅 첨부 UI를 구현한다. 숫자 없는 진행은 가짜 % 없이 표시한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-026-transcript-ui",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81b0870ae97255443115?pvs=204"
+    },
+    {
+      "id": "WBS-027",
+      "title": "녹음·영상→자동 전사 통합",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-023",
+        "WBS-024",
+        "WBS-025",
+        "WBS-026"
+      ],
+      "areas": [
+        "host",
+        "sync"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "services/sync/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "호스트/서버 간 media 전달과 job 상태를 연결한다. 앱 재시작 후 누락 job 복구, 동일 원본 중복 전사 방지, 원본 재생을 확인한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-027-media-integration",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81779f4ed19d57301eda?pvs=204"
+    },
+    {
+      "id": "WBS-028",
+      "title": "B 장애 복구·전사 품질 검수",
+      "phase": "B 전사",
+      "priority": "P1",
+      "deps": [
+        "WBS-027"
+      ],
+      "areas": [
+        "acceptance"
+      ],
+      "paths": [
+        "tests/acceptance/",
+        "docs/qa/"
+      ],
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "중단·재시도·원본 손실 방지 및 합의한 전사 품질을 실제 두 Mac과 표본에서 확인한다. 사람에게 작동 구조를 설명하고 사용감 기록을 받는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-028-b-qa",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81c180eac578f864f9b5?pvs=204"
+    },
+    {
+      "id": "WBS-029",
+      "title": "전체 MVP 반복 사용·피드백 처리",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [
+        "WBS-020",
+        "WBS-028"
+      ],
+      "areas": [
+        "acceptance"
+      ],
+      "paths": [
+        "docs/qa/",
+        "tests/acceptance/"
+      ],
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009"
+      ],
+      "acceptance": "합의한 기간/표본으로 A+B를 반복 사용한다. blocker는 별도 bug WBS로 분리하고 다시 검수한다. 두 사람의 실제 판정 없이 완료하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-029-mvp-qa",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81bf91c9c309dfb4a0ca?pvs=204"
+    },
+    {
+      "id": "WBS-030",
+      "title": "로컬 릴리스·복구·운영 인수인계",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-029"
+      ],
+      "areas": [
+        "infra",
+        "shared"
+      ],
+      "paths": [
+        "infra/",
+        "docs/releases/",
+        ".github/"
+      ],
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-010"
+      ],
+      "acceptance": "태그·실행법·데이터 위치·백업/복구·known issues·미해결 백로그를 정리한다. 각각 새 환경 재현과 복구를 확인하고 MVP gate를 기록한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-030-release",
+      "url": "https://app.notion.com/p/40bbd7ec20cd815389e1c14ba604b08c?pvs=204"
+    }
+  ]
+}
+

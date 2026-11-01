@@ -1,0 +1,41 @@
+{
+  "pm": "https://app.notion.com/p/40bbd7ec20cd802d9a66d29b84978eb4",
+  "databases": {
+    "spec": {
+      "db": "87202c4138004e46957ce615c0f94102",
+      "ds": "16ca4328-71cd-425a-9c41-18d6eca158b2"
+    },
+    "wbs": {
+      "db": "19c8ae7da606418c89550bcc8434054d",
+      "ds": "4036f8a5-5a51-4017-a914-d13e29fd84d4"
+    },
+    "backlog": {
+      "db": "844a017034394110bb14bdb1450dbbbd",
+      "ds": "6f599397-71b1-4a9f-8c93-8551daf7447d"
+    },
+    "meeting": {
+      "db": "1ff79edd02e84260b3d49618328502a7",
+      "ds": "a25644ee-d246-4bba-8169-3c858326e39e"
+    },
+    "collab": {
+      "db": "9374ddd3a18e4e5b88f2639872a66a60",
+      "ds": "603ea7b2-e898-44ad-92d1-69d7ac701ddc"
+    },
+    "qa": {
+      "db": "31a3d6d56c6542b5b5d08a12180376ff",
+      "ds": "f76f7b6c-df9e-4432-ab39-6a31d52473b7"
+    }
+  },
+  "documents": {
+    "PRD-001": "https://app.notion.com/p/40bbd7ec20cd8168aff3c65ca6a97a25?pvs=204",
+    "SPEC-001": "https://app.notion.com/p/40bbd7ec20cd81b8bdefc1dfdb9ba2ed?pvs=204",
+    "SPEC-002": "https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204",
+    "SPEC-003": "https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204",
+    "SPEC-004": "https://app.notion.com/p/40bbd7ec20cd814089fcc6c39c3992a3?pvs=204",
+    "ARCH-001": "https://app.notion.com/p/40bbd7ec20cd815bb87ad1ce5b9e1d04?pvs=204",
+    "OPS-001": "https://app.notion.com/p/40bbd7ec20cd81e2b1f6f6256e402133?pvs=204",
+    "QA-001": "https://app.notion.com/p/40bbd7ec20cd8162abefd52e61856ced?pvs=204",
+    "ROADMAP-001": "https://app.notion.com/p/40bbd7ec20cd81ae94a9c0516b9256a5?pvs=204"
+  }
+}
+

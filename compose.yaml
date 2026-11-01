@@ -1,0 +1,15 @@
+name: learningxxx
+services:
+  tools:
+    build:
+      context: .
+      dockerfile: infra/dev/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    command: ["sh", "-c", "python scripts/check.py && python -m unittest discover -s tests/tooling -v"]
+    init: true
+

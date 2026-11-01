@@ -11,6 +11,7 @@ import { LibraryService } from "../../apps/desktop/host/src/library-service.ts";
 import { SessionService } from "../../apps/desktop/host/src/session-service.ts";
 import { SessionStore } from "../../apps/desktop/host/src/session-store.ts";
 import { RunHistory } from "../../apps/desktop/host/src/run-history.ts";
+import { AttachmentService } from "../../apps/desktop/host/src/attachment-service.ts";
 import { FileService } from "../../apps/desktop/host/src/file-service.ts";
 import { createRouter } from "../../apps/desktop/host/src/router.ts";
 import { createHandlers } from "../../apps/desktop/host/src/handlers.ts";
@@ -38,7 +39,7 @@ export async function harness(t: TestContext) {
   writeFileSync(cli, `#!${process.execPath}\n${readFileSync(new URL("../../packages/cli-adapter/test/fake-claude.mjs", import.meta.url), "utf8")}`);
   chmodSync(cli, 0o755);
   const state = { user: 42, offline: false, expired: false, scenario: "ok", confirm: false, loginCount: 0,
-    extraEnv: {} as NodeJS.ProcessEnv, external: join(root, "external") };
+    pickedFile: undefined as string | undefined, extraEnv: {} as NodeJS.ProcessEnv, external: join(root, "external") };
   mkdirSync(state.external);
   const network: { url: string; headers: Headers }[] = [];
   const progress: SyncRun[] = [], events: RunEvent[] = [], trash: string[] = [];
@@ -65,16 +66,19 @@ export async function harness(t: TestContext) {
     onProgress: (run) => progress.push(run), openLogin: () => { state.loginCount++; } });
   await library.init();
   const store = new SessionStore(join(dataRoot, "app-state.json"));
-  const options = { dataRoot, store, history: (now: () => string) => new RunHistory(join(dataRoot, "history"), now),
+  let sessions: SessionService;
+  const attachments = new AttachmentService({ dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),
+    readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId), chooseLocal: async () => state.pickedFile });
+  const options = { dataRoot, store, attachments, history: (now: () => string) => new RunHistory(join(dataRoot, "history"), now),
     startCli: (req: Parameters<typeof startRun>[0], signal: AbortSignal) => startRun(req, {
       cliPath: cli, signal, killGraceMs: 10,
       env: { HOME: home, PATH: "/usr/bin:/bin", FAKE_SCENARIO: state.scenario, FAKE_RECORD: record, FAKE_EXTERNAL: state.external, ...state.extraEnv },
     }), onEvent: (e: RunEvent) => events.push(e) };
-  let sessions = new SessionService(options);
+  sessions = new SessionService(options);
   const filesFor = () => new FileService({ dataRoot, sessions, history: sessions.history!,
     chooseFolder: async () => state.external, confirmTrash: async () => state.confirm,
     trash: async (path) => { const target = join(root, `trashed-${trash.length}`); renameSync(path, target); trash.push(path); } });
-  let router = createRouter(createHandlers(sessions, library, filesFor()));
+  let router = createRouter(createHandlers(sessions, library, filesFor(), attachments));
   const call = async <C extends IpcChannel>(channel: C, payload: IpcRequest<C>) =>
     router({ schemaVersion: SCHEMA_VERSION, channel, payload });
   const ok = async <C extends IpcChannel>(channel: C, payload: IpcRequest<C>): Promise<IpcResponse<C>> => {
@@ -90,5 +94,5 @@ export async function harness(t: TestContext) {
   const calls = () => existsSync(record) ? readFileSync(record, "utf8").trim().split("\n").map((line) => JSON.parse(line) as { argv: string[]; stdin: string; cwd: string }) : [];
   return { root, dataRoot, state, network, progress, events, call, ok, collect, calls, store, trash,
     sessions: () => sessions,
-    restart: () => { sessions = new SessionService(options); router = createRouter(createHandlers(sessions, library, filesFor())); } };
+    restart: () => { sessions = new SessionService(options); router = createRouter(createHandlers(sessions, library, filesFor(), attachments)); } };
 }

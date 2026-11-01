@@ -1,9 +1,11 @@
+import type { AttachmentService } from "./attachment-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService): Handlers {
+  const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   return {
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
@@ -17,6 +19,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "session.list": async (request) => ({ sessions: sessions.list(request) }),
     "session.rename": async (request) => ({ session: sessions.rename(request) }),
     "session.archive": async (request) => ({ session: sessions.archive(request) }),
+    "attachments.chooseLocal": async (request) => ({ attachment: await inputs().chooseLocal(request) }),
+    "attachments.prepareAsset": async (request) => ({ attachment: await inputs().prepareAsset(request) }),
+    "attachments.confirm": async (request) => ({ attachment: inputs().confirm(request) }),
+    "attachments.remove": async (request) => inputs().remove(request),
     "run.start": async (request) => ({ run: await sessions.startRun(request) }),
     "run.cancel": async (request) => ({ run: sessions.cancel(request) }),
     "files.chooseFolder": async (request) => ({ session: await files.chooseFolder(request) }),

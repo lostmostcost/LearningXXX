@@ -1,7 +1,7 @@
 // Stand-in for the official CLI in tests. Emits stream-json shaped like the
 // Claude Code 2.1.316 output recorded on 2026-11-01 (WBS-014) and records each
 // invocation's argv, stdin and cwd to $FAKE_RECORD. Synthetic data only.
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const argv = process.argv.slice(2);
@@ -79,6 +79,26 @@ switch (scenario) {
     out({ type: "rate_limit_event", rate_limit_info: { status: "allowed", resetsAt: 1793534400 } });
     result({ result: `echo:${stdin}` });
     process.exit(0);
+  case "attachment_read": {
+    const dirs = argv.flatMap((value, i) => value === "--add-dir" ? [argv[i + 1]] : []);
+    const contents = [];
+    for (const dir of dirs) for (const name of readdirSync(dir)) {
+      const path = join(dir, name), id = `read_${contents.length}`;
+      assistant("msg_read", [{ type: "tool_use", id, name: "Read", input: { file_path: path } }]);
+      contents.push(readFileSync(path, "utf8"));
+      toolResult(id, false, "Read synthetic selected file");
+    }
+    assistant("msg_answer", [{ type: "text", text: `attachment:${contents.join("|")}` }]);
+    result({ result: "read attachments" });
+    process.exit(0);
+  }
+  case "write_attachment": {
+    const target = join(flag("--add-dir"), "input.txt");
+    assistant("msg_write", [{ type: "tool_use", id: "write_attachment", name: "Write", input: { file_path: target } }]);
+    toolResult("write_attachment", false, "claimed write success");
+    await sleep(5000);
+    process.exit(0);
+  }
   case "write_file": {
     mkdirSync(join(process.cwd(), "notes"), { recursive: true });
     assistant("msg_1", [{ type: "tool_use", id: "toolu_w1", name: "Write", input: { file_path: join(process.cwd(), "notes/summary.md"), content: "x" } }]);

@@ -9,6 +9,7 @@ import type { ComposerDraft } from "@learningxxx/contracts";
  */
 export function installFakeHost(courseTitle: string): void {
   const sessions: Session[] = [];
+  const staged = new Map<string, { id: string; appSessionId: string; name: string; bytes: number; confirmed: boolean }>();
   const runs = new Map<string, { run: Run; seq: number; timer?: ReturnType<typeof setInterval> }>();
   const listeners = new Set<(m: unknown) => void>();
   const now = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -42,6 +43,20 @@ export function installFakeHost(courseTitle: string): void {
       const next = (p.archived ? { ...rest, archivedAt: now() } : rest) as Session;
       return ok({ session: update(String(p.appSessionId), next) });
     },
+    "attachments.chooseLocal": (p) => {
+      const item = { id: crypto.randomUUID(), appSessionId: String(p.appSessionId), name: "synthetic.txt", bytes: 42, mediaType: "text/plain", contentHash: "0".repeat(64), provenance: "local_file", confirmed: false };
+      staged.set(item.id, item); return ok({ attachment: item });
+    },
+    "attachments.prepareAsset": (p) => {
+      const item = { id: crypto.randomUUID(), appSessionId: String(p.appSessionId), name: "synthetic.pdf", bytes: 1200, mediaType: "application/pdf", contentHash: "0".repeat(64), provenance: "course_asset", confirmed: false };
+      staged.set(item.id, item); return ok({ attachment: item });
+    },
+    "attachments.confirm": (p) => {
+      const item = staged.get(String(p.attachmentId));
+      if (!item || item.appSessionId !== p.appSessionId) return fail("SCOPE_VIOLATION", "다른 세션의 첨부입니다.");
+      item.confirmed = true; return ok({ attachment: item });
+    },
+    "attachments.remove": (p) => ok({ removed: staged.delete(String(p.attachmentId)) }),
     "run.start": (p) => {
       const draft = p.draft as ComposerDraft;
       const session = sessions.find((s) => s.appSessionId === draft.targetSessionId);

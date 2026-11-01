@@ -9,7 +9,9 @@ import type { SelectedText, SelectionIntent } from "./selection.ts";
 export interface Attachment {
   id: string;
   name: string;
-  status: "preparing" | "ready" | "failed";
+  status: "preparing" | "unconfirmed" | "ready" | "failed";
+  bytes?: number;
+  error?: string;
 }
 
 export interface Draft {
@@ -42,7 +44,8 @@ export type SendBlock =
   | "running"
   | "empty"
   | "preparing"
-  | "failed_attachment";
+  | "failed_attachment"
+  | "unconfirmed_attachment";
 
 export const BLOCK_REASON: Record<SendBlock, string> = {
   no_session: "세션을 먼저 고르거나 만드세요.",
@@ -50,6 +53,7 @@ export const BLOCK_REASON: Record<SendBlock, string> = {
   running: "이 세션의 응답이 끝난 뒤 보낼 수 있습니다.",
   empty: "내용을 입력하세요.",
   preparing: "첨부를 준비하는 중입니다.",
+  unconfirmed_attachment: "첨부할 파일과 대상 세션을 확인해 주세요.",
   failed_attachment: "준비하지 못한 첨부가 있습니다. 빼거나 다시 추가하세요.",
 };
 
@@ -60,6 +64,7 @@ export function sendBlock(draft: Draft, session: Session | undefined, running: b
   if (running) return "running";
   if (draft.attachments.some((a) => a.status === "preparing")) return "preparing";
   if (draft.attachments.some((a) => a.status === "failed")) return "failed_attachment";
+  if (draft.attachments.some((a) => a.status === "unconfirmed")) return "unconfirmed_attachment";
   if (draft.text.trim() === "" && draft.attachments.length === 0 && !draft.selection) return "empty";
   return undefined;
 }
@@ -70,6 +75,7 @@ export function sendBlock(draft: Draft, session: Session | undefined, running: b
  * would reject the draft, so nothing half-valid reaches the host.
  */
 export function freeze(draft: Draft, targetSessionId: string): ComposerDraft {
+  if (draft.attachments.some((a) => a.status !== "ready")) throw new Error("attachment is not confirmed");
   return ComposerDraft.parse({
     text: draft.text,
     attachmentIds: draft.attachments.map((a) => a.id),

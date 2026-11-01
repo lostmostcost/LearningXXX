@@ -390,3 +390,22 @@ describe("classifyFailure", () => {
     });
   }
 });
+
+
+describe("read-only confirmed attachment boundary", () => {
+  it("reads only explicitly granted copies", async () => {
+    const f = fixture();
+    const events = await collect(await run(f, "attachment_read", { attachmentDirs: [f.outside] }));
+    assert.equal(last(events).type, "run.completed");
+    assert.match(text(events), /SYNTHETIC-CANARY/);
+  });
+  it("rejects a successful write report for an attachment even in a course session", async () => {
+    const f = fixture();
+    writeFileSync(join(f.outside, "input.txt"), "original");
+    const events = await collect(await run(f, "write_attachment", { mode: "course", workspacePath: f.course, attachmentDirs: [f.outside] }));
+    const end = last(events);
+    assert.equal(end.type, "run.failed");
+    if (end.type === "run.failed") assert.equal(end.payload.error.code, "SCOPE_VIOLATION");
+    assert.equal(readFileSync(join(f.outside, "input.txt"), "utf8"), "original");
+  });
+});

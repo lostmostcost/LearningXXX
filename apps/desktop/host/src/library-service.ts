@@ -172,6 +172,19 @@ export class LibraryService {
     return readCurrentManifest(this.#o.root, { courseId, accountKey: this.#accountKey });
   }
 
+  /** Opaque account boundary for staged attachments; never sent as CLI context. */
+  accountKey(): string | undefined { return this.#accountKey; }
+
+  async attachmentSource(courseId: string, assetId: string) {
+    const accountKey = this.#accountKey;
+    const manifest = await this.manifest(courseId);
+    const asset = manifest?.items.flatMap((i) => i.assets).find((a) => a.id === assetId);
+    if (!asset) fail("NOT_FOUND", "첨부할 자료를 찾을 수 없습니다.");
+    const data = await this.asset({ courseId, assetId });
+    if (accountKey !== this.#accountKey) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 자료를 다시 선택하세요.");
+    return { ...data, name: asset.originalName, accountKey };
+  }
+
   /** An original named by its manifest entry only, re-hashed before it is handed out. */
   async asset({ courseId, assetId }: IpcRequest<"library.asset">): Promise<IpcResponse<"library.asset">> {
     const manifest = await this.manifest(courseId);

@@ -1,0 +1,16 @@
+{
+  "cliVersion": "2.1.316",
+  "authMethod": "claude.ai",
+  "apiKeySource": "none",
+  "checks": {
+    "independent explicit copy read": true,
+    "course write attempts denied by filesystem": true,
+    "fresh ungranted session denies prior copy": true
+  },
+  "limits": "Terminal invocation and disposable copies only; not native picker, full host wiring, or human QA.",
+  "task": "WBS-036",
+  "date": "2026-11-01",
+  "platform": "macOS arm64",
+  "command": "python3 apps/desktop/host/scripts/attachment-canary.py",
+  "humanQA": "NOT RUN"
+}

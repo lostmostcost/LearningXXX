@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
@@ -181,6 +181,78 @@ test("unknown attachment/capture IDs are rejected, never silently dropped or sen
 
 // These are missing workflows, not expected successes with fabricated attachment IDs.
 // Replace each TODO with preparation → explicit confirmation → verified copy → CLI assertions after implementation.
-test.todo("A-ready: course/local-file attachment preparation and confirmed delivery (A-001)");
+test("A-001: selected course/local files are confirmed and copied to this run only", async (t) => {
+  const h = await harness(t);
+  await h.collect();
+  const courseId = (await h.ok("library.courses", {})).courses[0]!.id;
+  const manifest = (await h.ok("library.manifest", { courseId })).manifest!;
+  const asset = manifest.items.flatMap((item) => item.assets)[0]!;
+  const { session } = await h.ok("session.create", { mode: "independent", title: "explicit attachments" });
+  const { session: other } = await h.ok("session.create", { mode: "independent", title: "other" });
+  const { attachment } = await h.ok("attachments.prepareAsset", { appSessionId: session.appSessionId, courseId, assetId: asset.id });
+  assert.equal(attachment.confirmed, false);
+  const attempted = await h.call("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), attachmentIds: [attachment.id] } });
+  assert.ok(!attempted.ok); assert.equal(h.calls().length, 0);
+  await h.ok("attachments.confirm", { appSessionId: session.appSessionId, attachmentId: attachment.id });
+  const foreign = await h.call("run.start", { requestId: randomUUID(), draft: { ...draft(other.appSessionId), attachmentIds: [attachment.id] } });
+  assert.ok(!foreign.ok); assert.equal(h.calls().length, 0);
+  h.state.scenario = "attachment_read";
+  const { run } = await h.ok("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), text: "read confirmed file", attachmentIds: [attachment.id] } });
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  assert.equal(h.store.load().runs.find((r) => r.runId === run.runId)!.status, "completed");
+  const first = h.calls()[0]!;
+  assert.ok(first.argv.includes("--add-dir"));
+  assert.ok(first.stdin.includes(run.runId));
+  assert.ok(!first.stdin.includes("SYNTHETIC_COURSE_CANARY"));
+  assert.ok(!first.stdin.includes(h.dataRoot + "/library"));
+  assert.ok(h.events.some((e) => e.runId === run.runId && e.type === "text.delta" && e.payload.text.includes("%PDF")));
+  assert.equal(existsSync(first.argv[first.argv.indexOf("--add-dir") + 1]!), false, "completed run's temporary copy removed");
+  const local = join(h.root, "local.txt"); writeFileSync(local, "EXPLICIT_LOCAL_CANARY");
+  h.state.pickedFile = local;
+  const prepared = (await h.ok("attachments.chooseLocal", { appSessionId: session.appSessionId })).attachment!;
+  await h.ok("attachments.confirm", { appSessionId: session.appSessionId, attachmentId: prepared.id });
+  const next = await h.ok("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), attachmentIds: [prepared.id] } });
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  assert.ok(h.events.some((e) => e.runId === next.run.runId && e.type === "text.delta" && e.payload.text.includes("EXPLICIT_LOCAL_CANARY")));
+  assert.ok(!h.calls()[1]!.stdin.includes(attachment.id));
+  await h.ok("attachments.remove", { appSessionId: session.appSessionId, attachmentId: prepared.id });
+  const removed = await h.call("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), attachmentIds: [prepared.id] } });
+  assert.ok(!removed.ok); assert.equal(h.calls().length, 2);
+  assert.equal(readFileSync(local, "utf8"), "EXPLICIT_LOCAL_CANARY");
+});
 test.todo("A-ready: capture selection, cancellation and confirmed delivery (A-002)");
 test.todo("A-ready: file scope/change summary/restore/trash controls connected to UI (A-003)");
+
+
+test("A-001: cancelled attachment runs remove only the temporary run copy", async (t) => {
+  const h = await harness(t);
+  const { session } = await h.ok("session.create", { mode: "course", courseId: randomUUID(), title: "cancel explicit copy" });
+  const local = join(h.root, "cancel.txt"); writeFileSync(local, "KEEP_ORIGINAL");
+  h.state.pickedFile = local;
+  const item = (await h.ok("attachments.chooseLocal", { appSessionId: session.appSessionId })).attachment!;
+  await h.ok("attachments.confirm", { appSessionId: session.appSessionId, attachmentId: item.id });
+  h.state.scenario = "slow";
+  const { run } = await h.ok("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), attachmentIds: [item.id] } });
+  await until(() => h.events.some((e) => e.runId === run.runId && e.type === "text.delta"));
+  const call = h.calls()[0]!, dir = call.argv[call.argv.indexOf("--add-dir") + 1]!;
+  assert.equal(existsSync(dir), true);
+  await h.ok("run.cancel", { runId: run.runId });
+  await until(() => !h.sessions().isActive(session.appSessionId));
+  assert.equal(existsSync(dir), false);
+  assert.equal(readFileSync(local, "utf8"), "KEEP_ORIGINAL");
+});
+
+test("A-001: switching the real library account invalidates prepared attachment IDs", async (t) => {
+  const h = await harness(t);
+  await h.collect();
+  const courseId = (await h.ok("library.courses", {})).courses[0]!.id;
+  const asset = (await h.ok("library.manifest", { courseId })).manifest!.items.flatMap((item) => item.assets)[0]!;
+  const { session } = await h.ok("session.create", { mode: "course", courseId, title: "account-bound" });
+  const { attachment } = await h.ok("attachments.prepareAsset", { appSessionId: session.appSessionId, courseId, assetId: asset.id });
+  await h.ok("attachments.confirm", { appSessionId: session.appSessionId, attachmentId: attachment.id });
+  h.state.user = 84;
+  await h.collect();
+  const result = await h.call("run.start", { requestId: randomUUID(), draft: { ...draft(session.appSessionId), attachmentIds: [attachment.id] } });
+  assert.ok(!result.ok); assert.equal(result.error.code, "SCOPE_VIOLATION");
+  assert.equal(h.calls().length, 0);
+});

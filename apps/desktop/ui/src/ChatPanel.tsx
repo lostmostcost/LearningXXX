@@ -1,18 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, type Transcript, type Turn } from "./chat.ts";
-import { BLOCK_REASON, emptyDraft, freeze, sendBlock, visibleSessions, type Draft } from "./composer.ts";
+import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft } from "./composer.ts";
 import { invoke, onHostPush } from "./host-api.ts";
+import { INTENT_LABEL, type SelectedText, type SelectionRequest } from "./selection.ts";
 
 const STATE_LABEL = { waiting: "응답을 기다리는 중…", streaming: "응답 중…", completed: "", failed: "실패", cancelled: "취소됨" } as const;
 const DECISION_LABEL = { allowed: "허용", denied: "거부됨", awaiting_user: "확인 필요" } as const;
 
-function TurnView({ turn, onCancel, onRetry }: { turn: Turn; onCancel: () => void; onRetry: () => void }) {
+function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; onCancel: () => void; onRetry: () => void; onOpenSelection: (s: SelectedText) => void }) {
   const help = turn.error ? errorHelp(turn.error) : undefined;
   return (
     <li className={`turn ${turn.state}`}>
       <div className="you">
-        {turn.sent.selection ? <blockquote>{turn.sent.selection.text}</blockquote> : null}
+        {turn.sent.selection ? <>
+          <p className="meta">{INTENT_LABEL[turn.sent.intent]} · {turn.sent.selection.page ?? "?"}쪽
+            <button onClick={() => onOpenSelection(turn.sent.selection!)}>원문 보기</button></p>
+          <blockquote>{turn.sent.selection.text}</blockquote>
+        </> : null}
         {turn.sent.text}
       </div>
       <div className="answer" aria-live={isOpen(turn) ? "polite" : "off"}>
@@ -35,14 +40,18 @@ function TurnView({ turn, onCancel, onRetry }: { turn: Turn; onCancel: () => voi
  * send time with their target session, so a session switch never re-routes a
  * message. Attachments and captures need host support and are not sent yet.
  */
-export function ChatPanel({ courseId, courseTitle }: { courseId?: string | undefined; courseTitle?: string | undefined }) {
+export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection }: {
+  courseId?: string | undefined; courseTitle?: string | undefined; activeId: string | undefined;
+  onActiveId: (id: string) => void; selectionRequest?: SelectionRequest | undefined;
+  onSelectionUsed: (id: string) => void; onOpenSelection: (s: SelectedText) => boolean;
+}) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeId, setActiveId] = useState<string>();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [transcript, setTranscript] = useState<Transcript>(emptyTranscript);
   const [notice, setNotice] = useState<string>();
   const [showArchived, setShowArchived] = useState(false);
   const [renaming, setRenaming] = useState<string>();
+  const handledSelection = useRef<string | undefined>(undefined);
 
   const reload = useCallback(async () => {
     const result = await invoke("session.list", { includeArchived: true });
@@ -64,6 +73,20 @@ export function ChatPanel({ courseId, courseTitle }: { courseId?: string | undef
   const running = openRun(transcript, activeId) !== undefined;
   const block = sendBlock(draft, active, running);
   const setDraft = (id: string, next: Draft) => setDrafts((d) => ({ ...d, [id]: next }));
+
+  useEffect(() => {
+    if (!selectionRequest || handledSelection.current === selectionRequest.id) return;
+    handledSelection.current = selectionRequest.id;
+    // Bind to the session captured at the PDF action, not a later session switch.
+    const target = sessions.find((s) => s.appSessionId === selectionRequest.targetSessionId);
+    if (!target || target.archivedAt) return; // An explicit target choice is shown below.
+    setDrafts((d) => ({ ...d, [target.appSessionId]: withSelection(d[target.appSessionId] ?? emptyDraft(), selectionRequest.selection, selectionRequest.intent) }));
+    onSelectionUsed(selectionRequest.id);
+  }, [selectionRequest, sessions, onSelectionUsed]);
+
+  const openSource = (selection: SelectedText) => {
+    if (!onOpenSelection(selection)) setNotice("현재 자료 목록에서 원문을 찾지 못했습니다. 다시 수집하거나 자료 목록을 확인하세요.");
+  };
 
   const create = async (mode: "course" | "independent") => {
     const count = sessions.filter((s) => s.mode === mode).length + 1;
@@ -93,7 +116,7 @@ export function ChatPanel({ courseId, courseTitle }: { courseId?: string | undef
     setDraft(target, emptyDraft());
     setNotice(undefined);
     // Refused before it started: give the text back to the same session only.
-    if (!(await start(sent))) setDrafts((d) => (d[target]?.text ? d : { ...d, [target]: { ...emptyDraft(), text: sent.text } }));
+    if (!(await start(sent))) setDrafts((d) => ({ ...d, [target]: restoreIfEmpty(d[target], draft) }));
   };
 
   const shown = visibleSessions(
@@ -137,6 +160,17 @@ export function ChatPanel({ courseId, courseTitle }: { courseId?: string | undef
       {shown.course.length ? <><p className="meta">{courseTitle ?? "과목"}</p><ul className="entries">{shown.course.map(sessionButton)}</ul></> : null}
       {shown.independent.length ? <><p className="meta">독립 세션</p><ul className="entries">{shown.independent.map(sessionButton)}</ul></> : null}
       {notice ? <p role="alert" className="notice-box">{notice}</p> : null}
+      {selectionRequest ? <div className="notice-box selection-preview">
+        <p>{INTENT_LABEL[selectionRequest.intent]} · {selectionRequest.selection.page}쪽 선택 문장</p>
+        <blockquote>{selectionRequest.selection.text}</blockquote>
+        <p>대상 세션을 고른 뒤 초안에 넣으세요. 아직 전송하지 않았습니다.</p>
+        <button disabled={!active || active.archivedAt !== undefined} onClick={() => {
+          if (!active || active.archivedAt) return;
+          setDraft(active.appSessionId, withSelection(draft, selectionRequest.selection, selectionRequest.intent));
+          onSelectionUsed(selectionRequest.id);
+        }}>이 세션의 초안에 넣기</button>
+        <button onClick={() => onSelectionUsed(selectionRequest.id)}>선택 취소</button>
+      </div> : null}
 
       {active ? (
         <>
@@ -163,11 +197,20 @@ export function ChatPanel({ courseId, courseTitle }: { courseId?: string | undef
                 turn={turn}
                 onCancel={() => void invoke("run.cancel", { runId: turn.runId })}
                 onRetry={() => void start(turn.sent)}
+                onOpenSelection={openSource}
               />
             ))}
           </ol>
           <div className="composer">
-            {draft.selection ? <blockquote>{draft.selection.text}</blockquote> : null}
+            {draft.selection ? <div className="selection-preview">
+              <label>선택 문장 작업 <select aria-label="선택 문장 작업" value={draft.intent} onChange={(e) => setDraft(active.appSessionId, { ...draft, intent: e.target.value as Draft["intent"] })}>
+                {Object.entries(INTENT_LABEL).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select></label>
+              <span className="meta"> · {draft.selection.page ?? "?"}쪽 · 선택한 문장만 포함</span>
+              <blockquote>{draft.selection.text}</blockquote>
+              <button onClick={() => openSource(draft.selection!)}>원문 보기</button>
+              <button onClick={() => setDraft(active.appSessionId, withoutSelection(draft))}>선택 문장 빼기</button>
+            </div> : null}
             <textarea
               aria-label="메시지 입력"
               value={draft.text}

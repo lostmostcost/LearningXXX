@@ -15,7 +15,8 @@ body { background: var(--bg); color: var(--text); }
 .topbar [role="tablist"] { margin-left: auto; display: flex; gap: 4px; }
 .panels { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr) 340px; }
 .narrow .panels { grid-template-columns: 200px minmax(0, 1fr); }
-.narrow .panels:has(> .chat) { grid-template-columns: minmax(0, 1fr); }
+.narrow .panels:has(> .chat:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+.panel[hidden] { display: none; }
 .panel { min-width: 0; padding: 16px; overflow: auto; border-right: 1px solid var(--line); }
 .panel:last-child { border-right: 0; }
 .panel:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
@@ -48,6 +49,12 @@ p.due { font-weight: 600; font-size: 15px; }
 .pdf-toolbar button { min-width: 32px; }
 .pdf-page { overflow: auto; }
 .pdf-page canvas { display: block; max-width: none; border: 1px solid var(--line); background: #fff; }
+.pdf-sheet { position: relative; border: 1px solid var(--line); background: white; }
+.pdf-sheet canvas { border: 0; }
+.selection-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.selection-preview { margin: 8px 0; }
+.selection-preview blockquote { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.selection-preview button, .turn .meta button { margin-right: 6px; }
 button:disabled { cursor: default; opacity: 0.5; }
 .chat { display: flex; flex-direction: column; gap: 8px; min-height: 100%; }
 .session-actions, .session-head, .composer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

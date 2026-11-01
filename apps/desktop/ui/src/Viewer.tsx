@@ -1,6 +1,7 @@
 import { extensionOf, viewTarget } from "./document.ts";
 import { deadline, externalUrl, formatSeoul, type Entry } from "./library.ts";
 import { PdfView, type AssetLoader, type PdfOpener } from "./PdfView.tsx";
+import type { PageLocation, SelectedText, SelectionIntent } from "./selection.ts";
 
 /** https links only; the host hands them to the default browser and never navigates the app window. */
 const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined; label?: string }) =>
@@ -10,7 +11,8 @@ const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined;
     </a>
   ) : null;
 
-export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoader; open?: PdfOpener; now: Date }) {
+export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoader; open?: PdfOpener; now: Date;
+  onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined; location?: PageLocation | undefined }) {
   const { entry } = props;
   if (!entry) {
     return (
@@ -33,7 +35,7 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
         {resource.source === "manual" ? "직접 추가한 자료" : "LMS 자료"} · 갱신 {formatSeoul(resource.updatedAt)}
         {resource.revision > 1 ? ` · 변경 ${resource.revision - 1}회` : ""}
       </p>
-      {target.kind === "pdf" ? <PdfView key={target.asset.id} assetId={target.asset.id} {...(props.loadAsset ? { loadAsset: props.loadAsset } : {})} {...(props.open ? { open: props.open } : {})} /> : null}
+      {target.kind === "pdf" ? <PdfView key={target.asset.id} assetId={target.asset.id} onSelectionAction={props.onSelectionAction} location={props.location} {...(props.loadAsset ? { loadAsset: props.loadAsset } : {})} {...(props.open ? { open: props.open } : {})} /> : null}
       {target.kind === "unsupported" ? (
         <p role="note" className="notice-box">
           {extensionOf(target.asset.originalName)} 형식은 아직 앱에서 열 수 없습니다. 지금은 PDF만 지원합니다.

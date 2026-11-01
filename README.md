@@ -12,7 +12,7 @@ B: 녹음·온라인 영상 원본 → 자동 전사. 전체 MVP는 A+B입니다
 1. [PM 허브](https://app.notion.com/p/40bbd7ec20cd802d9a66d29b84978eb4)와 [AGENTS.md](AGENTS.md)를 읽습니다.
 2. Docker Desktop을 실행하고 아래 공통 검사를 실행합니다.
 3. Notion의 Ready 미배정 작업을 우선순위대로 고르고 task/area claim을 획득합니다.
-4. 자기 브랜치에서 구현 → 상대 리뷰 → 기능 구조 설명 → 실제 사용자 QA → 병합/Done.
+4. 자기 브랜치에서 구현 → 자체 검토·CI 통과 → 각자 PR 병합. 기능 구조 설명과 실제 사용자 QA를 마친 뒤 WBS Done.
 
 ```sh
 git clone https://github.com/lostmostcost/LearningXXX.git

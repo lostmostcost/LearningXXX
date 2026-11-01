@@ -8,6 +8,7 @@ REQ-002. 서버가 한 학기 한 과목의 주차, 강의자료/첨부, 공지,
 
 ## 제안 데이터 모델
 | 엔터티 | 주요 필드 | 불변 조건 |
+| --- | --- | --- |
 | Course | id, termId, sourceCourseId, title | 계정+학기+학교 식별자로 중복 방지 |
 | Week | id, courseId, sourceWeekId, label, order | 화면 정렬과 원본 주차 표기 분리 |
 | Resource | id, courseId, weekId?, kind, sourceId, sourceUrl, title, revision, updatedAt | 파일·공지·과제를 동일 자료 목록에서 참조 |

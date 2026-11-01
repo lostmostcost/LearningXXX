@@ -7,6 +7,7 @@ Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approve
 이 문서는 설계 제안이다. macOS UI 프레임워크와 서버 런타임은 G0 결과로 ADR-002에서 확정한다. 초기 저장소는 특정 UI 프레임워크를 강제로 설치하지 않는 공통 검증 환경과 구조를 제공한다.
 
 | 경계 | 책임 | 배치 |
+| --- | --- | --- |
 | Desktop renderer | 자료 뷰어·채팅·세션·녹음 상태 | Mac 앱 UI |
 | Desktop host | 공식 CLI 프로세스·파일 접근·키체인/마이크·IPC | 각자의 Mac |
 | CLI adapter | 실행·이벤트·재개·오류 정규화 | host 내부 |

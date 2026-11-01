@@ -8,6 +8,7 @@ Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approve
 
 ## 단계별 병렬화
 | 단계 | 병렬 가능한 묶음 | 통합 조건 |
+| --- | --- | --- |
 | G0 | CLI 기술검증 / 실제 과목·파일·QA 기준 결정 | 구독·세션 격리 및 필수 결정 |
 | G1 | 환경 재현 / 계약·fixture 정의 | 계약 merge 후 하위 작업 Ready |
 | A-1 | 서버 collector / Mac shell·viewer | 정규화 fixture 일치 |

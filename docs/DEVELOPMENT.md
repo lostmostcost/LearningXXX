@@ -41,7 +41,7 @@ Include uncommitted/untracked paths in review; the scope script checks committed
 Shared root/config changes use a shared task; unrelated directories do not imply permission to change shared APIs.
 
 ## Completion
-Review → feature explanation → actual human QA → merge and Done.
+Self-review + passing CI → author may merge their own PR. Peer approval is optional. Feature explanation and actual human QA remain required before WBS Done.
 Notion dates, assignees and QA outcomes are blank until real work occurs.
 CI currently checks the WBS graph and coordination tooling. It does not run LMS, Claude, GUI, recording or transcription.
 

@@ -7,9 +7,10 @@ This is tooling evidence, not product acceptance or human QA.
 - Docker Desktop engine 29.9.2: Compose configuration parsed and tools container built/executed successfully on this Mac.
 - Container: WBS checker and the same four coordination tests passed.
 - Product CLI login, independent sessions, school data collection, app UI, recordings, STT and the second Mac remain untested. WBS tasks are not marked Done by this bootstrap.
-- CI is configured in .github/workflows/checks.yml; remote run results are available in GitHub Actions after push.
-- GitHub repository is private. Kishibae was invited with write permission; invitation acceptance is separate.
-- Notion member exists; PM page-specific edit permission was not verified by the connector. Verify Share access with the collaborator.
+- CI passed: https://github.com/lostmostcost/LearningXXX/actions/runs/41276245323
+- GitHub repository is private. Kishibae's write permission was verified after the invitation.
+- Main protection requires project-checks success, with force pushes and deletion disabled. Following the user decision, peer approval is optional and each developer can merge their own PR.
+- Notion native Share UI verified full access for the two teamspace members and workspace users. The existing permissions were preserved.
 
 ## Human review of the coordination tool
 

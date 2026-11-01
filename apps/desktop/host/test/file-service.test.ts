@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -8,7 +8,7 @@ import { SCHEMA_VERSION } from "@learningxxx/contracts";
 import type { RunEvent, Session } from "@learningxxx/contracts";
 import type { RunRequest } from "@learningxxx/cli-adapter";
 import { FileService } from "../src/file-service.ts";
-import { resolveScoped } from "../src/path-scope.ts";
+import { resolveEntry, resolveScoped } from "../src/path-scope.ts";
 import { MAX_SNAPSHOT_BYTES, RunHistory } from "../src/run-history.ts";
 import { SessionService } from "../src/session-service.ts";
 import type { StartCli } from "../src/session-service.ts";
@@ -96,6 +96,73 @@ test("path scope refuses every way out of the root", () => {
   }
 });
 
+test("resolveEntry names the entry itself and refuses links", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "wbs017-entry-")));
+  writeFileSync(join(root, "real.md"), "x");
+  symlinkSync(join(root, "real.md"), join(root, "link.md"));
+  symlinkSync(join(root, "missing.md"), join(root, "dangling.md"));
+  mkdirSync(join(root, "dir"));
+  assert.equal(resolveEntry(root, "real.md"), join(root, "real.md"));
+  assert.equal(resolveEntry(root, "not-yet.md"), join(root, "not-yet.md"));
+  assert.equal(resolveEntry(root, "sub/not-yet.md"), join(root, "sub/not-yet.md"));
+  for (const key of ["link.md", "dangling.md", "dir", "../x"]) assert.equal(resolveEntry(root, key), undefined, key);
+});
+
+test("restore through a symlink never overwrites the file it points at (review P1)", async () => {
+  const { sessions, files, dataRoot } = setup((req) => {
+    rmSync(join(req.workspacePath, "notes.md"));
+    symlinkSync(join(req.workspacePath, "unrelated.md"), join(req.workspacePath, "notes.md"));
+  });
+  const session = courseSession(sessions);
+  const dir = workspace(dataRoot, session);
+  writeFileSync(join(dir, "notes.md"), "original");
+  writeFileSync(join(dir, "unrelated.md"), "keep me");
+  const run = await runOnce(sessions, session.appSessionId);
+  const result = await files.restore({ runId: run.runId });
+  assert.equal(readFileSync(join(dir, "unrelated.md"), "utf8"), "keep me");
+  assert.deepEqual(result, { restored: [], skipped: ["notes.md"] });
+  assert.equal(lstatSync(join(dir, "notes.md")).isSymbolicLink(), true);
+});
+
+test("trash never follows a link to another file in the workspace", async () => {
+  const { sessions, files, dataRoot, confirmed } = setup();
+  const session = courseSession(sessions);
+  const dir = workspace(dataRoot, session);
+  writeFileSync(join(dir, "real.md"), "x");
+  symlinkSync(join(dir, "real.md"), join(dir, "link.md"));
+  assert.equal(await code(files.trash({ appSessionId: session.appSessionId, key: "link.md" })), "SCOPE_VIOLATION");
+  assert.deepEqual(confirmed, []);
+});
+
+test("a failed snapshot fails the run and leaves the session usable (review P1)", async () => {
+  const dataRoot = realpathSync(mkdtempSync(join(tmpdir(), "wbs017-")));
+  let broken = true;
+  const calls: RunRequest[] = [];
+  const sessions = new SessionService({
+    dataRoot,
+    store: new SessionStore(join(dataRoot, "app-state.json")),
+    startCli: cli((req) => void calls.push(req)),
+    history: (now) => {
+      const history = new RunHistory(join(dataRoot, "history"), now);
+      const begin = history.begin.bind(history);
+      history.begin = (...args) => {
+        if (broken) throw new Error("disk full");
+        begin(...args);
+      };
+      return history;
+    },
+  });
+  const session = courseSession(sessions);
+  const failed = await runOnce(sessions, session.appSessionId);
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.errorCode, "INTERNAL");
+  assert.equal(calls.length, 0, "the CLI must not start without a baseline");
+  assert.equal(sessions.isActive(session.appSessionId), false);
+  assert.equal(sessions.get(session.appSessionId).status, "idle");
+  broken = false;
+  assert.equal((await runOnce(sessions, session.appSessionId)).status, "streaming");
+});
+
 test("a run's changes are listed by comparing the disk, not by trusting events", async () => {
   const { sessions, dataRoot } = setup((req) => {
     writeFileSync(join(req.workspacePath, "new.md"), "new");
@@ -111,7 +178,7 @@ test("a run's changes are listed by comparing the disk, not by trusting events",
 });
 
 test("a deletion by the run is reported and can be restored", async () => {
-  const { rmSync } = await import("node:fs");
+
   const { sessions, files, dataRoot } = setup((req) => rmSync(join(req.workspacePath, "a.md")));
   const session = courseSession(sessions);
   const path = join(workspace(dataRoot, session), "a.md");

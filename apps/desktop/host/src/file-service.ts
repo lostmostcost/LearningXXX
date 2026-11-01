@@ -1,9 +1,9 @@
-import { copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, parse } from "node:path";
 import { AppError } from "@learningxxx/contracts";
 import type { ErrorCode, IpcRequest, IpcResponse, Session } from "@learningxxx/contracts";
-import { isWithin, resolveScoped } from "./path-scope.ts";
+import { isWithin, resolveEntry } from "./path-scope.ts";
 import type { RunHistory } from "./run-history.ts";
 import type { SessionService } from "./session-service.ts";
 
@@ -68,9 +68,9 @@ export class FileService {
     const match = /^external-(\d+)\/(.+)$/.exec(key);
     if (match) {
       const root = session.externalFolders?.[Number(match[1])];
-      return root === undefined ? undefined : resolveScoped(root, match[2]!);
+      return root === undefined ? undefined : resolveEntry(root, match[2]!);
     }
-    return resolveScoped(join(this.#o.dataRoot, session.workspaceKey), key);
+    return resolveEntry(join(this.#o.dataRoot, session.workspaceKey), key);
   }
 
   async trash({ appSessionId, key }: IpcRequest<"files.trash">): Promise<IpcResponse<"files.trash">> {
@@ -97,11 +97,8 @@ export class FileService {
         restored.push(key);
       } else {
         mkdirSync(dirname(path), { recursive: true });
-        if (existsSync(path) && lstatSync(path).isSymbolicLink()) skipped.push(key);
-        else {
-          copyFileSync(this.#o.history.beforeCopy(runId, key), path);
-          restored.push(key);
-        }
+        copyFileSync(this.#o.history.beforeCopy(runId, key), path);
+        restored.push(key);
       }
     }
     return { restored, skipped };

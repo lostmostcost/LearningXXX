@@ -188,7 +188,14 @@ export class SessionService {
     const cliSessionId = session.cliSessionId ?? this.#newId();
     const workspacePath = join(this.#options.dataRoot, session.workspaceKey);
     const externalFolders = session.externalFolders ?? [];
-    this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
+    try {
+      this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
+    } catch {
+      // No baseline means no recovery path, so the run does not start.
+      this.#active.delete(appSessionId);
+      this.#updateSession(appSessionId, { status: "idle" });
+      return this.#updateRun(runId, { status: "failed", endedAt: this.#now(), errorCode: "INTERNAL" });
+    }
     const outcome: StartOutcome = await this.#options
       .startCli(
         {

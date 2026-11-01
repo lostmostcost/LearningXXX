@@ -21,9 +21,10 @@ export const RunChanges = z.object({
   changes: z.array(FileChange),
   /**
    * The folders granted during this run. `external-<n>` keys index this list,
-   * never the session's current grants, which can change afterwards.
+   * never the session's current grants, which can change afterwards. Records
+   * written before this field read as empty, so their external keys are refused.
    */
-  externalFolders: z.array(z.string()),
+  externalFolders: z.array(z.string()).default([]),
   /** False when the workspace was too large to copy before the run. */
   snapshotKept: z.boolean(),
 });

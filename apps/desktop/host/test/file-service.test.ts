@@ -228,6 +228,20 @@ test("only the latest run can be restored, so later work is never erased", async
   assert.equal(readFileSync(join(dir, "a.md"), "utf8"), "first");
 });
 
+test("a record from before folders were stored still loads, and its external keys are refused", async () => {
+  const { sessions, files, dataRoot, outside, confirmed } = setup((req) => writeFileSync(join(req.writableDirs![0]!, "report.md"), "x"));
+  const { appSessionId } = courseSession(sessions);
+  await files.chooseFolder({ appSessionId });
+  const { runId } = await runOnce(sessions, appSessionId);
+  const path = join(dataRoot, "history", runId, "changes.json");
+  const { externalFolders: _dropped, ...legacy } = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  writeFileSync(path, JSON.stringify(legacy));
+  assert.deepEqual(sessions.changesFor(appSessionId).map((r) => r.runId), [runId]);
+  assert.equal(await code(files.trash({ appSessionId, runId, key: "external-0/report.md" })), "SCOPE_VIOLATION");
+  assert.deepEqual(confirmed, []);
+  assert.equal(existsSync(join(outside, "report.md")), true);
+});
+
 test("session history lists cut-off runs after a restart, newest first", async () => {
   const { sessions, reopen, dataRoot } = setup((req) => writeFileSync(join(req.workspacePath, `${req.runId}.md`), "x"), "none");
   const session = courseSession(sessions);

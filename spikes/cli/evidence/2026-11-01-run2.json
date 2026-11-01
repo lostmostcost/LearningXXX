@@ -1,0 +1,181 @@
+{
+  "task": "WBS-001",
+  "recorded_at": "2026-11-01T05:43:00.348868+00:00",
+  "environment": {
+    "cli_version": "2.1.316 (Claude Code)",
+    "logged_in": true,
+    "auth_method": "claude.ai",
+    "api_provider": "firstParty",
+    "subscription_type": "pro"
+  },
+  "flags": [
+    "--model",
+    "haiku",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--strict-mcp-config",
+    "--setting-sources",
+    "project",
+    "--permission-mode",
+    "dontAsk"
+  ],
+  "scenarios": {
+    "request_response": {
+      "passed": true,
+      "call": {
+        "exit_code": 0,
+        "api_key_source": "none",
+        "cli_version": "2.1.316",
+        "model": "claude-haiku-5-5",
+        "permission_mode": "dontAsk",
+        "session_id": "c911c42c-92f4-4d5a-b624-f4dab274dbe1",
+        "is_error": false,
+        "subtype": "success",
+        "answer": "PONG-6de6c49c",
+        "tools_used": [],
+        "permission_denials": 0,
+        "stderr": ""
+      }
+    },
+    "file_create_modify_delete": {
+      "passed": true,
+      "created_on_disk": true,
+      "modified_on_disk": true,
+      "deleted_on_disk": true,
+      "bystander_unchanged": true,
+      "calls": {
+        "create": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "0486f770-bec2-4cae-b91a-000d8069e9ae",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "I created `fixture.txt` in the current directory with the single line `alpha-6de6c49c`. The file ends with a trailing newline, which is the usual convention for a one-line text file.",
+          "tools_used": [
+            "Write"
+          ],
+          "permission_denials": 0,
+          "stderr": ""
+        },
+        "modify": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "871924c3-f8a6-4c34-8076-449726387aad",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "I read `fixture.txt` and replaced `alpha-6de6c49c` with `beta-6de6c49c` using the Edit tool. The file had one line, so that was the only change made.",
+          "tools_used": [
+            "Read",
+            "Edit"
+          ],
+          "permission_denials": 0,
+          "stderr": ""
+        },
+        "delete": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "55c7b982-a43b-424e-b6f5-ba44c0981ebe",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "I ran `rm fixture.txt` in the working directory. It completed with no output, so the file was removed without an error. I didn't check beforehand that the file existed, so a missing file would also have produced no output.",
+          "tools_used": [
+            "Bash"
+          ],
+          "permission_denials": 0,
+          "stderr": ""
+        }
+      }
+    },
+    "resume_same_session": {
+      "passed": true,
+      "recalled_after_process_exit": true,
+      "same_session_id": true,
+      "control_session_leaked": false,
+      "calls": {
+        "first": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "9ab2df9f-9ea1-4323-9d49-3b40ba55510a",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "STORED",
+          "tools_used": [],
+          "permission_denials": 0,
+          "stderr": ""
+        },
+        "resumed": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "9ab2df9f-9ea1-4323-9d49-3b40ba55510a",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "zephyr-6de6c49c",
+          "tools_used": [],
+          "permission_denials": 0,
+          "stderr": ""
+        },
+        "control": {
+          "exit_code": 0,
+          "api_key_source": "none",
+          "cli_version": "2.1.316",
+          "model": "claude-haiku-5-5",
+          "permission_mode": "dontAsk",
+          "session_id": "29eecb8d-55d0-4ba8-ac7e-a1b383efde36",
+          "is_error": false,
+          "subtype": "success",
+          "answer": "UNKNOWN",
+          "tools_used": [],
+          "permission_denials": 0,
+          "stderr": ""
+        }
+      }
+    }
+  },
+  "failure_boundaries": {
+    "unknown_session_id": {
+      "exit_code": 1,
+      "api_key_source": null,
+      "cli_version": null,
+      "model": null,
+      "permission_mode": null,
+      "session_id": "e126ecf6-7896-4b8e-8988-8a65d5d752fd",
+      "is_error": true,
+      "subtype": "error_during_execution",
+      "answer": "",
+      "tools_used": [],
+      "permission_denials": 0,
+      "stderr": "No conversation found with session ID: e126ecf6-7896-4b8e-8988-8a65d5d752fd"
+    },
+    "api_key_in_env": {
+      "exit_code": 1,
+      "api_key_source": "ANTHROPIC_API_KEY",
+      "cli_version": "2.1.316",
+      "model": "claude-haiku-5-5",
+      "permission_mode": "dontAsk",
+      "session_id": "4f24c6b9-6e93-4242-87c7-a357e6f01b15",
+      "is_error": true,
+      "subtype": "success",
+      "answer": "Invalid API key · Fix external API key",
+      "tools_used": [],
+      "permission_denials": 0,
+      "stderr": "⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and takes precedence over your claude.ai login · Unset it to load your organization's connectors"
+    },
+    "cli_not_installed": "FileNotFoundError before any request"
+  }
+}

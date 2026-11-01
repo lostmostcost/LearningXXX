@@ -9,7 +9,7 @@ This is tooling evidence, not product acceptance or human QA.
 - Product CLI login, independent sessions, school data collection, app UI, recordings, STT and the second Mac remain untested. WBS tasks are not marked Done by this bootstrap.
 - CI passed: https://github.com/lostmostcost/LearningXXX/actions/runs/41276245323
 - GitHub repository is private. Kishibae's write permission was verified after the invitation.
-- Main protection requires one review and project-checks success, with force pushes and deletion disabled.
+- Main protection requires project-checks success, with force pushes and deletion disabled. Following the user decision, peer approval is optional and each developer can merge their own PR.
 - Notion native Share UI verified full access for the two teamspace members and workspace users. The existing permissions were preserved.
 
 ## Human review of the coordination tool

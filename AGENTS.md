@@ -30,7 +30,7 @@ Branch: feat|fix|spike/WBS-NNN-short-name.
 Commit: type(scope): concrete behavior [WBS-NNN].
 PR: task link, REQ IDs, behavior, tests, feature explanation, QA record, known limitations.
 Initial repository bootstrap uses PM-BOOTSTRAP; subsequent product work uses WBS IDs.
-Review by the other developer, human QA, then merge. No force pushes to main.
+Self-review and passing CI allow each developer to merge their own PR without peer approval. Human QA remains required for WBS Done and can follow merge. No force pushes to main.
 Use scripts/claim.py on host (needs Git authentication). Never force-steal active claims.
 
 ## Checks

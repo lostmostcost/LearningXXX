@@ -5,6 +5,7 @@ import type { AssetStore } from "./asset-store.ts";
 import type { CanvasClient } from "./canvas-client.ts";
 import { stableId } from "./discovery.ts";
 import { CollectionError, collectionError } from "./errors.ts";
+import { DEFAULT_RETRY, withRetry, type RetryPolicy } from "./retry.ts";
 
 type Item = z.infer<typeof ManifestItem>;
 type Tombstone = CollectionManifest["tombstones"][number];
@@ -60,6 +61,8 @@ export interface ResourceCollectionInput {
   /** Last good manifest of this course: unchanged originals are reused and kept on failure. */
   previous?: CollectionManifest | undefined;
   now?: () => Date;
+  /** Bounded retry for transient failures (WBS-009); tests pass a fake sleep. */
+  retry?: RetryPolicy;
 }
 
 export interface ResourceCollectionResult {
@@ -88,9 +91,10 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
   const complete = { file: true, notice: true, assignment: true };
   const hidden = new Set<string>();
 
+  const retry = input.retry ?? DEFAULT_RETRY;
   const attempt = async <T>(sourceId: string | undefined, work: () => Promise<T>): Promise<T | undefined> => {
     try {
-      return await work();
+      return await withRetry(work, retry);
     } catch (error) {
       if (!(error instanceof CollectionError) || error.appError.code === "AUTH_REQUIRED") throw error;
       errors.push({ ...error.appError, ...(sourceId === undefined ? {} : { resourceSourceId: sourceId }) });

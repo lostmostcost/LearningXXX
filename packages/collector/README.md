@@ -1,4 +1,4 @@
-# @learningxxx/collector (WBS-007, WBS-008, WBS-010)
+# @learningxxx/collector (WBS-007~010)
 
 사용자가 앱에서 수집을 실행하면 host가 호출하는 Mac 내부 LMS 수집 모듈입니다(CR-001, ADR-002). 한 과목의 주차(Canvas module)를 `Course`, `Week`로 정규화하고(WBS-007), 주차에 걸린 파일·공지·과제를 `ManifestItem`으로 정규화하면서 원본 파일을 받아 해시로 검증합니다(WBS-008). 수집 결과는 revision manifest와 SyncRun으로 Mac에 기록합니다(WBS-010). HTTP 전달 서비스는 없습니다(CR-001).
 
@@ -23,7 +23,14 @@ const status = await readSyncStatus(root, accountKey); // collection.status: las
 - **멱등:** 내용(과목·주차·자료·tombstone)이 같으면 아무것도 쓰지 않고 revision도 그대로입니다. 실행 기록만 남습니다.
 - **실행 결과:** 오류가 없으면 `succeeded`, 자료 일부 실패는 `partial`(성공으로 보고하지 않음), 로그인 만료·버전 불일치·기록 손상 등은 `failed`. 실패해도 예외를 던지지 않고 SyncRun으로 남깁니다.
 - **읽기 검사:** 다른 계약 major는 `SCHEMA_VERSION_UNSUPPORTED`(앱 업데이트 필요), 다른 계정·과목의 manifest는 `SCOPE_VIOLATION`, 깨진 JSON은 `CHECKSUM_MISMATCH`. 문제 파일은 덮어쓰지 않습니다.
-- **범위 밖:** 동시에 두 번 실행하는 것을 막는 잠금, 중단 후 이어받기, 화면 표시는 WBS-009와 host(WBS-012)입니다.
+- **화면 연결:** host(WBS-012)가 `collection.run/status`, `library.manifest`에 연결합니다.
+
+## 재시도·중복 실행·중단·변경 표시 (WBS-009)
+- **재시도:** 계약에서 재시도 가능으로 표시한 오류(연결 실패, 5xx, 요청 제한, 끊긴 다운로드)만 최대 3번까지 시도합니다(1초, 2초 간격). LMS가 `Retry-After`를 주면 60초 이내일 때만 기다리고, 더 길면 그 시각을 오류에 남기고 넘어갑니다. 로그인 만료는 한 번도 다시 시도하지 않습니다.
+- **한 번에 하나:** 계정·과목마다 `locks/*.lock` 파일로 실행을 하나로 제한합니다. 실행 중에 다시 누르면 `RUN_ALREADY_ACTIVE`로 거절하고 아무것도 쓰지 않습니다(이 경우만 예외를 던짐). 앱이 죽어 남은 잠금(프로세스 없음, 6시간 초과)은 다음 실행이 가져갑니다.
+- **중단 후:** 실행은 시작할 때 `running`으로 기록됩니다. 다음 실행(또는 host 시작 시 `recoverInterruptedRuns`)이 주인 없는 `running` 기록을 `interrupted`로 바꾸고, 반쯤 받은 `tmp/*.part`를 지웁니다. 자동으로 다시 보내지 않습니다. 다시 실행하면 끝까지 받은 원본은 같은 해시로 재사용되어 중복이 생기지 않습니다.
+- **변경 추적:** `collectCourse` 결과의 `changes`에 새 자료, 내용이 바뀐 자료(revision 증가), LMS에서 사라진 자료가 들어 있습니다. 제목만 바뀐 것은 변경이 아닙니다.
+- **상태 문구:** `summarizeRun(syncRun, changes)`가 화면용 문구와 톤(ok/warning/error)을 만듭니다. 로그인 필요, 일부 실패 개수, 요청 제한 해제 시각, 중단, 새로/바뀐/사라진 자료 수, 사라진 자료의 원본과 메모는 지우지 않았다는 안내.
 
 ## 자료 수집 (WBS-008)
 - **주차 연결:** 각 주차 module의 항목을 읽어 File은 파일 자료, Assignment·Quiz는 과제에 주차를 붙입니다. 같은 파일이 여러 주차에 있으면 가장 앞 주차입니다. Page·Discussion·외부 링크는 아직 계약에 종류가 없어 건너뛰고 `skippedTypes`로 개수만 알립니다.

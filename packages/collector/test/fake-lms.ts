@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { DEFAULT_RETRY, type RetryPolicy } from "../src/index.ts";
+
+/** Retries without real waiting; records requested delays. */
+export const noWait = (waits: number[] = []): RetryPolicy => ({ ...DEFAULT_RETRY, sleep: async (ms) => void waits.push(ms) });
 
 export const BASE = "https://lms.example.test";
 export const STORAGE = "https://files.example.test";
@@ -35,6 +39,8 @@ export function lms() {
       { id: 7003, name: "기말 보고서", due_at: null, html_url: "http://insecure.example.test/a", updated_at: "2026-10-04T00:00:00Z" },
     ] as Record<string, unknown>[],
     failing: new Set<string>(),
+    /** path → remaining failures before it starts answering (transient outage). */
+    flaky: new Map<string, { left: number; status: number; headers?: Record<string, string> }>(),
     calls: [] as { url: string; cookie: string | null }[],
   };
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -44,6 +50,11 @@ export function lms() {
     const headers = new Headers(init?.headers);
     state.calls.push({ url: url.href, cookie: headers.get("cookie") });
     if (state.failing.has(path) || state.failing.has(url.href)) return new Response("down", { status: 503 });
+    const flaky = state.flaky.get(path);
+    if (flaky && flaky.left > 0) {
+      flaky.left -= 1;
+      return new Response("busy", { status: flaky.status, headers: flaky.headers ?? {} });
+    }
     if (url.origin === STORAGE) {
       const file = state.files.get(url.pathname.split("/").pop()!);
       return file ? new Response(file.served ?? file.body) : new Response("", { status: 404 });

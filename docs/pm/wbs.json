@@ -574,7 +574,10 @@
       ],
       "paths": [
         "spikes/stt/",
-        "services/transcriber/"
+        "services/transcriber/",
+        "docs/decisions/ADR-003-stt-engine.md",
+        "docs/specs/SPEC-004.md",
+        "docs/pm/"
       ],
       "spec": "SPEC-004",
       "requirements": [
@@ -582,10 +585,11 @@
         "REQ-008"
       ],
       "acceptance": "한국어/전문용어/잡음 표본으로 엔진·시간·자원·비용을 비교한다. 실행 위치와 합격 수치 결정, 원본의 외부 전송 여부를 ADR로 기록한다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-021-stt-proof",
       "url": "https://app.notion.com/p/40bbd7ec20cd8136a5d3ddf0e7bb73b8?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-02 이문찬 결정: Qwen3-ASR 1.7B(로컬 MLX). ADR-003·SPEC-004 엔진 절 갱신은 결정 기록을 위한 영역 밖 예외."
     },
     {
       "id": "WBS-022",
@@ -1255,7 +1259,7 @@
         "REQ-005"
       ],
       "acceptance": "과목 세션 CLI가 과목 자료 폴더(읽기 전용 사본)를 읽고, 보낼 때 뷰어에 열린 자료·쪽을 안다. 독립 세션은 아무것도 받지 않는다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-044-viewing-context",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81a680f9c4973947869e",
@@ -1287,7 +1291,7 @@
         "REQ-005"
       ],
       "acceptance": "과목 세션 AI가 20MB 넘는 PDF도 쪽별 텍스트로 읽고, 보낼 때 현재 쪽 화면 이미지를 볼 수 있다. 추가 설치 없음. 독립 세션은 받지 않는다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-045-pdf-pages",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81598838fb2c54919081",

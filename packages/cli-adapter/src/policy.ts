@@ -31,7 +31,10 @@ export const COURSE_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit"] as const;
 /** Tools whose successful result changes a file the host should report. */
 export const WRITE_TOOLS: ReadonlySet<string> = new Set(["Write", "Edit"]);
 
-export type Mode = "course" | "independent";
+/** Same file tools as a course session and still no Bash: the CLI cannot run or delete anything. */
+export const APP_MODIFY_TOOLS = COURSE_TOOLS;
+
+export type Mode = "course" | "independent" | "app_modify";
 
 export interface ArgsInput {
   mode: Mode;
@@ -61,6 +64,21 @@ export function buildArgs(input: ArgsInput): string[] {
       "dontAsk",
       "--tools",
       INDEPENDENT_TOOLS.join(","),
+    );
+  } else if (input.mode === "app_modify") {
+    // SPEC-005: explicit input only. The checkout's CLAUDE.md, hooks and slash
+    // commands are skipped because the checkout itself is what is being changed.
+    args.push(
+      "--restricted",
+      "--safe-mode",
+      "--strict-mcp-config",
+      "--disable-slash-commands",
+      "--permission-mode",
+      "dontAsk",
+      "--tools",
+      APP_MODIFY_TOOLS.join(","),
+      "--allowedTools",
+      ...APP_MODIFY_TOOLS,
     );
   } else {
     // --restricted confines file tools to the workspace and --add-dir; no

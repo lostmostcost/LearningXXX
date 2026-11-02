@@ -6,6 +6,7 @@ import type { NarrowView, Panel } from "./layout.ts";
 import { ChatPanel } from "./ChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
+import { ModifyPanel } from "./ModifyPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
@@ -44,6 +45,7 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
   const [location, setLocation] = useState<PageLocation>();
+  const [modifying, setModifying] = useState(false);
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
@@ -132,6 +134,7 @@ export function App() {
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         <span>{library ? library.course.title : "과목 없음"} · {activeSessionId ? "세션 선택됨" : "세션 없음"}</span>
+        {IN_APP && !FIXTURE_MODE ? <button aria-expanded={modifying} onClick={() => setModifying((open) => !open)}>앱 수정</button> : null}
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">
             <button role="tab" aria-selected={view === "materials"} onClick={() => setView("materials")}>자료</button>
@@ -139,6 +142,7 @@ export function App() {
           </div>
         ) : null}
       </header>
+      {IN_APP && !FIXTURE_MODE ? <div hidden={!modifying}><ModifyPanel /></div> : null}
       <main className="panels">
         {panel("library", "과목과 자료", library ? (
           <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={setSelected} now={now} />

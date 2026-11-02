@@ -1,11 +1,13 @@
+import type { AppModifier } from "@learningxxx/app-modifier";
 import type { AttachmentService } from "./attachment-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, modifier?: AppModifier): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
+  const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
   return {
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
@@ -39,5 +41,13 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "files.sessionChanges": async ({ appSessionId }) => ({ records: sessions.changesFor(appSessionId) }),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
+    "modify.status": async () => modify().status(),
+    "modify.chooseSource": async () => ({ sourceConfigured: await modify().chooseSource() }),
+    "modify.start": async (request) => ({ job: await modify().start(request) }),
+    "modify.cancel": async ({ jobId }) => ({ job: modify().cancel(jobId) }),
+    "modify.verify": async ({ jobId }) => ({ job: await modify().verify(jobId) }),
+    "modify.apply": async ({ jobId }) => ({ job: await modify().apply(jobId) }),
+    "modify.rollback": async ({ jobId }) => ({ job: await modify().rollback(jobId) }),
+    "modify.discard": async ({ jobId }) => ({ job: await modify().discard(jobId) }),
   };
 }

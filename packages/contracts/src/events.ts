@@ -23,7 +23,7 @@ export const RunStarted = ev(
   z.object({
     appSessionId: Id,
     cliSessionId: Id,
-    mode: z.enum(["course", "independent"]),
+    mode: z.enum(["course", "independent", "app_modify"]),
     /** Must be "none": anything else means the subscription login was bypassed. */
     apiKeySource: z.literal("none"),
     tools: z.array(z.string()),

@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from "electron";
+import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
@@ -109,7 +110,33 @@ app.whenReady().then(async () => {
     },
     trash: (path) => shell.trashItem(path),
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments));
+  const startCli = createCliRunner();
+  const dockerPath = locateDocker();
+  const modifier = new AppModifier({
+    root: join(dataRoot, "app-modifier"),
+    // apps/desktop/host → repository root. Only this app's own source can be changed.
+    expectedSource: resolve(app.getAppPath(), "../../.."),
+    startCli,
+    verifier: createDockerVerifier(dockerPath),
+    chooseFolder: async () => {
+      const picked = await dialog.showOpenDialog({ title: "앱 소스 폴더 선택", properties: ["openDirectory"] });
+      return picked.canceled ? undefined : picked.filePaths[0];
+    },
+    confirm: async (message, detail, action) => {
+      const { response } = await dialog.showMessageBox({ type: "warning", message, detail, buttons: ["취소", action], defaultId: 0, cancelId: 0 });
+      return response === 1;
+    },
+    // The watchdog starts the new app once this one is gone, then restores the last good app if it never comes up.
+    restart: (planPath) => {
+      launchWatchdog(process.execPath, planPath);
+      app.exit(0);
+    },
+    launch: { execPath: process.execPath, args: process.argv.slice(1), cwd: process.cwd() },
+    onJob: (job) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "modify.job", job });
+    },
+  });
+  const router = createRouter(createHandlers(sessions, library, files, attachments, modifier));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

@@ -18,6 +18,7 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
+    "@learningxxx/app-modifier": "workspace:*",
     "@learningxxx/cli-adapter": "workspace:*",
     "@learningxxx/collector": "workspace:*",
     "@learningxxx/contracts": "workspace:*",

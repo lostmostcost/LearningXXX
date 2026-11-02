@@ -296,6 +296,17 @@ test("trash asks first, showing the full path, and honours a refusal", async () 
   assert.deepEqual(trashed, [path]);
 });
 
+test("the change list says a trashed file is gone, so it is not offered again", async () => {
+  const { sessions, files, dataRoot } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
+  const session = courseSession(sessions);
+  const { appSessionId } = session;
+  await runOnce(sessions, appSessionId);
+  const present = () => files.sessionChanges({ appSessionId }).records[0]!.changes.map((c) => [c.key, c.present]);
+  assert.deepEqual(present(), [["a.md", true]]);
+  rmSync(join(workspace(dataRoot, session), "a.md")); // what moving it to the Trash leaves behind
+  assert.deepEqual(present(), [["a.md", false]]);
+});
+
 test("trash only accepts a change this run recorded", async () => {
   const { sessions, files, dataRoot, confirmed } = setup((req) => writeFileSync(join(req.workspacePath, "a.md"), "x"));
   const session = courseSession(sessions);

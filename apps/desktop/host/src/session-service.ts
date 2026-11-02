@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AppError, Run, Session } from "@learningxxx/contracts";
-import type { ErrorCode, IpcRequest, RunChanges, RunEvent } from "@learningxxx/contracts";
+import type { ChatTurn, ErrorCode, IpcRequest, RunChanges, RunEvent } from "@learningxxx/contracts";
 import type { RunRequest, StartOutcome } from "@learningxxx/cli-adapter";
 import type { AttachmentService } from "./attachment-service.ts";
+import { writeCourseBrief } from "./course-context.ts";
 import type { RunHistory } from "./run-history.ts";
 import type { SessionStore, StoredState } from "./session-store.ts";
+import type { TranscriptStore } from "./transcript-store.ts";
 
 export type StartCli = (request: RunRequest, signal: AbortSignal) => Promise<StartOutcome>;
 
@@ -18,6 +20,10 @@ export interface SessionServiceOptions {
   /** Receives the service clock. Omitted only by tests of unrelated behaviour. */
   history?: (now: () => string) => RunHistory;
   attachments?: AttachmentService;
+  /** The course brief passed to a course session's CLI as a system prompt file; undefined when nothing is collected. */
+  courseBrief?: (courseId: string) => Promise<string | undefined>;
+  /** Keeps what the chat showed, so it survives a restart. */
+  transcripts?: TranscriptStore;
   model?: string;
   now?: () => Date;
   newId?: () => string;
@@ -28,6 +34,34 @@ function fail(code: ErrorCode, message: string): never {
 }
 
 const TERMINAL = new Set(["completed", "failed", "cancelled", "interrupted"]);
+
+const INTERRUPTED = AppError.parse({
+  code: "RUN_INTERRUPTED",
+  message: "앱이 종료되어 이 응답은 중간에 끊겼습니다. 같은 내용으로 다시 보낼 수 있습니다.",
+  retryable: true,
+});
+
+/** The same reading of host events the chat panel does, kept on the host side. */
+function applyToTurn(turn: ChatTurn, event: RunEvent): ChatTurn {
+  switch (event.type) {
+    case "run.started":
+      return { ...turn, state: "streaming" };
+    case "text.delta":
+      return { ...turn, answer: turn.answer + event.payload.text, state: "streaming" };
+    case "tool.requested":
+      return { ...turn, tools: [...turn.tools, { tool: event.payload.tool, decision: event.payload.decision, targets: event.payload.targetKeys }] };
+    case "artifact.created":
+      return { ...turn, artifacts: [...turn.artifacts, event.payload.outputKey] };
+    case "run.completed":
+      return { ...turn, state: "completed" };
+    case "run.failed":
+      return { ...turn, state: "failed", error: event.payload.error };
+    case "run.cancelled":
+      return { ...turn, state: "cancelled" };
+    default:
+      return turn;
+  }
+}
 
 /** Selection text is part of what the user sent; nothing else is added. */
 export function buildPrompt(draft: IpcRequest<"run.start">["draft"]): string {
@@ -48,6 +82,7 @@ export class SessionService {
   readonly #options: SessionServiceOptions;
   readonly #state: StoredState;
   readonly #active = new Map<string, { runId: string; abort: AbortController }>();
+  readonly #turns = new Map<string, ChatTurn>();
   readonly #now: () => string;
   readonly #newId: () => string;
   readonly history: RunHistory | undefined;
@@ -101,6 +136,32 @@ export class SessionService {
       .flatMap((run) => this.history?.changes(run.runId) ?? [])
       .filter((record) => record.changes.length > 0)
       .reverse();
+  }
+
+  /** What the chat showed in this session. A turn left open by a quit reads as interrupted. */
+  transcript(appSessionId: string): ChatTurn[] {
+    this.#session(appSessionId);
+    const live = this.#active.get(appSessionId)?.runId;
+    return (this.#options.transcripts?.read(appSessionId) ?? []).map((turn) => {
+      if (turn.runId === live) return this.#turns.get(turn.runId) ?? turn;
+      return turn.state === "waiting" || turn.state === "streaming" ? { ...turn, state: "failed", error: INTERRUPTED } : turn;
+    });
+  }
+
+  /** Saving the transcript is best effort: it must never change how a run ends. */
+  #keepTurn(turn: ChatTurn): void {
+    try {
+      this.#options.transcripts?.put(turn);
+    } catch {
+      // The run itself is recorded in app-state.json either way.
+    }
+  }
+
+  #endTurn(runId: string, patch: Pick<ChatTurn, "state"> & { error?: ChatTurn["error"] }): void {
+    const turn = this.#turns.get(runId);
+    if (!turn) return;
+    this.#turns.delete(runId);
+    this.#keepTurn({ ...turn, ...patch });
   }
 
   isActive(appSessionId: string): boolean {
@@ -197,10 +258,26 @@ export class SessionService {
     const startedAt = this.#now();
     this.#state.runs.push(Run.parse({ runId, appSessionId, requestId, startedAt, status: "starting" }));
     this.#updateSession(appSessionId, { status: "running", lastUsedAt: startedAt });
+    const turn: ChatTurn = { runId, appSessionId, sent: draft, answer: "", tools: [], artifacts: [], state: "waiting" };
+    this.#turns.set(runId, turn);
+    this.#keepTurn(turn);
 
     const cliSessionId = session.cliSessionId ?? this.#newId();
     const workspacePath = join(this.#options.dataRoot, session.workspaceKey);
     const externalFolders = session.externalFolders ?? [];
+    let contextFile: string | undefined;
+    if (session.mode === "course" && session.courseId !== undefined) {
+      try {
+        const brief = await this.#options.courseBrief?.(session.courseId);
+        if (brief !== undefined) {
+          const file = join(this.#options.dataRoot, "courses", session.courseId, "course-context.md");
+          writeCourseBrief(file, brief);
+          contextFile = file;
+        }
+      } catch {
+        // Without it the session still works; it just knows less.
+      }
+    }
     try {
       this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
     } catch {
@@ -208,6 +285,7 @@ export class SessionService {
       this.#options.attachments?.releaseRun(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
+      this.#endTurn(runId, { state: "failed", error: AppError.parse({ code: "INTERNAL", message: "실행 전 상태를 기록하지 못해 시작하지 않았습니다.", retryable: true }) });
       return this.#updateRun(runId, { status: "failed", endedAt: this.#now(), errorCode: "INTERNAL" });
     }
     const outcome: StartOutcome = await this.#options
@@ -220,6 +298,7 @@ export class SessionService {
           resume: session.cliSessionId !== undefined,
           workspacePath,
           ...(externalFolders.length > 0 ? { writableDirs: externalFolders } : {}),
+          ...(contextFile === undefined ? {} : { contextFile }),
           attachmentDirs: inputs?.dirs ?? [],
           prompt: [buildPrompt(draft), inputs?.prompt].filter(Boolean).join("\n\n"),
           ...(this.#options.model === undefined ? {} : { model: this.#options.model }),
@@ -234,7 +313,11 @@ export class SessionService {
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       // Cancelled before the CLI opened: the user stopped it, nothing failed.
-      if (abort.signal.aborted) return this.#updateRun(runId, { status: "cancelled", endedAt: this.#now() });
+      if (abort.signal.aborted) {
+        this.#endTurn(runId, { state: "cancelled" });
+        return this.#updateRun(runId, { status: "cancelled", endedAt: this.#now() });
+      }
+      this.#endTurn(runId, { state: "failed", error: outcome.error });
       return this.#updateRun(runId, { status: "failed", endedAt: this.#now(), errorCode: outcome.error.code });
     }
     const run = this.#updateRun(runId, { status: "streaming" });
@@ -249,9 +332,13 @@ export class SessionService {
       for await (const event of events) {
         // The mapping is kept only once the CLI has really opened this session.
         if (event.type === "run.started") this.#updateSession(appSessionId, { cliSessionId });
+        const turn = this.#turns.get(runId);
+        if (turn) this.#turns.set(runId, applyToTurn(turn, event));
         if (event.type === "run.completed" || event.type === "run.cancelled" || event.type === "run.failed") {
           finished = true;
           this.#finish(run, event);
+          const ended = this.#turns.get(runId);
+          if (ended) this.#endTurn(runId, { state: ended.state, ...(ended.error ? { error: ended.error } : {}) });
         }
         try {
           this.#options.onEvent?.(event);
@@ -261,6 +348,7 @@ export class SessionService {
       }
     } finally {
       if (!finished) {
+        this.#endTurn(runId, { state: "failed", error: INTERRUPTED });
         this.#updateRun(runId, { status: "interrupted", endedAt: this.#now(), errorCode: "RUN_INTERRUPTED" });
         this.#updateSession(appSessionId, { status: "interrupted" });
       }

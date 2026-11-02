@@ -27,6 +27,7 @@ export function installFakeHost(courseTitle: string): void {
 
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
     "session.list": () => ok({ sessions: [...sessions] }),
+    "session.transcript": () => ok({ turns: [] }),
     "session.create": (p) => {
       const id = crypto.randomUUID();
       const session = {

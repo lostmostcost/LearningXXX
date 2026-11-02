@@ -27,6 +27,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "session.list": async (request) => ({ sessions: sessions.list(request) }),
     "session.rename": async (request) => ({ session: sessions.rename(request) }),
     "session.archive": async (request) => ({ session: sessions.archive(request) }),
+    "session.transcript": async ({ appSessionId }) => ({ turns: sessions.transcript(appSessionId) }),
     // Escape or closing the selection returns nothing: an empty answer, not an error.
     "captures.start": async (request) => {
       const capture = await inputs().capture(request);
@@ -44,7 +45,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
       const changes = sessions.history?.changes(runId);
       return changes ? { changes } : {};
     },
-    "files.sessionChanges": async ({ appSessionId }) => ({ records: sessions.changesFor(appSessionId) }),
+    "files.sessionChanges": async (request) => files.sessionChanges(request),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
     "modify.status": async () => modify().status(),

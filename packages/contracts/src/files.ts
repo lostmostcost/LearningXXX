@@ -11,6 +11,11 @@ export const FileChange = z.object({
   change: z.enum(["created", "modified", "deleted"]),
   /** False when no earlier copy exists, as for external folders. */
   restorable: z.boolean(),
+  /**
+   * Whether the file is there now, checked when the list is read (it may have
+   * been moved to the Trash since). Absent in stored records: unknown.
+   */
+  present: z.boolean().optional(),
 });
 export type FileChange = z.infer<typeof FileChange>;
 

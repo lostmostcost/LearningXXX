@@ -52,9 +52,12 @@ export class FileService {
     const folder = await this.#o.chooseFolder();
     if (folder === undefined) return session;
     this.#assertGrantable(folder);
-    const real = realpathSync(folder);
+    // Composed form, the way the CLI names paths: the macOS picker may return
+    // decomposed Korean, which the file system treats as the same name.
+    const nfc = (p: string) => (process.platform === "darwin" ? p.normalize("NFC") : p);
+    const real = nfc(realpathSync(folder));
     const current = session.externalFolders ?? [];
-    return current.includes(real) ? session : this.#o.sessions.setExternalFolders(appSessionId, [...current, real]);
+    return current.some((f) => nfc(f) === real) ? session : this.#o.sessions.setExternalFolders(appSessionId, [...current, real]);
   }
 
   removeFolder({ appSessionId, folder }: IpcRequest<"files.removeFolder">): Session {
@@ -75,6 +78,20 @@ export class FileService {
       return resolveEntry(root, match[2]!);
     }
     return resolveEntry(join(this.#o.dataRoot, session.workspaceKey), key);
+  }
+
+  /** The session's change records, each file marked with whether it is still there. */
+  sessionChanges({ appSessionId }: IpcRequest<"files.sessionChanges">): IpcResponse<"files.sessionChanges"> {
+    const session = this.#o.sessions.get(appSessionId);
+    const records = this.#o.sessions.changesFor(appSessionId).map((record) => ({
+      ...record,
+      changes: record.changes.map((change) => {
+        if (change.change === "deleted") return change;
+        const path = this.#resolve(session, record, change.key);
+        return path === undefined ? change : { ...change, present: existsSync(path) };
+      }),
+    }));
+    return { records };
   }
 
   async trash({ appSessionId, runId, key }: IpcRequest<"files.trash">): Promise<IpcResponse<"files.trash">> {

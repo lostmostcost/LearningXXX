@@ -30,6 +30,8 @@ export interface RunRequest {
   attachmentDirs?: readonly string[];
   /** Absolute folders the user granted for writing. Course sessions only. */
   writableDirs?: readonly string[];
+  /** Absolute file with the course brief. Course sessions only; independent sessions get no context. */
+  contextFile?: string;
   prompt: string;
   model?: string;
 }
@@ -79,6 +81,13 @@ class Channel<T> implements AsyncIterable<T> {
 const isDir = (p: string) => isAbsolute(p) && existsSync(p) && statSync(p).isDirectory();
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * macOS returns some names (e.g. Korean from the folder picker) decomposed while
+ * the CLI reports them composed. Its file system treats both as one name, so
+ * compare in NFC there; elsewhere they are different files and stay distinct.
+ */
+const nfc = (p: string) => (process.platform === "darwin" ? p.normalize("NFC") : p);
+
 /** Resolves symlinks of the deepest existing ancestor so a link cannot hide an outside target. */
 function realTarget(p: string): string {
   let head = p;
@@ -87,7 +96,7 @@ function realTarget(p: string): string {
     rest.unshift(basename(head));
     head = dirname(head);
   }
-  return join(realpathSync(head), ...rest);
+  return nfc(join(realpathSync(head), ...rest));
 }
 
 const within = (root: string, target: string) => {
@@ -104,6 +113,9 @@ function validate(req: RunRequest, env: NodeJS.ProcessEnv): AppError | undefined
   const dirs = isDir(req.workspacePath) && [...(req.attachmentDirs ?? []), ...(req.writableDirs ?? [])].every(isDir);
   if (!ids || !dirs || req.prompt.trim() === "") {
     return appError("INVALID_REQUEST", MESSAGES.INVALID_REQUEST, { ids, dirs });
+  }
+  if (req.contextFile !== undefined && (req.mode !== "course" || !isAbsolute(req.contextFile) || !existsSync(req.contextFile))) {
+    return appError("ISOLATION_VIOLATION", MESSAGES.ISOLATION_VIOLATION, { reason: "context file" });
   }
   if (req.mode === "independent" && req.writableDirs?.length) {
     return appError("ISOLATION_VIOLATION", MESSAGES.ISOLATION_VIOLATION, { reason: "external folder" });
@@ -135,9 +147,9 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   const verified = opts.verifiedVersions ?? VERIFIED_CLI_VERSIONS;
   const expectedTools = new Set<string>(req.mode === "independent" ? INDEPENDENT_TOOLS : COURSE_TOOLS);
   const violation = req.mode === "independent" ? "ISOLATION_VIOLATION" : "SCOPE_VIOLATION";
-  const workspace = realpathSync(req.workspacePath);
-  const attachments = (req.attachmentDirs ?? []).map((d) => realpathSync(d));
-  const writable = (req.writableDirs ?? []).map((d) => realpathSync(d));
+  const workspace = nfc(realpathSync(req.workspacePath));
+  const attachments = (req.attachmentDirs ?? []).map((d) => nfc(realpathSync(d)));
+  const writable = (req.writableDirs ?? []).map((d) => nfc(realpathSync(d)));
   const home = opts.env.HOME;
   const mask = (text: string) => {
     let out = text.split(req.workspacePath).join("<workspace>").split(workspace).join("<workspace>");

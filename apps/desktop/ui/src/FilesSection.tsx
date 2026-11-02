@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunChanges, Session } from "@learningxxx/contracts";
-import { CHANGE_LABEL, canGrantFolders, canTrash, displayKey, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "./files.ts";
+import { CHANGE_LABEL, canGrantFolders, canTrash, displayKey, goneNote, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "./files.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 
 /**
@@ -75,6 +75,7 @@ export function FilesSection({ session, running, onChanged }: { session: Session
                 {record.changes.map((change) => (
                   <li key={change.key}>
                     <span className="badge">{CHANGE_LABEL[change.change]}</span> {displayKey(change.key, record.externalFolders)}{" "}
+                    {goneNote(change) ? <span className="meta">{goneNote(change)}</span> : null}
                     {canTrash(change) ? (
                       <button disabled={running} title={busy ?? "확인 후 휴지통으로 옮깁니다"} onClick={() => void act(() => invoke("files.trash", { appSessionId, runId: record.runId, key: change.key }), (d: { trashed: boolean }) => (d.trashed ? "휴지통으로 옮겼습니다." : "취소했습니다."))}>휴지통으로</button>
                     ) : null}

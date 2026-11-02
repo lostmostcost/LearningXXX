@@ -1,9 +1,9 @@
-import type { AppError, ComposerDraft, Run, RunEvent } from "@learningxxx/contracts";
+import type { AppError, ChatTurn, ComposerDraft, Run, RunEvent } from "@learningxxx/contracts";
 
 /**
  * What the chat panel shows, rebuilt from host events only (the renderer never
- * sees raw CLI output). The CLI keeps the real history; this transcript covers
- * runs started in this app window.
+ * sees raw CLI output). Earlier turns, including those from before a restart,
+ * come from the host's saved transcript (see `withHistory`).
  */
 export interface Turn {
   runId: string;
@@ -70,6 +70,16 @@ export function applyEvent(transcript: Transcript, event: RunEvent): Transcript 
       break;
   }
   return { ...transcript, turns: transcript.turns.map((t, i) => (i === index ? turn : t)) };
+}
+
+/**
+ * Adds a session's saved turns that this window does not have yet, ahead of
+ * the ones it does: what this window saw itself is newer and stays as it is.
+ */
+export function withHistory(transcript: Transcript, saved: readonly ChatTurn[]): Transcript {
+  const known = new Set(transcript.turns.map((t) => t.runId));
+  const missing: Turn[] = saved.filter((t) => !known.has(t.runId)).map(({ error, ...t }) => ({ ...t, ...(error ? { error } : {}) }));
+  return missing.length ? { ...transcript, turns: [...missing, ...transcript.turns] } : transcript;
 }
 
 export const isOpen = (turn: Turn) => turn.state === "waiting" || turn.state === "streaming";

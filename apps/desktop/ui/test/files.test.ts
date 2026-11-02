@@ -30,6 +30,7 @@ test("the panel is rebuilt per session, so nothing carries across a switch", asy
 test("only an existing file can go to the Trash", () => {
   assert.equal(canTrash({ key: "a", change: "created", restorable: true }), true);
   assert.equal(canTrash({ key: "a", change: "deleted", restorable: true }), false);
+  assert.equal(canTrash({ key: "a", change: "created", restorable: true, present: false }), false);
 });
 
 test("independent sessions are not offered external folders", () => {

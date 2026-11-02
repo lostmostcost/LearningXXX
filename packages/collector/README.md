@@ -1,5 +1,54 @@
 # @learningxxx/collector (WBS-007~010)
 
+## 온라인 영상 원본 다운로드 (WBS-024 / REQ-008)
+
+학교 계정에 직접 제공되는 Commons MP4 원본을 각자의 Mac에서 받는 모듈입니다.
+host가 선택한 과목·자료와 로그인 세션의 `fetch`, 계정별 데이터 폴더를 전달합니다.
+서버나 외부 전사 서비스로 영상을 보내지 않습니다.
+
+```ts
+import { createCommonsVideoResolver, downloadVideo } from "@learningxxx/collector";
+
+const asset = await downloadVideo({
+  root: accountDataRoot, courseId, resourceId, sourceId: contentId, title,
+  allowedOrigins: ["https://commons.khu.ac.kr"],
+  resolveSource: createCommonsVideoResolver({ contentId, fetch: signedInSessionFetch }),
+  fetch: signedInSessionFetch,
+  signal: abortController.signal,
+  onProgress(received, total) { /* total이 없으면 받은 바이트만 표시. 가짜 % 없음. */ },
+});
+// asset: WBS-022 MediaAsset (role=original, source.type=lms_video)
+// WBS-027 host 통합이 이를 영속 등록하고 WBS-025 전사 큐에 자동 연결한다.
+```
+
+1. 사용자가 강의를 선택해 요청하면 Commons 메타데이터와 viewer 세션을 새로 확인합니다.
+2. HTTPS·명시적 origin 안의 MP4만 스트리밍합니다. 다른 origin, redirect, HTML,
+   부분 응답(206), DRM, HLS/DASH·분할 MP4는 우회하지 않고 오류로 표시합니다.
+3. `video-tmp/<uuid>.part`에 쓰며 크기(기본 최대 20 GiB), HTTP/원본 크기 정보,
+   MP4 box 경계, 비어 있지 않은 영상·샘플 표, 실제 mdat 범위의 chunk offset을 확인합니다.
+   전체 프레임 디코딩·코덱 재생 성공이나 서버의 원본 정당성을 보증하는 검사는 아닙니다.
+   moov 최대 32 MiB, box 최대 10만, chunk offset 최대 100만 제한이 있습니다.
+4. 수신 SHA-256과 디스크 해시가 일치하면
+   `video-originals/<sha256 앞 2글자>/<sha256>.mp4`로 생성 전용 확정합니다.
+   같은 내용은 재사용하며 다른 버전·기존 손상 파일을 덮어쓰거나 삭제하지 않습니다.
+5. 401/403 서명 만료·5xx·연결 중단은 기본 최대 3회 새 메타데이터/주소로 처음부터 받습니다.
+   메타데이터 단계의 로그인 만료는 재로그인 안내로 멈춥니다. 매 시도 기본 30분 제한,
+   취소는 signal로 전달하며 정상 오류/취소 시 자기 임시 파일만 지웁니다.
+   강제 프로세스 종료 시 `.part`가 남을 수 있지만 원본으로 취급하지 않습니다.
+   host가 작업 원장을 보존해 재시작 후 재요청·임시 파일 정리를 담당해야 합니다(WBS-027).
+
+URL·서명·쿠키는 반환 MediaAsset이나 로그에 저장하지 않습니다. `sourceId`는
+Commons content ID이며 URL을 넣을 수 없습니다. `fetch`는 AbortSignal·manual redirect를
+준수해야 합니다. host는 `root`를 다른 세션이 바꿀 수 없는 계정별 전용 폴더로 제한하고,
+반환 asset을 영속 등록한 후에만 UI 완료/전사 job을 확정해야 합니다.
+
+범위: 이번 작업은 collector 모듈이며 영상 목록 선택 UI, host IPC, 영속 job 원장과
+자동 전사 연결은 WBS-026/027에서 합칩니다. 실제 KHU 영상 계정 접근·실제 강의 재생은
+미실행이며 합성 MP4와 HTTP fixture로 검증했습니다. 직접 MP4 원본이 없는 강의는
+UNSUPPORTED_FORMAT으로 남으며 전체 MVP 완료로 간주하지 않습니다.
+
+검사: `docker compose run --rm tools` (타입 검사·collector/기존 workspace 회귀).
+
 사용자가 앱에서 수집을 실행하면 host가 호출하는 Mac 내부 LMS 수집 모듈입니다(CR-001, ADR-002). 한 과목의 주차(Canvas module)를 `Course`, `Week`로 정규화하고(WBS-007), 주차에 걸린 파일·공지·과제를 `ManifestItem`으로 정규화하면서 원본 파일을 받아 해시로 검증합니다(WBS-008). 수집 결과는 revision manifest와 SyncRun으로 Mac에 기록합니다(WBS-010). HTTP 전달 서비스는 없습니다(CR-001).
 
 ```ts

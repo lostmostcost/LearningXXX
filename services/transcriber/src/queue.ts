@@ -10,7 +10,7 @@ import {
   transcriptionKeyInput,
 } from "@learningxxx/contracts";
 import type { ErrorCode } from "@learningxxx/contracts";
-import { EngineError, type Engine } from "./engine.ts";
+import { EngineError, type Engine, type EngineOutput } from "./engine.ts";
 import { buildSegments } from "./segments.ts";
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -97,13 +97,22 @@ export class TranscriptionQueue {
     renameSync(temp, this.#file);
   }
 
+  /** Observers may disconnect or mutate their view; neither may affect durable jobs. */
+  #notify(job: TranscriptionJob): void {
+    try { void Promise.resolve(this.#o.onChange?.(structuredClone(job))).catch(() => {}); } catch { /* UI/IPC observer */ }
+  }
+
+  #matchesEngine(job: TranscriptionJob): boolean {
+    return job.engine.name === this.#o.engine.info.name && job.engine.version === this.#o.engine.info.version && job.parametersHash === this.parametersHash;
+  }
+
   #update(jobId: string, patch: Partial<TranscriptionJob>, drop: (keyof TranscriptionJob)[] = []): TranscriptionJob {
     const entry = this.#entries.find((e) => e.job.id === jobId)!;
     const next: Record<string, unknown> = { ...entry.job, ...patch, updatedAt: this.#stamp() };
     for (const key of drop) delete next[key];
     entry.job = TranscriptionJob.parse(next);
     this.#save();
-    this.#o.onChange?.(entry.job);
+    this.#notify(entry.job);
     return entry.job;
   }
 
@@ -152,7 +161,7 @@ export class TranscriptionQueue {
     });
     this.#entries.push({ job, asset: valid, transcriptId: this.#newId() });
     this.#save();
-    this.#o.onChange?.(job);
+    this.#notify(job);
     this.#kick();
     return job;
   }
@@ -228,31 +237,54 @@ export class TranscriptionQueue {
     const next = this.#entries.find((e) => e.job.status === "queued" && (this.#holdUntil.get(e.job.id) ?? 0) <= now);
     if (!next) return;
     const abort = new AbortController();
-    const done = this.#process(next, abort).finally(() => {
+    // Reserve the worker before any observer can reenter enqueue/cancel/start.
+    const running = { jobId: next.job.id, abort, done: Promise.resolve() };
+    this.#running = running;
+    running.done = Promise.resolve().then(() => this.#process(next, abort)).finally(() => {
       this.#running = undefined;
       this.#kick();
     });
-    this.#running = { jobId: next.job.id, abort, done };
   }
 
   async #process(entry: Entry, abort: AbortController): Promise<void> {
     const leaseMs = this.#o.leaseMs ?? DEFAULT_LEASE_MS;
     const lease = () => new Date(this.#now().getTime() + leaseMs).toISOString().replace(/\.\d{3}Z$/, "Z");
     const jobId = entry.job.id;
+    if (entry.job.status !== "queued") return;
+    // Loaded pending jobs belong to the engine/parameters that created them.
+    // Never label a new engine's output with a previous version's identity.
+    if (!this.#matchesEngine(entry.job)) {
+      this.#update(jobId, { status: "failed", errorCode: "ENGINE_UNAVAILABLE" }, ["leaseExpiresAt", "progress"]);
+      return;
+    }
+    if (abort.signal.aborted) {
+      if (abort.signal.reason !== "shutdown") this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
+      return;
+    }
     this.#update(jobId, { status: "running", attempt: entry.job.attempt + 1, leaseExpiresAt: lease() }, ["progress"]);
     const renew = setInterval(() => this.#update(jobId, { leaseExpiresAt: lease() }), Math.max(1000, leaseMs / 3));
     renew.unref();
     try {
       const context = (await this.#o.contextFor?.(entry.asset).catch(() => "")) ?? "";
-      const output = await this.#o.engine.transcribe({
-        audioPath: this.#o.pathOf(entry.asset),
-        context,
-        signal: abort.signal,
-        onProgress: (progress) => {
-          entry.job = TranscriptionJob.parse({ ...entry.job, progress });
-          this.#o.onChange?.(entry.job);
-        },
-      });
+      abort.signal.throwIfAborted();
+      if (!this.#matchesEngine(entry.job)) throw new EngineError("ENGINE_UNAVAILABLE", "작업을 만들 때의 전사 엔진 설정과 다릅니다.", false);
+      let acceptingProgress = true;
+      let output: EngineOutput;
+      try {
+        output = await this.#o.engine.transcribe({
+          audioPath: this.#o.pathOf(entry.asset),
+          context,
+          signal: abort.signal,
+          onProgress: (progress) => {
+            if (!acceptingProgress || abort.signal.aborted || entry.job.status !== "running" || this.#running?.abort !== abort || !Number.isFinite(progress) || progress < 0 || progress > 1) return;
+            entry.job = TranscriptionJob.parse({ ...entry.job, progress });
+            this.#notify(entry.job);
+          },
+        });
+      } finally { acceptingProgress = false; }
+      // Some engines finish successfully while handling an abort. Commit nothing.
+      abort.signal.throwIfAborted();
+      if (!this.#matchesEngine(entry.job)) throw new EngineError("ENGINE_UNAVAILABLE", "전사 엔진 설정이 작업 도중 바뀌었습니다.", false);
       const transcript = Transcript.parse({
         schemaVersion: SCHEMA_VERSION,
         id: entry.transcriptId,

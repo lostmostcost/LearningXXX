@@ -739,7 +739,13 @@
         "host"
       ],
       "paths": [
-        "apps/desktop/host/"
+        "apps/desktop/host/",
+        "packages/contracts/src/ipc.ts",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json",
+        "apps/desktop/ui/src/MediaLibrary.tsx",
+        "apps/desktop/ui/src/RecordingPanel.tsx",
+        "packages/contracts/test/contracts.test.ts"
       ],
       "spec": "SPEC-004",
       "requirements": [
@@ -747,10 +753,11 @@
         "REQ-008"
       ],
       "acceptance": "로컬 media와 전사 job 상태를 연결한다. 앱 재시작 후 누락 job 복구, 동일 원본 중복 전사 방지, 원본 재생을 확인한다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-027-media-integration",
       "url": "https://app.notion.com/p/40bbd7ec20cd81779f4ed19d57301eda?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-03 사용자 명시 예외 승인: 047 UI/shared claim 유지, 담당 채팅에 최소 범위 통지. host의 transcriber workspace 의존성 및 root lockfile, IPC 계약과 preload, 새 MediaLibrary 및 RecordingPanel 연결, 이 WBS 메타데이터만 변경. App/StudyUI/PdfView/ChatPanel 변경 없음. deps023/eae69f2,024/80987d1,025/8226e1e,026/0f4b785 Done. 046/5c7902d 큐 경계 포함. 최신 main과 영역 밖 전 줄 리뷰·생성 lockfile 재생성·frozen 전체·fresh clone·scope 후 병합. 기존 전체 IPC 샘플의 필수 타입 매핑에 새 요청 7개를 추가하는 계약 회귀도 최소 변경에 포함."
     },
     {
       "id": "WBS-028",

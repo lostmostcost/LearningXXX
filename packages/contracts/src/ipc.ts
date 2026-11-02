@@ -3,7 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { MediaAsset, Recording } from "./media.ts";
+import { MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -188,6 +188,16 @@ export const IpcChannels = {
     request: z.object({ assetId: Id }),
     response: z.object({ mediaType: z.string().min(1), bytes: z.instanceof(Uint8Array) }),
   },
+  "media.list": {
+    request: z.object({ courseId: Id }),
+    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), downloads: z.array(z.object({ id: Id, courseId: Id, title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
+  },
+  "media.videos": { request: z.object({ courseId: Id }), response: z.object({ videos: z.array(z.object({ sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200) })) }) },
+  "media.download": { request: z.object({ courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/) }), response: z.object({ downloadId: Id }) },
+  "media.cancelDownload": { request: z.object({ courseId: Id, downloadId: Id }), response: z.object({}) },
+  "media.original": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({ bytes: z.instanceof(Uint8Array), mediaType: z.string() }) },
+  "media.open": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({}) },
+  "media.retry": { request: z.object({ courseId: Id, jobId: Id }), response: z.object({}) },
   /** REQ-011. Also tells a freshly restarted app that its renderer really came up. */
   "modify.status": {
     request: z.object({}),

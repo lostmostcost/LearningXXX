@@ -613,7 +613,7 @@
         "REQ-008"
       ],
       "acceptance": "Recording/MediaAsset/TranscriptSegment/Job 및 멱등 키·오류·버전 계약을 추가한다. A 소비자 하위호환과 fixture를 확인한다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-022-media-contracts",
       "url": "https://app.notion.com/p/40bbd7ec20cd81b48fd8d73acdea2c8f?pvs=204",
       "qa_mode": "appropriate_checks_only"
@@ -678,7 +678,10 @@
         "transcriber"
       ],
       "paths": [
-        "services/transcriber/"
+        "services/transcriber/",
+        "pnpm-workspace.yaml",
+        "pnpm-lock.yaml",
+        "docs/pm/"
       ],
       "spec": "SPEC-004",
       "requirements": [
@@ -686,10 +689,11 @@
         "REQ-008"
       ],
       "acceptance": "합의 엔진으로 원본 확정 시 자동 전사한다. job 멱등·lease 만료·취소·버전별 결과 보존·오류 재시도를 검증한다. 자동 요약을 실행하지 않는다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-025-transcription",
       "url": "https://app.notion.com/p/40bbd7ec20cd817f8684ec3e9f33c8a3?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-02 새 workspace 패키지(@learningxxx/transcriber) 등록에 root manifest·lockfile 수정 필요(영역 밖 예외). host 연결·용어 추출은 WBS-027 통합에서."
     },
     {
       "id": "WBS-026",

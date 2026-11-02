@@ -84,3 +84,13 @@
 | 비교 대상을 whisper.cpp turbo와 Qwen3-ASR 1.7B로 좁힘 | Raon-Speech는 16GB Mac 초과·비상업 라이선스, Soniox는 클라우드 전용 | — |
 | Qwen3-ASR 1.7B 채택(이문찬: "qwen으로 정하고") | 대면 녹음 정확도가 뚜렷이 높음. 속도·메모리 2배는 백그라운드 자동 전사라 수용 | ADR-003 갱신 |
 | 실험 도구는 저장소 밖 가상환경(`.learningxxx-toolchain/stt`)에 설치, 녹음·전사는 저장소 밖에만 | 전역 설치 금지, 비공개 강의 내용 커밋 금지 | — |
+
+## WBS-025 자동 전사 큐·워커
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 큐·엔진을 `services/transcriber`(TS 패키지 + Python 워커 1개)로 두고 host 연결은 WBS-027로 | WBS 경로 경계 유지, 녹음(023)·영상(024)이 아직 없음 | PR revert |
+| 오디오 변환은 macOS 내장 `afconvert`, WAV 읽기는 Python 표준 `wave` | ffmpeg 없이 두 Mac에서 동작(mlx-qwen3-asr의 load_audio는 ffmpeg 필요함을 실측) | — |
+| 멱등 키에 용어 힌트(context)는 넣지 않음 | 자료가 늘 때마다 같은 녹음이 재전사되어 중복이 생기지 않게 | — |
+| 8GB 이하 Mac은 0.6B 기본 | ADR-003. 8GB 실측 전 임시 기준 | `QwenEngineOptions.model` |
+| 재시도: 일시적 실패만 최대 3회(30초·2분 간격), 엔진 없음·파일 손상은 즉시 실패 | 고칠 수 없는 오류의 무한 반복 방지 | — |

@@ -43,11 +43,13 @@ test("the folder holds read-only copies of verified originals and drops what lef
   const dir = join(root, "materials");
   const source = { path: (k: string) => join(store, k), verify: async (k: string, s: string) => existsSync(join(store, k)) && sha(readFileSync(join(store, k), "utf8")) === s };
 
+  const pageTexts = async (bytes: Uint8Array) => [new TextDecoder().decode(bytes), ""];
   const first = await syncMaterials(dir, materialLayout(manifest([
     { n: 1, title: "OT", name: "a.pdf", body: "one", week: W1 },
     { n: 2, title: "missing", name: "b.pdf", body: "never stored", week: W1 },
-  ])), source);
-  assert.deepEqual(first.map((e) => e.path), ["01 1주차 OT/OT.pdf"]);
+  ])), { ...source, pageTexts });
+  assert.deepEqual(first.map((e) => [e.path, e.textPath]), [["01 1주차 OT/OT.pdf", "01 1주차 OT/OT.pdf.txt"]]);
+  assert.match(readFileSync(join(dir, "01 1주차 OT/OT.pdf.txt"), "utf8"), /=== 1쪽 ===\none/);
   const ot = join(dir, "01 1주차 OT/OT.pdf");
   assert.equal(readFileSync(ot, "utf8"), "one");
   assert.equal(statSync(ot).mode & 0o222, 0, "read-only");

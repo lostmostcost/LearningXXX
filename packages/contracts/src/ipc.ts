@@ -113,7 +113,16 @@ export const IpcChannels = {
     response: z.object({ removed: z.boolean() }),
   },
   "run.start": {
-    request: z.object({ requestId: Id, draft: ComposerDraft }),
+    request: z.object({
+      requestId: Id,
+      draft: ComposerDraft,
+      /**
+       * PNG of the page in `draft.viewing`, drawn by the viewer, so the AI can
+       * look at slides that are mostly pictures. Used for course sessions
+       * only; not kept in the transcript.
+       */
+      viewingImage: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 8_000_000, "page image too large").optional(),
+    }),
     response: z.object({ run: Run }),
   },
   /** Opens the system folder picker in the host; the renderer never names a path. */

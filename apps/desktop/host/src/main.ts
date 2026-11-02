@@ -114,7 +114,7 @@ app.whenReady().then(async () => {
       if (!found) return undefined;
       return {
         brief: courseBrief(found.manifest, { dir: materialsDir, entries: found.entries }),
-        paths: new Map(found.entries.map((e) => [e.assetId, e.path])),
+        paths: new Map(found.entries.map((e) => [e.assetId, { path: e.path, textPath: e.textPath }])),
       };
     },
     startCli: createCliRunner(),

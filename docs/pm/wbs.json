@@ -1260,6 +1260,38 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81a680f9c4973947869e",
       "scope_note": "2026-11-02 이문찬 요청. 자율 진행 위임에 따른 영역 밖 예외(docs/pm/decision-log.md)."
+    },
+    {
+      "id": "WBS-045",
+      "title": "큰 PDF·슬라이드를 쪽 단위로 읽기(쪽별 텍스트·현재 쪽 화면)",
+      "phase": "A 핵심경험",
+      "priority": "P1",
+      "deps": [
+        "WBS-044"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-003",
+        "REQ-005"
+      ],
+      "acceptance": "과목 세션 AI가 20MB 넘는 PDF도 쪽별 텍스트로 읽고, 보낼 때 현재 쪽 화면 이미지를 볼 수 있다. 추가 설치 없음. 독립 세션은 받지 않는다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-045-pdf-pages",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd81598838fb2c54919081",
+      "scope_note": "2026-11-02 WBS-044 사용 중 발견(이문찬). host에 pdfjs-dist 의존성 추가(lockfile). 자율 진행 위임에 따른 영역 밖 예외."
     }
   ],
   "qaPolicy": {

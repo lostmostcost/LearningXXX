@@ -102,6 +102,22 @@ describe("argument policy", () => {
     assert.ok(!args.join(" ").includes("Bash"));
   });
 
+  it("only a course session passes its course brief, as a system prompt file", () => {
+    const id = randomUUID();
+    const course = A.buildArgs({ mode: "course", cliSessionId: id, resume: true, attachmentDirs: [], contextFile: "/c/brief.md" });
+    assert.equal(course[course.indexOf("--append-system-prompt-file") + 1], "/c/brief.md");
+    const independent = A.buildArgs({ mode: "independent", cliSessionId: id, resume: false, attachmentDirs: [], contextFile: "/c/brief.md" });
+    assert.ok(!independent.includes("--append-system-prompt-file"));
+  });
+
+  it("refuses a context file for an independent session before anything starts", async () => {
+    const f = fixture();
+    const brief = join(f.root, "brief.md");
+    writeFileSync(brief, "course");
+    assert.equal(startError(await run(f, "ok", { contextFile: brief })).code, "ISOLATION_VIOLATION");
+    assert.deepEqual(invocations(f), []);
+  });
+
   it("verified CLI version matches the WBS-005 toolchain pin", () => {
     assert.deepEqual(A.VERIFIED_CLI_VERSIONS, [TOOLCHAIN.claude_cli.verified]);
   });
@@ -171,6 +187,19 @@ describe("external folders the user granted", () => {
     );
     assert.equal(last(events).type, "run.completed");
     assert.ok(invocations(f)[0]?.argv.includes(f.outside));
+  });
+
+  it("treats a decomposed Korean folder name as the same folder on macOS", { skip: process.platform !== "darwin" }, async () => {
+    const f = fixture();
+    const granted = join(f.root, "무제 폴더".normalize("NFD"));
+    mkdirSync(granted);
+    const opts = { cliPath: f.cli, env: env(f, "write_external", { FAKE_EXTERNAL: granted.normalize("NFC") }) };
+    const events = await collect(await A.startRun(request(f, { mode: "course", workspacePath: f.course, writableDirs: [granted] }), opts));
+    assert.deepEqual(
+      events.flatMap((e) => (e.type === "artifact.created" ? [e.payload.outputKey] : [])),
+      ["external-0/report.md"],
+    );
+    assert.equal(last(events).type, "run.completed");
   });
 
   it("stops the run when that folder was not granted", async () => {

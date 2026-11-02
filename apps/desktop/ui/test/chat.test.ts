@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { describe, test } from "node:test";
 import { ComposerDraft, Run, SCHEMA_VERSION, Session } from "@learningxxx/contracts";
 import type { RunEvent } from "@learningxxx/contracts";
-import { addTurn, applyEvent, emptyTranscript, errorHelp, openRun } from "../src/chat.ts";
+import { addTurn, applyEvent, emptyTranscript, errorHelp, openRun, withHistory } from "../src/chat.ts";
 import { emptyDraft, freeze, sendBlock, visibleSessions, type Draft } from "../src/composer.ts";
 
 const COURSE = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -107,4 +107,15 @@ describe("transcript from host events", () => {
     assert.equal(errorHelp({ code: "ISOLATION_VIOLATION", message: "경계", retryable: false }).retry, false);
     assert.equal(errorHelp({ code: "CLI_AUTH_REQUIRED", message: "로그인", retryable: false }).retry, true);
   });
+});
+
+test("saved turns from before a restart come first and never replace what this window saw", () => {
+  const appSessionId = randomUUID();
+  const sent = { text: "q", attachmentIds: [], captureIds: [], targetSessionId: appSessionId, intent: "chat" as const };
+  const saved = (runId: string, answer: string) => ({ runId, appSessionId, sent, answer, tools: [], artifacts: [], state: "completed" as const });
+  const old = randomUUID(), live = randomUUID();
+  const now = addTurn(emptyTranscript(), Run.parse({ runId: live, appSessionId, requestId: randomUUID(), startedAt: "2026-11-02T00:00:00Z", status: "streaming" }), sent);
+  const merged = withHistory(now, [saved(old, "예전 답"), saved(live, "저장된 사본")]);
+  assert.deepEqual(merged.turns.map((t) => [t.runId, t.answer]), [[old, "예전 답"], [live, ""]]);
+  assert.equal(withHistory(merged, [saved(old, "예전 답")]), merged);
 });

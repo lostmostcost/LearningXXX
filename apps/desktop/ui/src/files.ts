@@ -15,7 +15,10 @@ export const recordsFor = (records: readonly RunChanges[], appSessionId: string)
   records.filter((record) => record.appSessionId === appSessionId);
 
 /** Only a file that still exists can be moved to the Trash. */
-export const canTrash = (change: FileChange) => change.change !== "deleted";
+export const canTrash = (change: FileChange) => change.change !== "deleted" && change.present !== false;
+
+/** Said next to a file that is gone since the run, e.g. already in the Trash. */
+export const goneNote = (change: FileChange) => (change.change !== "deleted" && change.present === false ? "지금 없음(휴지통 등)" : undefined);
 
 export const canGrantFolders = (session: Session) => session.mode === "course";
 

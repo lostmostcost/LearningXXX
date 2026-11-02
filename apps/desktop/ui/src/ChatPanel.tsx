@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@learningxxx/contracts";
-import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, type Transcript, type Turn } from "./chat.ts";
+import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, withHistory, type Transcript, type Turn } from "./chat.ts";
 import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft, type Attachment } from "./composer.ts";
 import { capturePreview } from "./capture-preview.ts";
 import { FilesSection } from "./FilesSection.tsx";
@@ -72,6 +72,17 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
       if (push.event.type === "run.completed" || push.event.type === "run.failed" || push.event.type === "run.cancelled") void reload();
     });
   }, [reload]);
+
+  // Earlier conversation of a session, once per session per window (it survives restarts on the host).
+  const historyLoaded = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeId || historyLoaded.current.has(activeId)) return;
+    historyLoaded.current.add(activeId);
+    void invoke("session.transcript", { appSessionId: activeId }).then((result) => {
+      if (result.ok) setTranscript((t) => withHistory(t, result.data.turns));
+      else historyLoaded.current.delete(activeId);
+    });
+  }, [activeId]);
 
   const active = sessions.find((s) => s.appSessionId === activeId);
   const draft = (activeId && drafts[activeId]) || emptyDraft();

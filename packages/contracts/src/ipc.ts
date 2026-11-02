@@ -5,7 +5,7 @@ import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
-import { ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
+import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
 
 export const CredentialStatus = z.object({
   school: z.boolean(),
@@ -82,6 +82,11 @@ export const IpcChannels = {
   "session.rename": {
     request: z.object({ appSessionId: Id, title: z.string().min(1).max(200) }),
     response: z.object({ session: Session }),
+  },
+  /** What this session's chat showed before, oldest first, including runs cut off by a quit. */
+  "session.transcript": {
+    request: z.object({ appSessionId: Id }),
+    response: z.object({ turns: z.array(ChatTurn) }),
   },
   "session.archive": {
     request: z.object({ appSessionId: Id, archived: z.boolean() }),

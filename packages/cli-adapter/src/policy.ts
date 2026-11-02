@@ -42,6 +42,8 @@ export interface ArgsInput {
   resume: boolean;
   attachmentDirs: readonly string[];
   writableDirs?: readonly string[] | undefined;
+  /** Course sessions only: the course brief, added to the system prompt. */
+  contextFile?: string | undefined;
   model?: string | undefined;
 }
 
@@ -81,8 +83,8 @@ export function buildArgs(input: ArgsInput): string[] {
       ...APP_MODIFY_TOOLS,
     );
   } else {
-    // --restricted confines file tools to the workspace and --add-dir; no
-    // --safe-mode so a course workspace CLAUDE.md still applies.
+    // --restricted confines file tools to the workspace and --add-dir. It also
+    // skips project CLAUDE.md, so the course brief is passed explicitly.
     args.push(
       "--restricted",
       "--strict-mcp-config",
@@ -93,6 +95,7 @@ export function buildArgs(input: ArgsInput): string[] {
       "--allowedTools",
       ...COURSE_TOOLS,
     );
+    if (input.contextFile) args.push("--append-system-prompt-file", input.contextFile);
   }
   for (const dir of [...input.attachmentDirs, ...(input.writableDirs ?? [])]) args.push("--add-dir", dir);
   args.push(input.resume ? "--resume" : "--session-id", input.cliSessionId);

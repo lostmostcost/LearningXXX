@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Id, Sha256, UtcTimestamp } from "./common.ts";
-import { ErrorCode } from "./errors.ts";
+import { AppError, ErrorCode } from "./errors.ts";
 
 /** SPEC-002 session model. */
 
@@ -142,3 +142,20 @@ export const ComposerDraft = z
     message: "translate/explain requires a text selection",
   });
 export type ComposerDraft = z.infer<typeof ComposerDraft>;
+
+/**
+ * One exchange as the chat showed it: what was sent and what came back. The
+ * host keeps these per session so the conversation is still visible after a
+ * restart; the CLI keeps its own history for resuming.
+ */
+export const ChatTurn = z.object({
+  runId: Id,
+  appSessionId: Id,
+  sent: ComposerDraft,
+  answer: z.string(),
+  tools: z.array(z.object({ tool: z.string(), decision: z.enum(["allowed", "denied", "awaiting_user"]), targets: z.array(z.string()) })),
+  artifacts: z.array(z.string()),
+  state: z.enum(["waiting", "streaming", "completed", "failed", "cancelled"]),
+  error: AppError.optional(),
+});
+export type ChatTurn = z.infer<typeof ChatTurn>;

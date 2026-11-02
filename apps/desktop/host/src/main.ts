@@ -19,6 +19,8 @@ import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
 import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
+import { TranscriptStore } from "./transcript-store.ts";
+import { courseBrief } from "./course-context.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -106,6 +108,11 @@ app.whenReady().then(async () => {
     dataRoot,
     attachments,
     store: new SessionStore(join(dataRoot, "app-state.json")),
+    transcripts: new TranscriptStore(join(dataRoot, "transcripts")),
+    courseBrief: async (courseId) => {
+      const manifest = await library.manifest(courseId);
+      return manifest ? courseBrief(manifest) : undefined;
+    },
     startCli: createCliRunner(),
     history: (now) => new RunHistory(join(dataRoot, "history"), now),
     onEvent: (event) => {

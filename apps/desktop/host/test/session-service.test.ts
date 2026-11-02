@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,6 +10,7 @@ import type { RunRequest, StartOutcome } from "@learningxxx/cli-adapter";
 import { buildPrompt, SessionService } from "../src/session-service.ts";
 import type { StartCli } from "../src/session-service.ts";
 import { SessionStore } from "../src/session-store.ts";
+import { TranscriptStore } from "../src/transcript-store.ts";
 
 const COURSE = "11111111-1111-4111-8111-000000000001";
 const OTHER_COURSE = "11111111-1111-4111-8111-000000000002";
@@ -312,4 +313,59 @@ test("cancelling before the CLI opens is recorded as cancelled, not failed", asy
   assert.equal(result.errorCode, undefined);
   Run.parse(result);
   assert.equal(service.list({ includeArchived: false })[0]?.status, "idle");
+});
+
+test("the chat a session showed is still there after a restart, and a cut-off answer says so", async () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), "wbs020-"));
+  const store = new SessionStore(join(dataRoot, "app-state.json"));
+  const transcripts = new TranscriptStore(join(dataRoot, "transcripts"));
+  const answering: StartCli = async (req) => ({
+    ok: true,
+    events: (async function* () {
+      yield started(req);
+      yield event(req.runId, 1, "text.delta", { text: "첫 " });
+      yield event(req.runId, 2, "text.delta", { text: "답" });
+      yield event(req.runId, 3, "run.completed", { exitCode: 0 });
+    })(),
+  });
+  const first = new SessionService({ dataRoot, store, transcripts, startCli: answering });
+  const session = first.create({ mode: "course", courseId: COURSE, title: "t" });
+  await first.startRun({ requestId: randomUUID(), draft: draft(session.appSessionId, "요점") });
+  for (let i = 0; i < 5; i += 1) await tick();
+
+  const cutOff = holding();
+  const second = new SessionService({ dataRoot, store, transcripts, startCli: cutOff.start });
+  await second.startRun({ requestId: randomUUID(), draft: draft(session.appSessionId, "이어서") });
+  await tick();
+  // The app quits here: the second answer never finishes.
+
+  const reopened = new SessionService({ dataRoot, store, transcripts, startCli: completing });
+  const turns = reopened.transcript(session.appSessionId);
+  assert.deepEqual(turns.map((t) => [t.sent.text, t.answer, t.state]), [["요점", "첫 답", "completed"], ["이어서", "", "failed"]]);
+  assert.equal(turns[1]!.error?.code, "RUN_INTERRUPTED");
+  assert.deepEqual(reopened.transcript(reopened.create({ mode: "independent", title: "i" }).appSessionId), []);
+});
+
+test("a course session's CLI gets the course brief; an independent one gets nothing", async () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), "wbs020-"));
+  const calls: RunRequest[] = [];
+  const service = new SessionService({
+    dataRoot,
+    store: new SessionStore(join(dataRoot, "app-state.json")),
+    startCli: (req, signal) => (calls.push(req), completing(req, signal)),
+    courseBrief: async (courseId) => (courseId === COURSE ? "# 이 대화의 과목\n과목: 합성개론\n" : undefined),
+  });
+  const course = service.create({ mode: "course", courseId: COURSE, title: "c" });
+  const other = service.create({ mode: "course", courseId: OTHER_COURSE, title: "o" });
+  const independent = service.create({ mode: "independent", title: "i" });
+  for (const s of [course, other, independent]) {
+    await run(service, s.appSessionId);
+    for (let i = 0; i < 3; i += 1) await tick();
+  }
+  const [c, o, i] = calls;
+  assert.equal(c!.contextFile, join(dataRoot, "courses", COURSE, "course-context.md"));
+  assert.match(readFileSync(c!.contextFile!, "utf8"), /합성개론/);
+  assert.ok(!c!.contextFile!.startsWith(join(dataRoot, course.workspaceKey)), "outside the session folder");
+  assert.equal(o!.contextFile, undefined);
+  assert.equal(i!.contextFile, undefined);
 });

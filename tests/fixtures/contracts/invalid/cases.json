@@ -68,5 +68,47 @@
     "base": "interrupted/run.json",
     "patch": { "errorCode": null },
     "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "a succeeded transcription job names its transcript",
+    "schema": "TranscriptionJob",
+    "base": "normal/media.json#jobs/0",
+    "patch": { "outputTranscriptId": null },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "a running job holds a lease",
+    "schema": "TranscriptionJob",
+    "base": "normal/media.json#jobs/1",
+    "patch": { "leaseExpiresAt": null },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "a corrected transcript names the version it corrected",
+    "schema": "Transcript",
+    "base": "normal/media.json#transcripts/1",
+    "patch": { "basedOnTranscriptId": null },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "a finalized recording has its original",
+    "schema": "Recording",
+    "base": "normal/media.json#recordings/0",
+    "patch": { "originalAssetId": null },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "a downloaded video is an original, not derived",
+    "schema": "MediaAsset",
+    "base": "normal/media.json#assets/1",
+    "patch": { "role": "derived" },
+    "expect": "INVALID_REQUEST"
+  },
+  {
+    "name": "media storage stays inside the data root",
+    "schema": "MediaAsset",
+    "base": "normal/media.json#assets/0",
+    "patch": { "storageKey": "../outside.ogg" },
+    "expect": "INVALID_REQUEST"
   }
 ]

@@ -1,0 +1,214 @@
+{
+  "recordings": [
+    {
+      "schemaVersion": 1,
+      "id": "a1111111-1111-4111-8111-000000000001",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "title": "9주차 대면 강의",
+      "startedAt": "2026-11-02T00:12:00Z",
+      "durationMs": 4500000,
+      "sourceDevice": "MacBook Air 마이크",
+      "status": "finalized",
+      "originalAssetId": "a2222222-2222-4222-8222-000000000001"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a1111111-1111-4111-8111-000000000002",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "title": "녹음 중",
+      "startedAt": "2026-11-02T01:00:00Z",
+      "status": "recording"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a1111111-1111-4111-8111-000000000003",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "title": "강제 종료 후 복구",
+      "startedAt": "2026-11-02T02:00:00Z",
+      "durationMs": 1200000,
+      "status": "recovered_partial",
+      "originalAssetId": "a2222222-2222-4222-8222-000000000004"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a1111111-1111-4111-8111-000000000004",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "title": "권한 거부",
+      "startedAt": "2026-11-02T03:00:00Z",
+      "status": "failed",
+      "errorCode": "MIC_PERMISSION_DENIED"
+    }
+  ],
+  "assets": [
+    {
+      "schemaVersion": 1,
+      "id": "a2222222-2222-4222-8222-000000000001",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "role": "original",
+      "source": {
+        "type": "recording",
+        "recordingId": "a1111111-1111-4111-8111-000000000001"
+      },
+      "title": "9주차 대면 강의",
+      "mediaType": "audio/ogg",
+      "bytes": 36000000,
+      "sha256": "d7cf1aa2fed29a38c1ad7a6e7a43ca6ae26723f6792346cf236bf951bf2ebc69",
+      "storageKey": "media/originals/d7cf1aa2fed29a38c1ad7a6e7a43ca6ae26723f6792346cf236bf951bf2ebc69",
+      "durationMs": 4500000,
+      "createdAt": "2026-11-02T01:27:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a2222222-2222-4222-8222-000000000003",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "role": "original",
+      "source": {
+        "type": "lms_video",
+        "resourceId": "22222222-2222-4222-8222-000000000009",
+        "sourceId": "commons:synthetic"
+      },
+      "title": "9주차 1차시",
+      "mediaType": "video/mp4",
+      "bytes": 250000000,
+      "sha256": "b391c25f082013a2ff1aee3d1ff5fbe7c732c1857bf243bd8009f62db063f493",
+      "storageKey": "media/originals/b391c25f082013a2ff1aee3d1ff5fbe7c732c1857bf243bd8009f62db063f493",
+      "durationMs": 2620000,
+      "createdAt": "2026-11-02T04:00:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a2222222-2222-4222-8222-000000000002",
+      "courseId": "11111111-1111-4111-8111-000000000001",
+      "role": "derived",
+      "source": {
+        "type": "extracted_audio",
+        "fromAssetId": "a2222222-2222-4222-8222-000000000003"
+      },
+      "title": "9주차 1차시 (오디오)",
+      "mediaType": "audio/wav",
+      "bytes": 83840000,
+      "sha256": "bf639d89a3de0c2e761d336fc7bf954cd615c5a65aad89915421e9e95179507e",
+      "storageKey": "media/derived/bf639d89a3de0c2e761d336fc7bf954cd615c5a65aad89915421e9e95179507e",
+      "createdAt": "2026-11-02T04:01:00Z"
+    }
+  ],
+  "transcripts": [
+    {
+      "schemaVersion": 1,
+      "id": "a3333333-3333-4333-8333-000000000001",
+      "sourceAssetId": "a2222222-2222-4222-8222-000000000001",
+      "kind": "engine",
+      "engine": {
+        "name": "qwen3-asr",
+        "version": "Qwen3-ASR-1.7B/mlx-qwen3-asr-0.4.4"
+      },
+      "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+      "language": "ko",
+      "createdAt": "2026-11-02T01:50:00Z",
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 4200,
+          "text": "이번 시간에는 래치에 대해 살펴보겠습니다."
+        },
+        {
+          "startMs": 4200,
+          "endMs": 9100,
+          "text": "지난 시간에 순차 회로를 배웠죠.",
+          "confidence": 0.92
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a3333333-3333-4333-8333-000000000002",
+      "sourceAssetId": "a2222222-2222-4222-8222-000000000001",
+      "kind": "corrected",
+      "basedOnTranscriptId": "a3333333-3333-4333-8333-000000000001",
+      "engine": {
+        "name": "claude-correction",
+        "version": "claude-code-cli"
+      },
+      "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+      "language": "ko",
+      "createdAt": "2026-11-02T05:00:00Z",
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 4200,
+          "text": "이번 시간에는 래치(latch)에 대해 살펴보겠습니다."
+        },
+        {
+          "startMs": 4200,
+          "endMs": 9100,
+          "text": "지난 시간에 순차 회로를 배웠죠."
+        }
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "schemaVersion": 1,
+      "id": "a4444444-4444-4444-8444-000000000001",
+      "sourceAssetId": "a2222222-2222-4222-8222-000000000001",
+      "engine": {
+        "name": "qwen3-asr",
+        "version": "Qwen3-ASR-1.7B/mlx-qwen3-asr-0.4.4"
+      },
+      "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+      "idempotencyKey": "af8b64dab78f8b91a24bc246218008ce7587133d7a1daaa02bd8f03acaa4629c",
+      "status": "succeeded",
+      "progress": 1,
+      "attempt": 1,
+      "outputTranscriptId": "a3333333-3333-4333-8333-000000000001",
+      "createdAt": "2026-11-02T01:27:00Z",
+      "updatedAt": "2026-11-02T01:50:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a4444444-4444-4444-8444-000000000002",
+      "sourceAssetId": "a2222222-2222-4222-8222-000000000002",
+      "engine": {
+        "name": "qwen3-asr",
+        "version": "Qwen3-ASR-1.7B/mlx-qwen3-asr-0.4.4"
+      },
+      "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+      "idempotencyKey": "d9298a10d1b0735837dc4bd85dac641b0f3cef27a47e5d53a54f2f3f5b2fcffa",
+      "status": "running",
+      "attempt": 2,
+      "leaseExpiresAt": "2026-11-02T04:31:00Z",
+      "createdAt": "2026-11-02T04:01:00Z",
+      "updatedAt": "2026-11-02T04:16:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "a4444444-4444-4444-8444-000000000003",
+      "sourceAssetId": "a2222222-2222-4222-8222-000000000002",
+      "engine": {
+        "name": "qwen3-asr",
+        "version": "Qwen3-ASR-1.7B/mlx-qwen3-asr-0.4.4"
+      },
+      "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+      "idempotencyKey": "b1e99324505bd32da0e1f85dcf5e19a09db0481e8a15f62c41eb320304a8e927",
+      "status": "failed",
+      "attempt": 3,
+      "errorCode": "MEDIA_UNREADABLE",
+      "createdAt": "2026-11-02T04:01:00Z",
+      "updatedAt": "2026-11-02T04:40:00Z"
+    }
+  ],
+  "keyCheck": {
+    "sourceSha256": "d7cf1aa2fed29a38c1ad7a6e7a43ca6ae26723f6792346cf236bf951bf2ebc69",
+    "engine": {
+      "name": "qwen3-asr",
+      "version": "Qwen3-ASR-1.7B/mlx-qwen3-asr-0.4.4"
+    },
+    "parametersHash": "ad78eb237f79cf961aabf225bda0b072d0e4a5a5a5693a0cedea13819318db0e",
+    "parameters": {
+      "timestamps": true,
+      "language": "Korean",
+      "context": "래치 플립플롭"
+    },
+    "idempotencyKey": "af8b64dab78f8b91a24bc246218008ce7587133d7a1daaa02bd8f03acaa4629c"
+  }
+}

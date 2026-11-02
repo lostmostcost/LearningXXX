@@ -8,6 +8,7 @@ export * from "./lms.ts";
 export * from "./sessions.ts";
 export * from "./files.ts";
 export * from "./modify.ts";
+export * from "./media.ts";
 export * from "./events.ts";
 export * from "./ipc.ts";
 

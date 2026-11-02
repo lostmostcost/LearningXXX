@@ -1,6 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CanvasClient, CollectionError } from "@learningxxx/collector";
+import { CanvasClient, CollectionError, listActiveCourses } from "@learningxxx/collector";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, systemPreferences } from "electron";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -80,6 +80,7 @@ app.whenReady().then(async () => {
     root: join(dataRoot, "library"),
     client: () => createLmsClient(() => credentials.canvasToken()),
     ensureSignedIn: () => credentials.ensureSignedIn(),
+    discoverCourses: listActiveCourses,
     learningx: createLearningXClient,
     onProgress: (syncRun) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "collection.progress", syncRun });

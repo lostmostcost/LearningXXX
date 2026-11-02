@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { AccountKey, CollectionManifest, SCHEMA_VERSION, SyncRun } from "@learningxxx/contracts";
-import { CanvasClient } from "@learningxxx/collector";
+import { CanvasClient, CollectionError } from "@learningxxx/collector";
 import { createHandlers } from "../src/handlers.ts";
 import { LibraryService } from "../src/library-service.ts";
 import { createRouter } from "../src/router.ts";
@@ -177,4 +177,28 @@ test("the library channels pass the contract through the router, bytes included"
   assert.ok(status.ok);
   const missing = await call("library.manifest", { courseId: "ffffffff-ffff-4fff-8fff-ffffffffffff" });
   assert.deepEqual(missing, { ok: true, data: {} });
+});
+
+test("collect all: enrolled courses are listed, with the configured course as fallback (WBS-041)", async () => {
+  const cases: [() => Promise<string[]>, string[]][] = [
+    [async () => ["95899", "97001"], ["95899", "97001"]],
+    [async () => [], ["95899"]],
+    [async () => { throw new CollectionError({ code: "SOURCE_CHANGED", message: "x", retryable: false }); }, ["95899"]],
+  ];
+  for (const [discoverCourses, expected] of cases) {
+    const seen: string[] = [];
+    const library = new LibraryService({
+      root: mkdtempSync(join(tmpdir(), "wbs041-")),
+      client: () => new CanvasClient({ baseUrl: BASE, fetch: lms(), getAuthHeaders: async () => ({}) }),
+      discoverCourses,
+      collect: async (input) => {
+        seen.push(input.sourceCourseId);
+        throw new Error("stop");
+      },
+    });
+    await library.init();
+    await library.run({ scope: "all_courses" });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(seen, expected);
+  }
 });

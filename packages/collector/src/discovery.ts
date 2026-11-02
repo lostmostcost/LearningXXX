@@ -57,6 +57,27 @@ export async function discoverCourse(input: DiscoveryInput): Promise<DiscoveredC
   return { course, weeks };
 }
 
+const ListedCourse = z.object({
+  id: SourceId,
+  name: z.string().min(1).optional(),
+  access_restricted_by_date: z.boolean().optional(),
+});
+
+/**
+ * The courses this student is actively enrolled in (WBS-041), in Canvas order.
+ * Courses hidden by date restrictions come back without a name and are skipped.
+ */
+export async function listActiveCourses(client: CanvasClient): Promise<string[]> {
+  const raw = await client.getList("/api/v1/courses?enrollment_state=active&enrollment_type=student&per_page=100");
+  const ids: string[] = [];
+  for (const entry of raw) {
+    const course = ListedCourse.safeParse(entry);
+    if (!course.success || !course.data.name || course.data.access_restricted_by_date) continue;
+    if (/^\d+$/.test(course.data.id) && !ids.includes(course.data.id)) ids.push(course.data.id);
+  }
+  return ids;
+}
+
 /**
  * Deterministic UUID, so collecting twice yields the same IDs and no duplicates.
  * The account partitions identity, so two accounts never share a course ID.

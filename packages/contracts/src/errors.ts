@@ -35,8 +35,20 @@ export const HostErrorCode = z.enum([
   "CAPTURE_FAILED",
 ]);
 
+/** SPEC-004 recording, download and transcription errors (WBS-022). */
+export const MediaErrorCode = z.enum([
+  "MIC_PERMISSION_DENIED",
+  "DISK_FULL",
+  "RECORDING_INTERRUPTED",
+  "DOWNLOAD_INCOMPLETE",
+  "MEDIA_UNREADABLE",
+  "ENGINE_UNAVAILABLE",
+  "TRANSCRIBE_FAILED",
+]);
+
 export const ErrorCode = z.enum([
   ...CollectionErrorCode.options,
+  ...MediaErrorCode.options,
   ...CliErrorCode.options,
   ...HostErrorCode.options,
 ]);
@@ -53,6 +65,7 @@ const NEVER_RETRYABLE: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   "SCOPE_VIOLATION",
   "UNSUPPORTED_FORMAT",
   "CAPTURE_PERMISSION_DENIED",
+  "MIC_PERMISSION_DENIED",
 ]);
 
 /**

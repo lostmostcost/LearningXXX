@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -33,6 +34,10 @@ describe("consumer: every valid synthetic fixture parses", () => {
     ["normal/events.json", z.array(C.RunEvent)],
     ["expired/events.json", z.array(C.RunEvent)],
     ["interrupted/events-cancelled.json", z.array(C.RunEvent)],
+    ["normal/media.json#recordings", z.array(C.Recording)],
+    ["normal/media.json#assets", z.array(C.MediaAsset)],
+    ["normal/media.json#transcripts", z.array(C.Transcript)],
+    ["normal/media.json#jobs", z.array(C.TranscriptionJob)],
   ];
   for (const [file, schema] of cases) it(file, () => void ok(schema, load(file)));
 });
@@ -212,4 +217,32 @@ describe("fixture privacy (ARCH-001: synthetic data only)", () => {
       }
     });
   }
+});
+
+describe("transcription idempotency (WBS-022)", () => {
+  const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+  type KeyCheck = { sourceSha256: string; engine: C.TranscriptEngine; parametersHash: string; parameters: Record<string, string | boolean>; idempotencyKey: string };
+  const check = load("normal/media.json#keyCheck") as KeyCheck;
+
+  it("parameter order never changes the parameters hash", () => {
+    const reversed = Object.fromEntries(Object.entries(check.parameters).reverse());
+    assert.equal(sha(C.canonicalParameters(check.parameters)), check.parametersHash);
+    assert.equal(sha(C.canonicalParameters(reversed)), check.parametersHash);
+  });
+
+  it("the key is source content + engine + parameters, and changes with any of them", () => {
+    const key = (over: Partial<KeyCheck> = {}) => {
+      const k = { ...check, ...over };
+      return sha(C.transcriptionKeyInput(k.sourceSha256, k.engine, k.parametersHash));
+    };
+    assert.equal(key(), check.idempotencyKey);
+    assert.notEqual(key({ sourceSha256: sha("other audio") }), check.idempotencyKey);
+    assert.notEqual(key({ engine: { ...check.engine, version: "Qwen3-ASR-0.6B/mlx-qwen3-asr-0.4.4" } }), check.idempotencyKey);
+    assert.notEqual(key({ parametersHash: sha("{}") }), check.idempotencyKey);
+  });
+
+  it("A-stage records are untouched: existing fixtures still parse with the new error codes", () => {
+    assert.ok(C.ErrorCode.options.includes("TRANSCRIBE_FAILED"));
+    assert.ok(C.ErrorCode.options.includes("AUTH_REQUIRED"));
+  });
 });

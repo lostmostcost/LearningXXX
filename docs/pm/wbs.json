@@ -1370,6 +1370,36 @@
       "branch": "feat/WBS-047-study-shell",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81b69ca5eb2d2b305f67"
+    },
+    {
+      "id": "WBS-048",
+      "title": "채팅·녹음 탭과 아이콘 액션",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-047"
+      ],
+      "areas": [
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-003.md"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-004",
+        "REQ-007",
+        "REQ-009"
+      ],
+      "acceptance": "오른쪽 채팅/녹음 탭, 세션 드롭다운, 아이콘 버튼을 제공하며 초안과 녹음 상태를 유지한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-048-chat-recording-tabs",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd8130a9a5c3f55f119d77"
     }
   ],
   "qaPolicy": {

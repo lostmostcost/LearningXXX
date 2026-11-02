@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CredentialStatus } from "@learningxxx/contracts";
 import { invoke } from "./host-api.ts";
+import { Icon } from "./StudyUI.tsx";
 import { signInSummary } from "./signin.ts";
 
 /**
@@ -42,7 +43,7 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
 
   return (
     <>
-      <button type="button" onClick={() => { setMessage(""); dialog.current?.showModal(); }}>{signInSummary(status)}</button>
+      <button type="button" aria-label="로그인 설정" title={signInSummary(status)} onClick={() => { setMessage(""); dialog.current?.showModal(); }}><Icon name="account" /></button>
       <dialog ref={dialog} className="signin" aria-label="로그인 설정">
         <h2>로그인 설정</h2>
         <p>이 Mac에만 저장되며 키체인으로 암호화됩니다. 앱은 학교 로그인과 Canvas에만 보냅니다.</p>

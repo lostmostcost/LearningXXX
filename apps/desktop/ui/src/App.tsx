@@ -4,6 +4,7 @@ import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
+import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { ChatPanel } from "./ChatPanel.tsx";
 import { viewingOf } from "./composer.ts";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
@@ -43,12 +44,19 @@ function useWindowWidth(): number {
 
 export function App() {
   const narrow = isNarrow(useWindowWidth());
+  const [home,setHome]=useState(true);
+  const [pinned,setPinned]=useState(false);
+  const [drawer,setDrawer]=useState(false);
+  const [section,setSection]=useState("book");
+  const [weekIndex,setWeekIndex]=useState(0);
+  const [tray,setTray]=useState(false);
+  const courseEpoch=useRef(0);
   const [view, setView] = useState<NarrowView>("materials");
   const [status, setStatus] = useState(FIXTURE_MODE ? "합성 데이터(fixture) 모드" : "확인 중");
   const [collecting, setCollecting] = useState(false);
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<Course[]>(FIXTURE_MODE ? [FIXTURE_MANIFEST.course] : []);
   const courseRef = useRef<string | undefined>(undefined);
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
@@ -59,24 +67,30 @@ export function App() {
   const onSnapshot = useCallback((s: PageSnapshot | undefined) => { snapshot.current = s; }, []);
   const snapshotPage = useCallback(() => snapshot.current?.() ?? Promise.resolve(undefined), []);
   const [modifying, setModifying] = useState(false);
+  const selectEntry=(entry:Entry)=>{setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
 
   const refresh = useCallback(async () => {
+    const epoch=courseEpoch.current;
     const result = await invoke("collection.status", {});
     setStatus(result.ok ? syncStatusText(result.data) : result.error.message);
     const loaded = await loadLocalLibrary(courseRef.current);
+    if(epoch!==courseEpoch.current)return;
     setCourses(loaded.courses);
     setLibrary(loaded.library);
   }, []);
 
   /** Switching courses closes the open material; sessions stay per course in the chat panel. */
   const chooseCourse = useCallback(async (courseId: string) => {
+    const epoch=++courseEpoch.current;
     courseRef.current = courseId;
+    setSelectionRequest(undefined);setShownPage(undefined);setLocation(undefined);snapshot.current=undefined;setWeekIndex(0);
     setSelected(undefined);
     setActiveSessionId(undefined);
-    setLibrary((await loadLocalLibrary(courseId)).library);
+    const next=FIXTURE_MODE?buildLibrary(FIXTURE_MANIFEST):(await loadLocalLibrary(courseId)).library;
+    if(epoch===courseEpoch.current)setLibrary(next);
   }, []);
 
   useEffect(() => {
@@ -133,10 +147,11 @@ export function App() {
     (event: KeyboardEvent) => {
       if (event.key !== "F6") return;
       event.preventDefault();
+      if(home)return;
       const active = panels.find((p) => refs.current[p]?.contains(document.activeElement));
       refs.current[nextPanel(active, panels, event.shiftKey)]?.focus();
     },
-    [panels],
+    [panels,home],
   );
   useEffect(() => {
     window.addEventListener("keydown", onKeyDown);
@@ -151,9 +166,11 @@ export function App() {
     );
 
   return (
-    <div className={narrow ? "app narrow" : "app"}>
+    <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id!);setDrawer(true);}}}><Icon name={id!}/></button>)}<button title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
+      <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
-        <strong>LearningXXX</strong>
+        <strong className="wordmark">Learning<span>XXX</span></strong>
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
@@ -174,11 +191,16 @@ export function App() {
         ) : null}
       </header>
       {IN_APP && !FIXTURE_MODE ? <div hidden={!modifying}><ModifyPanel /></div> : null}
-      <main className="panels">
+      {home?<Dashboard fixture={FIXTURE_MODE} courses={courses} onOpen={(id,entry)=>{setHome(false);setSection('book');void chooseCourse(id).then(()=>{if(courseRef.current===id&&entry)setSelected(entry);});}}/>:null}
+      <main className={`panels mode-${section}`} hidden={home}>
+        <div className={`week-tray ${tray?'is-open':''}`}>
+          <button className="week-handle" aria-expanded={tray} onClick={()=>setTray(x=>!x)}>{library?.weeks[weekIndex]?.week.label??'학습 자료'} <span>⌄</span></button>
+          <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button><div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={()=>{selectEntry(e);setTray(false);}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}</button>)}</div></div>
+        </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={setSelected} now={now} />
-            {IN_APP && !FIXTURE_MODE ? <RecordingPanel courseId={library.course.id} /> : null}
+            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
+            {section==='mic' && IN_APP && !FIXTURE_MODE ? <RecordingPanel courseId={library.course.id} /> : null}
           </>
         ) : (
           <>

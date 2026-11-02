@@ -3,13 +3,15 @@ import type { AttachmentService } from "./attachment-service.ts";
 import type { CredentialService } from "./credential-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
+import type { RecordingService } from "./recording-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
+  const recorder = () => { if (!recordings) throw new Error("Recording service unavailable"); return recordings; };
   return {
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
@@ -48,6 +50,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "files.sessionChanges": async (request) => files.sessionChanges(request),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
+    "recording.start": async (request) => ({ recording: await recorder().start(request) }),
+    "recording.chunk": (request) => recorder().chunk(request),
+    "recording.stop": (request) => recorder().stop(request),
+    "recording.list": async (request) => recorder().list(request),
+    "media.asset": async (request) => recorder().asset(request),
     "modify.status": async () => modify().status(),
     "modify.chooseSource": async () => ({ sourceConfigured: await modify().chooseSource() }),
     "modify.start": async (request) => ({ job: await modify().start(request) }),

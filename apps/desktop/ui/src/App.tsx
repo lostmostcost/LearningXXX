@@ -9,6 +9,7 @@ import { viewingOf } from "./composer.ts";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { ModifyPanel } from "./ModifyPanel.tsx";
+import { RecordingPanel } from "./RecordingPanel.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
@@ -175,7 +176,10 @@ export function App() {
       {IN_APP && !FIXTURE_MODE ? <div hidden={!modifying}><ModifyPanel /></div> : null}
       <main className="panels">
         {panel("library", "과목과 자료", library ? (
-          <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={setSelected} now={now} />
+          <>
+            <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={setSelected} now={now} />
+            {IN_APP && !FIXTURE_MODE ? <RecordingPanel courseId={library.course.id} /> : null}
+          </>
         ) : (
           <>
             <h2>과목</h2>

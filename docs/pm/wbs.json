@@ -1156,6 +1156,33 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81d894f1c98683853928",
       "scope_note": "2026-11-02 자율 진행 위임. host·ui는 영역 밖 예외(docs/pm/decision-log.md)."
+    },
+    {
+      "id": "WBS-042",
+      "title": "단계별 AI 자체 코드 리뷰·수정 기본 지침",
+      "phase": "G1 기반",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "review-policy"
+      ],
+      "paths": [
+        "AGENTS.md",
+        "docs/specs/OPS-001.md",
+        "docs/templates/agent-task.md",
+        "docs/pm/wbs.json",
+        "docs/pm/decision-log.md"
+      ],
+      "spec": "OPS-001",
+      "requirements": [
+        "REQ-010"
+      ],
+      "acceptance": "각 구현 단계 후 AI가 실제 diff와 관련 코드를 자체 검토해 버그/설계 결함을 찾고 수정·영향 검사·재리뷰한다. 실행 증거와 잔여 위험을 기록하며 중요한 미해결 결함은 다음 단계/병합을 막는다. 기존 인간 QA/claim 정책은 유지한다.",
+      "status": "Review",
+      "branch": "feat/WBS-042-stage-self-review",
+      "url": "https://app.notion.com/p/40cbd7ec20cd808da68bcee3f54b0507",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-02 사용자의 직접 지시(각 단계별 코드 작성 후 AI 자체 code review로 버그·설계 결함을 찾고 수정하도록 기본 지침 변경)에 따른 공유 문서 최소 수정 예외. WBS-031 shared claim은 유지하고 신규 review-policy task/area만 확보한다. AGENTS.md/OPS-001에 리뷰 루프, agent-task 양식에 증거, decision-log에 승인 CR, wbs.json에 작업 등록만 변경. PR #32로 claim holder에게 통지. 앱·계약·root manifest·lockfile 변경 없음. 최신 main 검토·frozen 전체 검사·fresh clone·check_scope 후 병합. 사전 통지: PR #32 issuecomment-6566044499. 최신 main에서 다른 작업이 WBS-041을 사용해 이 정책 작업은 WBS-042로 재번호 부여. Notion 생성 카드의 제목/상태 변경은 브라우저 보안 정책에 차단되어 미반영; OPS-001 원본은 v0.2.2로 갱신 완료."
     }
   ],
   "qaPolicy": {

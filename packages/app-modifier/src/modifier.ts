@@ -43,7 +43,6 @@ const BUILDS = ["apps/desktop/host/dist", "apps/desktop/ui/dist"] as const;
 const OUT_ENTRIES = ["host/dist/main.cjs", "ui/dist/index.html"];
 const OPEN = new Set(["editing", "review", "verifying", "verify_failed", "verified", "restarting", "no_changes", "failed", "cancelled", "interrupted"]);
 const IN_MOTION = new Set(["editing", "verifying", "restarting"]);
-const LIVE_WORKTREE = new Set(["review", "verify_failed", "verified"]);
 
 /** Paths that decide what runs or with which permissions. Shown, never hidden in a long diff. */
 const SENSITIVE: readonly [RegExp, string][] = [
@@ -373,7 +372,7 @@ export class AppModifier {
     if (job.status === "discarded") return job;
     const source = this.#sourceRoot();
     await git(source, ["worktree", "remove", "--force", this.#worktree(jobId)]).catch(() => undefined);
-    if (LIVE_WORKTREE.has(job.status)) await git(source, ["update-ref", "-d", this.#ref(jobId)]).catch(() => undefined);
+    await git(source, ["update-ref", "-d", this.#ref(jobId)]).catch(() => undefined);
     rmSync(this.#dir(jobId), { recursive: true, force: true });
     await git(source, ["worktree", "prune"]).catch(() => undefined);
     return this.#update(jobId, { status: "discarded" });

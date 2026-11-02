@@ -247,6 +247,17 @@ test("discard removes the job and leaves the source untouched", async () => {
   assert.equal(modifier.status().job, undefined);
 });
 
+test("discarding a rolled back job also removes its internal ref", async () => {
+  const { modifier, source } = await setup(change);
+  const { jobId } = await settle(modifier, (await modifier.start(request)).jobId);
+  await modifier.verify(jobId);
+  await modifier.apply(jobId);
+  modifier.status();
+  await modifier.rollback(jobId);
+  await modifier.discard(jobId);
+  assert.equal(git(source, "for-each-ref", "refs/learningxxx"), "");
+});
+
 test("work cut off by a quit is marked interrupted and not resumed", async () => {
   const { modifier, options, cli } = await setup(change);
   const { jobId } = await settle(modifier, (await modifier.start(request)).jobId);

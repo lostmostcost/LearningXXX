@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ModifyJob } from "@learningxxx/contracts";
 import { invoke, onHostPush } from "./host-api.ts";
-import { ACTION_LABEL, STATUS_LABEL, actionsFor, canRequest, type ModifyAction } from "./modify.ts";
+import { STATUS_LABEL, actionLabel, actionsFor, canRequest, failureLines, type ModifyAction } from "./modify.ts";
 
 /**
  * Requests a change to the app's own code (REQ-011). It sends words and IDs
@@ -64,6 +64,10 @@ export function ModifyPanel() {
       {job && job.status !== "discarded" ? (
         <div>
           <p role="status"><span className="badge">{STATUS_LABEL[job.status]}</span> {job.message}</p>
+          {job.status === "verify_failed" && failureLines(job.verifyLog).length ? (
+            <ul className="notice-box">{failureLines(job.verifyLog).map((line) => <li key={line}>{line}</li>)}</ul>
+          ) : null}
+          {actionsFor(job.status).map((action) => <button key={action} onClick={() => void act(action)}>{actionLabel(action, job.status)}</button>)}
           <p className="meta">요청: {job.prompt}</p>
           {job.explanation ? <p>{job.explanation}</p> : null}
           {job.warnings.length ? <ul className="notice-box">{job.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
@@ -75,7 +79,6 @@ export function ModifyPanel() {
             </details>
           ) : null}
           {job.verifyLog ? <details><summary>검증 기록</summary><pre>{job.verifyLog}</pre></details> : null}
-          {actionsFor(job.status).map((action) => <button key={action} onClick={() => void act(action)}>{ACTION_LABEL[action]}</button>)}
         </div>
       ) : null}
     </section>

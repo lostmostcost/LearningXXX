@@ -20,8 +20,12 @@ export interface SessionServiceOptions {
   /** Receives the service clock. Omitted only by tests of unrelated behaviour. */
   history?: (now: () => string) => RunHistory;
   attachments?: AttachmentService;
-  /** The course brief passed to a course session's CLI as a system prompt file; undefined when nothing is collected. */
-  courseBrief?: (courseId: string) => Promise<string | undefined>;
+  /**
+   * A course session's context: the brief (passed as a system prompt file) and
+   * the course's read-only materials folder at `materialsDir`, which the host
+   * fills and the CLI may read. Undefined when nothing is collected.
+   */
+  courseContext?: (courseId: string, materialsDir: string) => Promise<{ brief: string; paths: ReadonlyMap<string, string> } | undefined>;
   /** Keeps what the chat showed, so it survives a restart. */
   transcripts?: TranscriptStore;
   model?: string;
@@ -266,13 +270,21 @@ export class SessionService {
     const workspacePath = join(this.#options.dataRoot, session.workspaceKey);
     const externalFolders = session.externalFolders ?? [];
     let contextFile: string | undefined;
+    let materialsDir: string | undefined;
+    let viewingNote: string | undefined;
     if (session.mode === "course" && session.courseId !== undefined) {
       try {
-        const brief = await this.#options.courseBrief?.(session.courseId);
-        if (brief !== undefined) {
-          const file = join(this.#options.dataRoot, "courses", session.courseId, "course-context.md");
-          writeCourseBrief(file, brief);
+        const courseDir = join(this.#options.dataRoot, "courses", session.courseId);
+        const context = await this.#options.courseContext?.(session.courseId, join(courseDir, "materials"));
+        if (context !== undefined) {
+          const file = join(courseDir, "course-context.md");
+          writeCourseBrief(file, context.brief);
           contextFile = file;
+          if (context.paths.size > 0) materialsDir = join(courseDir, "materials");
+          const shown = draft.viewing && context.paths.get(draft.viewing.assetId);
+          if (shown && materialsDir) {
+            viewingNote = `[지금 보고 있는 자료: ${join(materialsDir, shown)}${draft.viewing?.page ? `, ${draft.viewing.page}쪽` : ""}]`;
+          }
         }
       } catch {
         // Without it the session still works; it just knows less.
@@ -299,8 +311,9 @@ export class SessionService {
           workspacePath,
           ...(externalFolders.length > 0 ? { writableDirs: externalFolders } : {}),
           ...(contextFile === undefined ? {} : { contextFile }),
-          attachmentDirs: inputs?.dirs ?? [],
-          prompt: [buildPrompt(draft), inputs?.prompt].filter(Boolean).join("\n\n"),
+          // The materials folder is read-only for the CLI, like attachment copies.
+          attachmentDirs: [...(inputs?.dirs ?? []), ...(materialsDir ? [materialsDir] : [])],
+          prompt: [buildPrompt(draft), inputs?.prompt, viewingNote].filter(Boolean).join("\n\n"),
           ...(this.#options.model === undefined ? {} : { model: this.#options.model }),
         },
         abort.signal,

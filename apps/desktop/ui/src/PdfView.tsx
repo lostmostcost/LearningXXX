@@ -9,8 +9,10 @@ export type AssetLoader = (assetId: string) => Promise<Uint8Array | undefined>;
 export type PdfOpener = (bytes: Uint8Array) => Promise<OpenedPdf>;
 const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
 
-export function PdfView({ assetId, loadAsset, open, onSelectionAction, location }: {
+export function PdfView({ assetId, loadAsset, open, onSelectionAction, location, onPage }: {
   assetId: string; loadAsset?: AssetLoader; open?: PdfOpener;
+  /** Told the page shown, so a chat message can say where the user is looking. */
+  onPage?: ((assetId: string, page: number) => void) | undefined;
   onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined;
   location?: PageLocation | undefined;
 }) {
@@ -84,6 +86,10 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location 
     });
     return () => { cancelled = true; task?.cancel(); textTask?.cancel(); };
   }, [doc, page, zoomIndex]);
+
+  useEffect(() => {
+    if (state.kind === "ready") onPage?.(assetId, page);
+  }, [assetId, page, state.kind, onPage]);
 
   useEffect(() => {
     const update = () => {

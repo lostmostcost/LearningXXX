@@ -5,6 +5,7 @@ import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { ChatPanel } from "./ChatPanel.tsx";
+import { viewingOf } from "./composer.ts";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { ModifyPanel } from "./ModifyPanel.tsx";
@@ -50,6 +51,8 @@ export function App() {
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
   const [location, setLocation] = useState<PageLocation>();
+  const [shownPage, setShownPage] = useState<{ assetId: string; page: number }>();
+  const onPage = useCallback((assetId: string, page: number) => setShownPage({ assetId, page }), []);
   const [modifying, setModifying] = useState(false);
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
@@ -178,11 +181,12 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} />
+          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} />
         ))}
         {panel("chat", "채팅", window.host ? (
           <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
-            selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
+            selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []}
+            viewing={viewingOf(selected?.assets.map((a) => a.id) ?? [], shownPage)} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
         ) : (
           <>
             <h2>채팅</h2>

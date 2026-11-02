@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -14,6 +14,7 @@ import { TranscriptStore } from "../src/transcript-store.ts";
 
 const COURSE = "11111111-1111-4111-8111-000000000001";
 const OTHER_COURSE = "11111111-1111-4111-8111-000000000002";
+const ASSET = "55555555-5555-4555-8555-000000000001";
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 const event = (runId: string, seq: number, type: string, payload: unknown) =>
@@ -346,26 +347,36 @@ test("the chat a session showed is still there after a restart, and a cut-off an
   assert.deepEqual(reopened.transcript(reopened.create({ mode: "independent", title: "i" }).appSessionId), []);
 });
 
-test("a course session's CLI gets the course brief; an independent one gets nothing", async () => {
+test("a course session's CLI gets the course brief, its materials folder and what is on screen; an independent one gets nothing", async () => {
   const dataRoot = mkdtempSync(join(tmpdir(), "wbs020-"));
   const calls: RunRequest[] = [];
   const service = new SessionService({
     dataRoot,
     store: new SessionStore(join(dataRoot, "app-state.json")),
     startCli: (req, signal) => (calls.push(req), completing(req, signal)),
-    courseBrief: async (courseId) => (courseId === COURSE ? "# 이 대화의 과목\n과목: 합성개론\n" : undefined),
+    courseContext: async (courseId, materialsDir) => {
+      if (courseId !== COURSE) return undefined;
+      mkdirSync(materialsDir, { recursive: true });
+      return { brief: "# 이 대화의 과목\n과목: 합성개론\n", paths: new Map([[ASSET, "01 1주차/OT.pdf"]]) };
+    },
   });
   const course = service.create({ mode: "course", courseId: COURSE, title: "c" });
   const other = service.create({ mode: "course", courseId: OTHER_COURSE, title: "o" });
   const independent = service.create({ mode: "independent", title: "i" });
   for (const s of [course, other, independent]) {
-    await run(service, s.appSessionId);
+    await service.startRun({ requestId: randomUUID(), draft: { ...draft(s.appSessionId), viewing: { assetId: ASSET, page: 3 } } });
     for (let i = 0; i < 3; i += 1) await tick();
   }
   const [c, o, i] = calls;
   assert.equal(c!.contextFile, join(dataRoot, "courses", COURSE, "course-context.md"));
   assert.match(readFileSync(c!.contextFile!, "utf8"), /합성개론/);
   assert.ok(!c!.contextFile!.startsWith(join(dataRoot, course.workspaceKey)), "outside the session folder");
-  assert.equal(o!.contextFile, undefined);
-  assert.equal(i!.contextFile, undefined);
+  const materials = join(dataRoot, "courses", COURSE, "materials");
+  assert.ok(c!.attachmentDirs?.includes(materials));
+  assert.match(c!.prompt, new RegExp(`지금 보고 있는 자료: ${materials}/01 1주차/OT\\.pdf, 3쪽`));
+  for (const req of [o!, i!]) {
+    assert.equal(req.contextFile, undefined);
+    assert.deepEqual(req.attachmentDirs, []);
+    assert.doesNotMatch(req.prompt, /보고 있는 자료/);
+  }
 });

@@ -11,6 +11,7 @@ import {
   readSyncStatus,
   recoverInterruptedRuns,
 } from "@learningxxx/collector";
+import { materialLayout, syncMaterials, type MaterialEntry } from "./course-materials.ts";
 import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
 /** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). Used when the enrolled courses cannot be listed. */
@@ -197,6 +198,20 @@ export class LibraryService {
   async manifest(courseId: string): Promise<CollectionManifest | undefined> {
     if (!this.#accountKey) return undefined;
     return readCurrentManifest(this.#o.root, { courseId, accountKey: this.#accountKey });
+  }
+
+  /**
+   * Refreshes the course's read-only materials folder for a course session's
+   * CLI (WBS-044) and returns what is in it. Current account only.
+   */
+  async materials(courseId: string, dir: string): Promise<{ manifest: CollectionManifest; entries: MaterialEntry[] } | undefined> {
+    const manifest = await this.manifest(courseId);
+    if (!manifest) return undefined;
+    const entries = await syncMaterials(dir, materialLayout(manifest), {
+      path: (storageKey) => join(this.#o.root, storageKey),
+      verify: (storageKey, sha256) => this.#store.verify(storageKey, sha256),
+    });
+    return { manifest, entries };
   }
 
   /** Opaque account boundary for staged attachments; never sent as CLI context. */

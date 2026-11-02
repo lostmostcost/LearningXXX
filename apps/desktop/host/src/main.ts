@@ -109,9 +109,13 @@ app.whenReady().then(async () => {
     attachments,
     store: new SessionStore(join(dataRoot, "app-state.json")),
     transcripts: new TranscriptStore(join(dataRoot, "transcripts")),
-    courseBrief: async (courseId) => {
-      const manifest = await library.manifest(courseId);
-      return manifest ? courseBrief(manifest) : undefined;
+    courseContext: async (courseId, materialsDir) => {
+      const found = await library.materials(courseId, materialsDir);
+      if (!found) return undefined;
+      return {
+        brief: courseBrief(found.manifest, { dir: materialsDir, entries: found.entries }),
+        paths: new Map(found.entries.map((e) => [e.assetId, e.path])),
+      };
     },
     startCli: createCliRunner(),
     history: (now) => new RunHistory(join(dataRoot, "history"), now),

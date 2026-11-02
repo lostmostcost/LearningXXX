@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Session } from "@learningxxx/contracts";
+import type { ComposerDraft, Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, withHistory, type Transcript, type Turn } from "./chat.ts";
-import { BLOCK_REASON, emptyDraft, freeze, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft, type Attachment } from "./composer.ts";
+import { BLOCK_REASON, emptyDraft, freeze, viewingFor, restoreIfEmpty, sendBlock, visibleSessions, withSelection, withoutSelection, type Draft, type Attachment } from "./composer.ts";
 import { capturePreview } from "./capture-preview.ts";
 import { FilesSection } from "./FilesSection.tsx";
 import { invoke, onHostPush } from "./host-api.ts";
@@ -44,8 +44,10 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
  * send time with their target session, so a session switch never re-routes a
  * message. Attachments are explicitly confirmed; captures use the same explicit confirmation.
  */
-export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [] }: {
+export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [], viewing }: {
   selectedAssets?: { id: string; name: string }[];
+  /** The material open in the viewer; sent along to a session of this course only. */
+  viewing?: ComposerDraft["viewing"];
   courseId?: string | undefined; courseTitle?: string | undefined; activeId: string | undefined;
   onActiveId: (id: string) => void; selectionRequest?: SelectionRequest | undefined;
   onSelectionUsed: (id: string) => void; onOpenSelection: (s: SelectedText) => boolean;
@@ -169,7 +171,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
   const send = async () => {
     if (!active || block) return;
     const target = active.appSessionId;
-    const sent = freeze(draft, target);
+    const sent = freeze(draft, target, viewingFor(active, courseId, viewing));
     setDraft(target, emptyDraft());
     setNotice(undefined);
     // Refused before it started: give the text back to the same session only.
@@ -279,6 +281,11 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
               <button onClick={() => openSource(draft.selection!)}>원문 보기</button>
               <button onClick={() => setDraft(active.appSessionId, withoutSelection(draft))}>선택 문장 빼기</button>
             </div> : null}
+            {(() => {
+              const shown = viewingFor(active, courseId, viewing);
+              const name = shown && selectedAssets.find((a) => a.id === shown.assetId)?.name;
+              return name ? <p className="meta">함께 전달: 지금 보는 자료 {name}{shown.page ? ` ${shown.page}쪽` : ""}</p> : null;
+            })()}
             <textarea
               aria-label="메시지 입력"
               value={draft.text}

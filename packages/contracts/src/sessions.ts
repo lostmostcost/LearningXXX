@@ -134,6 +134,12 @@ export const ComposerDraft = z
     targetSessionId: Id,
     /** Selection tools: en↔ko translation and easy explanation are separate. */
     intent: z.enum(["chat", "translate_en_ko", "translate_ko_en", "explain_simply"]),
+    /**
+     * The course material open in the viewer when this was sent, so the AI knows
+     * what "this material" means. A pointer only: the host turns it into a path
+     * in the course's read-only materials folder, for course sessions only.
+     */
+    viewing: z.object({ assetId: Id, page: z.number().int().positive().optional() }).optional(),
   })
   .refine((d) => d.text.trim() !== "" || d.attachmentIds.length + d.captureIds.length > 0 || d.selection, {
     message: "draft must include text, an attachment, a capture or a selection",

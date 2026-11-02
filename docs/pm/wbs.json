@@ -555,7 +555,7 @@
         "REQ-006"
       ],
       "acceptance": "각 기능의 작동 구조를 설명하고 담당 개발자 본인이 A 주요 기능이 완성됐을 때 실제 과목 시나리오를 직접 사용한다. 상대방 QA는 필수가 아니다. 피드백·수정·재검수 증거를 연결해야 A gate를 통과한다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-020-a-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81b0a224f1b376bdb48a?pvs=204",
       "qa_mode": "developer_self_test",
@@ -1224,11 +1224,42 @@
         "REQ-006"
       ],
       "acceptance": "재시작 후 세션 대화가 다시 보이고, 과목 세션만 과목명·자료 목록을 알며, 한글 이름 외부 폴더 작업이 중단되지 않고, 휴지통으로 보낸 파일은 '지금 없음'으로 표시된다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "fix/WBS-043-a-selftest-fixes",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd812495bec81861abafbf",
       "scope_note": "2026-11-02 WBS-020 자가 테스트(이문찬) 결함 수정. 자율 진행 위임에 따른 영역 밖 예외(docs/pm/decision-log.md)."
+    },
+    {
+      "id": "WBS-044",
+      "title": "과목 세션이 보고 있는 자료와 과목 자료 폴더를 앎",
+      "phase": "A 핵심경험",
+      "priority": "P1",
+      "deps": [
+        "WBS-043"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-003",
+        "REQ-005"
+      ],
+      "acceptance": "과목 세션 CLI가 과목 자료 폴더(읽기 전용 사본)를 읽고, 보낼 때 뷰어에 열린 자료·쪽을 안다. 독립 세션은 아무것도 받지 않는다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-044-viewing-context",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd81a680f9c4973947869e",
+      "scope_note": "2026-11-02 이문찬 요청. 자율 진행 위임에 따른 영역 밖 예외(docs/pm/decision-log.md)."
     }
   ],
   "qaPolicy": {

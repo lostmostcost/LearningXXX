@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { CollectionManifest } from "@learningxxx/contracts";
+import type { MaterialEntry } from "./course-materials.ts";
 
 /** Keeps the file short enough to be useful context on every turn. */
 const MAX_ITEMS = 150;
@@ -11,11 +12,13 @@ const KIND = { file: "자료", notice: "공지", assignment: "과제" } as const
 /**
  * What a course session should know without being told each time (WBS-020
  * self-test: "it did not know which course this was"): the course and the
- * list of collected materials by week. Titles only; the files themselves are
- * still sent only when the user attaches them. Independent sessions never get
- * this, because they never have a course.
+ * list of collected materials by week, with where each file sits in the
+ * course's read-only materials folder (WBS-044). File contents are read only
+ * when the AI opens them. Independent sessions never get this, because they
+ * never have a course.
  */
-export function courseBrief(manifest: CollectionManifest): string {
+export function courseBrief(manifest: CollectionManifest, materials?: { dir: string; entries: readonly MaterialEntry[] }): string {
+  const pathOf = new Map(materials?.entries.map((e) => [e.assetId, e.path]));
   const { course } = manifest;
   const weeks = manifest.weeks.toSorted((a, b) => a.order - b.order);
   const lines = [
@@ -31,9 +34,10 @@ export function courseBrief(manifest: CollectionManifest): string {
   const section = (label: string, items: CollectionManifest["items"]) => {
     if (!items.length || shown >= MAX_ITEMS) return;
     lines.push(`- ${label}`);
-    for (const { resource } of items) {
+    for (const { resource, assets } of items) {
       if (shown >= MAX_ITEMS) break;
-      lines.push(`  - [${KIND[resource.kind]}] ${resource.title}`);
+      const files = assets.flatMap((a) => (pathOf.has(a.id) ? [`\`${pathOf.get(a.id)}\``] : []));
+      lines.push(`  - [${KIND[resource.kind]}] ${resource.title}${files.length ? ` → ${files.join(", ")}` : ""}`);
       shown += 1;
     }
   };
@@ -43,7 +47,13 @@ export function courseBrief(manifest: CollectionManifest): string {
   if (shown < manifest.items.length) lines.push(`- 외 ${manifest.items.length - shown}개`);
   lines.push(
     "",
-    "자료 파일 자체는 이 폴더에 없습니다. 내용이 필요하면 사용자가 첨부한 파일을 읽고, 첨부가 없으면 어떤 자료를 첨부하면 되는지 알려 주세요.",
+    materials?.entries.length
+      ? [
+          `자료 파일(→ 뒤 경로)은 읽기 전용 자료 폴더 \`${materials.dir}\` 안에 있습니다. 필요하면 Read로 직접 여세요.`,
+          "이 폴더의 파일은 고치지 마세요. 정리·요약 결과는 작업 폴더(현재 폴더)나 사용자가 추가한 외부 폴더에 새 파일로 씁니다.",
+          "사용자 메시지에 '지금 보고 있는 자료'가 붙어 있으면 '이 자료', '여기'는 그 파일(과 쪽)을 뜻합니다.",
+        ].join("\n")
+      : "자료 파일이 아직 이 Mac에 없습니다. 내용이 필요하면 사용자가 첨부한 파일을 읽고, 없으면 수집 실행이나 첨부를 안내하세요.",
     "",
   );
   return lines.join("\n");

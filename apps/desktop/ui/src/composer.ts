@@ -76,7 +76,7 @@ export function sendBlock(draft: Draft, session: Session | undefined, running: b
  * later edits or session switches do not change it. Throws if the contract
  * would reject the draft, so nothing half-valid reaches the host.
  */
-export function freeze(draft: Draft, targetSessionId: string): ComposerDraft {
+export function freeze(draft: Draft, targetSessionId: string, viewing?: ComposerDraft["viewing"]): ComposerDraft {
   if (draft.attachments.some((a) => a.status !== "ready")) throw new Error("attachment is not confirmed");
   return ComposerDraft.parse({
     text: draft.text,
@@ -85,6 +85,7 @@ export function freeze(draft: Draft, targetSessionId: string): ComposerDraft {
     targetSessionId,
     intent: draft.intent,
     ...(draft.selection ? { selection: draft.selection } : {}),
+    ...(viewing ? { viewing } : {}),
   });
 }
 
@@ -96,3 +97,13 @@ export function visibleSessions(sessions: Session[], courseId: string | undefine
     independent: sessions.filter((s) => s.mode === "independent").sort(byRecent),
   };
 }
+
+/** The viewer's current material as a pointer: the PDF and page when known, else the entry's first file. */
+export function viewingOf(assetIds: readonly string[], page: { assetId: string; page: number } | undefined): ComposerDraft["viewing"] {
+  if (page && assetIds.includes(page.assetId)) return { assetId: page.assetId, page: page.page };
+  return assetIds[0] === undefined ? undefined : { assetId: assetIds[0] };
+}
+
+/** Only a session of the course on screen hears what is on screen; an independent one never does. */
+export const viewingFor = (session: Session | undefined, courseId: string | undefined, viewing: ComposerDraft["viewing"]) =>
+  session?.mode === "course" && courseId !== undefined && session.courseId === courseId ? viewing : undefined;

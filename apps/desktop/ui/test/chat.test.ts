@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { ComposerDraft, Run, SCHEMA_VERSION, Session } from "@learningxxx/contracts";
 import type { RunEvent } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, openRun, withHistory } from "../src/chat.ts";
-import { emptyDraft, freeze, sendBlock, visibleSessions, type Draft } from "../src/composer.ts";
+import { emptyDraft, freeze, sendBlock, viewingFor, viewingOf, visibleSessions, type Draft } from "../src/composer.ts";
 
 const COURSE = "aaaaaaaa-0000-4000-8000-000000000001";
 const session = (over: Partial<Session> = {}): Session =>
@@ -119,3 +119,23 @@ test("saved turns from before a restart come first and never replace what this w
   assert.deepEqual(merged.turns.map((t) => [t.runId, t.answer]), [[old, "예전 답"], [live, ""]]);
   assert.equal(withHistory(merged, [saved(old, "예전 답")]), merged);
 });
+
+test("what is on screen goes only to a session of the course on screen", () => {
+  const a = randomUUID(), b = randomUUID(), course = randomUUID();
+  assert.deepEqual(viewingOf([a, b], { assetId: b, page: 4 }), { assetId: b, page: 4 });
+  assert.deepEqual(viewingOf([a], { assetId: b, page: 4 }), { assetId: a }, "a page from another material is not reused");
+  assert.equal(viewingOf([], undefined), undefined);
+  const viewing = { assetId: a, page: 2 };
+  const base = { workspaceKey: "w", title: "t", createdAt: "2026-11-02T00:00:00Z", lastUsedAt: "2026-11-02T00:00:00Z", status: "idle" as const };
+  const own = Session.parse({ ...base, appSessionId: randomUUID(), mode: "course", courseId: course });
+  const other = Session.parse({ ...base, appSessionId: randomUUID(), mode: "course", courseId: randomUUID() });
+  const independent = Session.parse({ ...base, appSessionId: randomUUID(), mode: "independent", workspaceKey: `sessions/${randomUUID()}` });
+  assert.deepEqual(viewingFor(own, course, viewing), viewing);
+  assert.equal(viewingFor(other, course, viewing), undefined);
+  assert.equal(viewingFor(independent, course, viewing), undefined);
+  assert.deepEqual(freeze(emptyDraftWithText(), own.appSessionId, viewing).viewing, viewing);
+});
+
+function emptyDraftWithText(): Draft {
+  return { ...emptyDraft(), text: "정리해줘" };
+}

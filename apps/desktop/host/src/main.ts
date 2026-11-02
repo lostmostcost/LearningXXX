@@ -1,6 +1,8 @@
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { CanvasClient, CollectionError, listActiveCourses } from "@learningxxx/collector";
+import { CanvasClient, CollectionError, createCommonsVideoResolver, listActiveCourses } from "@learningxxx/collector";
+import { QwenEngine } from "@learningxxx/transcriber";
+import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
@@ -173,6 +175,7 @@ app.whenReady().then(async () => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "modify.job", job });
     },
   });
+  let media: MediaService;
   const recordings = new RecordingService({
     dataRoot,
     micPermission: async () => {
@@ -185,14 +188,46 @@ app.whenReady().then(async () => {
       const stats = statfsSync(path);
       return stats.bavail * stats.bsize;
     },
-    // WBS-025 connects transcription here.
-    onOriginalConfirmed: () => undefined,
+    onOriginalConfirmed: (asset) => { void media.register(asset).catch(() => { /* Durable originals are reconciled on refresh/startup. */ }); },
     onStopped: (recording, asset) => {
-      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "recording.stopped", recording, ...(asset ? { asset } : {}) });
+      void media.authorize(recording.courseId).then(() => {
+        for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "recording.stopped", recording, ...(asset ? { asset } : {}) });
+      }).catch(() => undefined);
+    },
+  });
+  const sttRoot = join(app.getPath("userData"), "stt");
+  media = new MediaService({
+    dataRoot, accountKey: () => library.accountKey(), courses: () => library.courses(),
+    originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
+    engine: new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: resolve(app.getAppPath(), "../../../services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") }),
+    contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
+    openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
+    videos: async (course) => {
+      await credentials.ensureSignedIn();
+      const modules = await createLearningXClient().modules(course.sourceCourseId);
+      const videos: { sourceId: string; title: string }[] = [];
+      for (const module of modules) for (const item of (module as { module_items?: unknown[] }).module_items ?? []) {
+        const value = item as { title?: unknown; content_data?: { opened?: unknown; item_content_data?: { content_id?: unknown; content_type?: unknown } } };
+        const content = value.content_data?.item_content_data;
+        if (value.content_data?.opened === true && typeof content?.content_id === "string" && /^[\w-]{1,64}$/.test(content.content_id) && ["movie", "video", "mp4"].includes(String(content.content_type).toLowerCase())) videos.push({ sourceId: content.content_id, title: String(value.title ?? "온라인 강의").slice(0, 200) || "온라인 강의" });
+      }
+      return videos;
+    },
+    video: (_course, contentId) => {
+      const fetch = schoolLoginDeps().fetch;
+      return { fetch, resolveSource: createCommonsVideoResolver({ contentId, fetch }), allowedOrigins: ["https://commons.khu.ac.kr"] };
     },
   });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
-  void recordings.recover().catch(() => undefined);
+  await recordings.recover().catch(() => undefined);
+  // A corrupt media catalog must not prevent the UI from opening to show its error.
+  if (library.accountKey()) await media.recover().catch(() => undefined);
+  let closing = false;
+  app.on("before-quit", (event) => {
+    if (closing) return;
+    event.preventDefault(); closing = true;
+    void (async () => { try { await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
+  });
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
   powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
   // The renderer may use the microphone (audio only) for recording; no camera, no screen.
@@ -201,7 +236,7 @@ app.whenReady().then(async () => {
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings));
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

@@ -4,14 +4,16 @@ import type { CredentialService } from "./credential-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { RecordingService } from "./recording-service.ts";
+import type { MediaService } from "./media-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
   const recorder = () => { if (!recordings) throw new Error("Recording service unavailable"); return recordings; };
+  const libraryMedia = () => { if (!media) throw new Error("Media service unavailable"); return media; };
   return {
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
@@ -50,11 +52,27 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "files.sessionChanges": async (request) => files.sessionChanges(request),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
-    "recording.start": async (request) => ({ recording: await recorder().start(request) }),
-    "recording.chunk": (request) => recorder().chunk(request),
-    "recording.stop": (request) => recorder().stop(request),
-    "recording.list": async (request) => recorder().list(request),
-    "media.asset": async (request) => recorder().asset(request),
+    "recording.start": async (request) => { await media?.authorize(request.courseId); return { recording: await recorder().start(request) }; },
+    "recording.chunk": async (request) => {
+      try { await media?.authorize(recorder().courseOf(request.recordingId)); }
+      catch (error) { await recorder().stopActive("RECORDING_INTERRUPTED"); throw error; }
+      return recorder().chunk(request);
+    },
+    "recording.stop": async (request) => { const result = await recorder().stop(request); await media?.authorize(result.recording.courseId); return result; },
+    "recording.list": async (request) => { await media?.authorize(request.courseId); return recorder().list(request); },
+    "media.asset": async (request) => {
+      if (!media) return recorder().asset(request);
+      const asset = recorder().originals().find((a) => a.id === request.assetId);
+      if (!asset) throw new Error("원본을 찾지 못했습니다.");
+      await media.recover(); return media.asset(asset.courseId, asset.id);
+    },
+    "media.list": async ({ courseId }) => { await libraryMedia().recover(); return libraryMedia().list(courseId); },
+    "media.videos": ({ courseId }) => libraryMedia().videos(courseId),
+    "media.download": ({ courseId, sourceId }) => libraryMedia().download(courseId, sourceId),
+    "media.cancelDownload": ({ courseId, downloadId }) => libraryMedia().cancelDownload(courseId, downloadId),
+    "media.original": ({ courseId, assetId }) => libraryMedia().asset(courseId, assetId),
+    "media.open": ({ courseId, assetId }) => libraryMedia().open(courseId, assetId),
+    "media.retry": ({ courseId, jobId }) => libraryMedia().retry(courseId, jobId),
     "modify.status": async () => modify().status(),
     "modify.chooseSource": async () => ({ sourceConfigured: await modify().chooseSource() }),
     "modify.start": async (request) => ({ job: await modify().start(request) }),

@@ -142,6 +142,7 @@ export class RecordingService {
   get activeId(): string | undefined {
     return this.#active?.id;
   }
+  courseOf(recordingId: string): string { return this.#recording(recordingId).courseId; }
 
   list({ courseId }: IpcRequest<"recording.list">): IpcResponse<"recording.list"> {
     const recordings = this.#state.recordings.filter((r) => r.courseId === courseId).toSorted((a, b) => b.startedAt.localeCompare(a.startedAt));

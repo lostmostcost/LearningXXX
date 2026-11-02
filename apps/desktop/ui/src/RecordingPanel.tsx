@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaAsset, Recording } from "@learningxxx/contracts";
 import { invoke, onHostPush } from "./host-api.ts";
+import { MediaLibrary } from "./MediaLibrary.tsx";
 import { ChunkBuffer, RECORDING_STATUS, SAMPLE_RATE, clock, toPcm16 } from "./recorder.ts";
 // Its own file under the CSP's script-src 'self' (a small asset would otherwise be inlined as data:).
 import workletUrl from "./pcm-worklet.js?url&no-inline";
@@ -170,6 +171,7 @@ export function RecordingPanel({ courseId }: { courseId: string }) {
           })}
         </ul>
       ) : null}
+      <MediaLibrary key={courseId} courseId={courseId} />
     </section>
   );
 }

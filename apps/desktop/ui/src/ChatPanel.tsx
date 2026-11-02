@@ -1,3 +1,4 @@
+import { Icon } from "./StudyUI.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerDraft, Session } from "@learningxxx/contracts";
 import { addTurn, applyEvent, emptyTranscript, errorHelp, isOpen, openRun, withHistory, type Transcript, type Turn } from "./chat.ts";
@@ -300,10 +301,10 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
               }}
             />
             <div className="composer-actions">
-              <button disabled={running || draft.attachments.length >= 8} onClick={() => void prepare()}>로컬 파일 첨부</button>
+              <button disabled={running || draft.attachments.length >= 8} title="로컬 파일 첨부" aria-label="로컬 파일 첨부" onClick={() => void prepare()}><Icon name="plus"/></button>
               {selectedAssets.map((asset) => <button key={asset.id} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}>자료 첨부: {asset.name}</button>)}
-              <button disabled={running || draft.attachments.length >= 8} onClick={() => void prepareCapture()}>화면 캡처</button>
-              <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block">보내기</button>
+              <button disabled={running || draft.attachments.length >= 8} title="화면 캡처" aria-label="화면 캡처" onClick={() => void prepareCapture()}><Icon name="capture"/></button>
+              <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block" aria-label="보내기" title="보내기"><Icon name="send"/></button>
             </div>
             <p id="send-block" className="meta">{block && block !== "empty" ? BLOCK_REASON[block] : "⌘+Enter로 보내기"}</p>
           </div>

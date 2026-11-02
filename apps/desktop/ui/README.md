@@ -80,3 +80,6 @@ pnpm --filter @learningxxx/desktop-ui exec vite preview
 초안은 세션별로 유지하고 좁은 창에서 자료↔채팅을 바꾸어도 화면 상태를 유지한다. 실행 시작이 거절되면 선택 문구까지 같은 세션 초안에 복원하며 새로 입력한 초안은 덮어쓰지 않는다. 실패 시 기존 채팅의 오류 안내·재시도를 이용한다. 텍스트가 없는 PDF는 OCR을 수행하지 않는다.
 
 합성 모드 직접 확인: 위 흐름으로 `불 대수 기초 (텍스트 PDF)`를 선택하여 전송하고, 다른 쪽으로 이동한 뒤 대화의 **원문 보기**로 돌아간다. 합성 응답에는 **실제 번역 아님**을 표시한다. `test/selection.test.ts`는 범위 경계, 세 가지 의도, 고정된 문구/대상 세션, 다른 초안 보존 및 실패 복원을 검사한다. 실제 기능의 개발자 자가 테스트는 A 흐름 체크포인트 WBS-020에서 수행한다.
+
+## WBS-047 study shell
+Start on the real-course dashboard; assignment dates do not imply submission status. Personal tasks are device-local and keyed by the unique account keys. The icon rail opens purpose tabs; hover/focus or click opens courses, and the pin keeps them visible. The top week handle supports pointer, focus and click with an Other materials fallback. Chat stays mounted across dashboard navigation. PDF defaults to page-fit using ResizeObserver content bounds, with width-fit/manual zoom. Existing explicit attachment and independent-session checks are unchanged. Design references: user sketch IMG_1270, Apple Preview's page/thumbnail navigation (https://support.apple.com/guide/preview/get-started-prvw846b61d3/mac), Claude desktop navigation (https://academy.claude.com/tutorials/navigating-the-claude-desktop-app). No third-party images or logos are bundled.

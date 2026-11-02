@@ -57,7 +57,8 @@ export async function harness(t: TestContext) {
     network.push({ url: url.href, headers: new Headers(init?.headers) });
     if (state.offline) throw new TypeError("synthetic offline");
     if (url.origin === STORAGE) return new Response(PDF.slice(), { headers: { "content-type": "application/pdf" } });
-    if (state.expired) return new Response("", { status: 401 });
+    // Real KHU Canvas when signed out (WBS-038): users/self answers 404, the rest 401.
+    if (state.expired) return url.pathname === "/api/v1/users/self" ? new Response(JSON.stringify({ errors: [{ message: "not found" }] }), { status: 404 }) : new Response("", { status: 401 });
     const path = url.pathname;
     if (path === "/api/v1/users/self") return json({ id: state.user });
     if (path === "/api/v1/courses/95899") return json({ id: 95899, name: "SYNTHETIC_COURSE_CANARY", enrollment_term_id: 122 });

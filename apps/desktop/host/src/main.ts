@@ -9,7 +9,7 @@ import { FileService } from "./file-service.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
-import { createLmsClient, openLoginWindow } from "./lms-session.ts";
+import { createLearningXClient, createLmsClient, openLoginWindow } from "./lms-session.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
@@ -59,6 +59,7 @@ app.whenReady().then(async () => {
   const library = new LibraryService({
     root: join(dataRoot, "library"),
     client: createLmsClient,
+    learningx: createLearningXClient,
     onProgress: (syncRun) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "collection.progress", syncRun });
     },

@@ -1048,6 +1048,66 @@
       "url": "https://app.notion.com/p/40bbd7ec20cd807293acdabd8db8d182",
       "qa_mode": "appropriate_checks_only",
       "scope_note": "2026-11-01 사용자 예외 승인·담당자 통지 지시와 WBS-036 완료 후 다음 단계 재지시에 따른 동일 host/shared/ui 영역의 최소 후속 구현. 기존 WBS-035 task/area claim 유지. 수정 범위: host 캡처 서비스/권한·temp 정리/첨부 전달 연결·문서·테스트, UI 캡처·미리보기·확인 상태와 테스트, contracts capture provenance/IPC, docs/pm/wbs.json 작업 등록. PR #25 issuecomment-6558350384로 통지. 본인 task/captures/acceptance claim을 별도 확보. 최신 main 대조, frozen 전체 Docker, fresh clone, scope 검사 후 병합. 새 시스템 권한 확대가 필요하면 실행 시 별도 확인하고 미실행 결과를 완료로 쓰지 않는다."
+    },
+    {
+      "id": "WBS-038",
+      "title": "실제 LMS 로그인 만료 응답 처리",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-012",
+        "WBS-034"
+      ],
+      "areas": [
+        "lms-auth",
+        "acceptance"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "tests/acceptance/",
+        "docs/pm/wbs.json"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "실제 Canvas가 로그인 없을 때 users/self에 주는 404를 AUTH_REQUIRED로 처리해 로그인 창을 열고, 앱 재시작 시 재로그인 필요를 안내한다. 가짜 LMS를 실제 응답에 맞추고 실제 Mac 앱에서 로그인 창을 확인한다. 쿠키는 읽거나 꺼내지 않는다.",
+      "status": "In Progress",
+      "branch": "fix/WBS-038-lms-auth-404",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81a39f7dd11710895a97",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 WBS-020 자가 테스트 중 발견, 이문찬 승인 영역 밖 예외(OPS-001 v0.2.1): apps/desktop/host/와 docs/pm/wbs.json은 snagha의 WBS-035 claim(PR #23 병합, 미해제) 영역이다. 최소 수정만 하고 claim ref는 건드리지 않으며 PR로 통지한다. 본인 task·lms-auth·acceptance claim을 따로 잡는다."
+    },
+    {
+      "id": "WBS-039",
+      "title": "LearningX 강의 자료(PDF) 수집",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-008",
+        "WBS-038"
+      ],
+      "areas": [
+        "collector",
+        "lms-auth"
+      ],
+      "paths": [
+        "packages/collector/",
+        "apps/desktop/host/",
+        "docs/pm/wbs.json",
+        "AGENTS.md",
+        "docs/specs/SPEC-001.md"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "KHU 주차 강의 자료는 Canvas 파일이 아니라 LearningX에 있다. 학교 로그인 한 번으로 받은 LearningX 토큰(xn_api_token)으로 주차 모듈을 읽고 Commons에서 PDF 등 원본을 받아 주차별 file 자료로 저장한다. 바뀌지 않은 자료는 다시 받지 않고, HTML 오류 페이지는 저장하지 않으며, 토큰은 LearningX API에만 보낸다. 실제 Mac 앱에서 PDF가 열리는지 확인한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-039-learningx-materials",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 사용자 지시로 khu-ecampus-archive(개인 아카이빙 스킬)의 LearningX→Commons 흐름을 참고해 새로 구현. khu-lecture-recorder는 열지 않음. 실제 LMS 5차 진단으로 흐름 확인(모듈 200, PDF 4.1MB %PDF). 영역 밖 예외(이문찬 결정): AGENTS.md·SPEC-001에 khu-ecampus-archive 참고 허용 문구 각 1줄, apps/desktop/host/ 로그인 창·LearningX 연결 최소 수정.",
+      "url": "https://app.notion.com/p/40bbd7ec20cd814d9da6c94f2b7cec73"
     }
   ],
   "qaPolicy": {

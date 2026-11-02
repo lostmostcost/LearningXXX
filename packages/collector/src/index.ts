@@ -1,5 +1,7 @@
 export { CanvasClient, KHU_CANVAS_BASE_URL } from "./canvas-client.ts";
 export type { CanvasClientOptions } from "./canvas-client.ts";
+export { KHU_COMMONS_BASE_URL, LearningXClient, validPayload } from "./learningx.ts";
+export type { LearningXClientOptions } from "./learningx.ts";
 export { createDirectoryStore } from "./asset-store.ts";
 export type { AssetStore, StoredAsset } from "./asset-store.ts";
 export { discoverCourse } from "./discovery.ts";

@@ -11,7 +11,7 @@ import {
   readSyncStatus,
   recoverInterruptedRuns,
 } from "@learningxxx/collector";
-import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult } from "@learningxxx/collector";
+import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
 /** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). More courses are added here. */
 export const DEFAULT_SOURCE_COURSES: readonly string[] = ["95899"];
@@ -21,6 +21,8 @@ export interface LibraryServiceOptions {
   root: string;
   /** Client bound to the in-app LMS sign-in session (WBS-034). */
   client: () => CanvasClient;
+  /** Lecture materials through the same sign-in (WBS-039). */
+  learningx?: () => LearningXClient;
   sourceCourseIds?: readonly string[];
   /** Pushed to the renderer: `running` first, then each final run. */
   onProgress?: (run: SyncRun) => void;
@@ -79,8 +81,14 @@ export class LibraryService {
     try {
       me = await client.getObject("/api/v1/users/self");
     } catch (error) {
-      if (error instanceof CollectionError && error.appError.code === "AUTH_REQUIRED") this.#o.openLogin?.();
-      throw error;
+      // Real KHU Canvas answers users/self with 404, not 401, when nobody is signed in (WBS-038).
+      const signedOut =
+        error instanceof CollectionError &&
+        (error.appError.code === "AUTH_REQUIRED" || (error.appError.code === "SOURCE_CHANGED" && error.appError.detail?.httpStatus === 404));
+      if (!signedOut) throw error;
+      this.#o.openLogin?.();
+      // The school cookie lasts only while the app runs, so each launch may need a new sign-in.
+      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 앱을 다시 켜면 다시 로그인해야 할 수 있습니다.");
     }
     const id = (me as { id?: unknown } | null)?.id;
     if (typeof id !== "number" && typeof id !== "string") fail("SOURCE_CHANGED", "LMS 사용자 정보를 읽지 못했습니다.");
@@ -132,7 +140,7 @@ export class LibraryService {
       );
       let result: CollectCourseResult;
       try {
-        result = await collect({ client, store: this.#store, root: this.#o.root, accountKey, sourceCourseId, now: this.#now, newId: () => id });
+        result = await collect({ client, learningx: this.#o.learningx?.(), store: this.#store, root: this.#o.root, accountKey, sourceCourseId, now: this.#now, newId: () => id });
       } catch (error) {
         // RUN_ALREADY_ACTIVE from the collector's own lock, or an unexpected bug.
         const appError =

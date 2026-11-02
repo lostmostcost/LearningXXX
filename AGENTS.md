@@ -15,7 +15,7 @@
 - Independent sessions have no automatic course/history/memory/filesystem context. Do not implement isolation with prompt wording alone.
 - A then B. B recording, video originals and automatic transcription are part of full MVP.
 - User-run manual collection on each Mac with no server (CR-001, ADR-002); automatic transcription; manual summarization.
-- Do not copy/invoke legacy khu-ecampus-archive code; implement new modules.
+- khu-ecampus-archive may be read as a reference for KHU LMS access flows (owner decision 2026-11-01, WBS-039); do not invoke it from the app, implement new modules.
 - Never open/read/copy/port/refer to khu-lecture-recorder skill during implementation.
 - Do not commit credentials, recordings, downloaded lectures or private course content.
 

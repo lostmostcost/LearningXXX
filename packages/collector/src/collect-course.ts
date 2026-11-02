@@ -3,6 +3,7 @@ import { SyncRun } from "@learningxxx/contracts";
 import type { CollectionManifest } from "@learningxxx/contracts";
 import type { AssetStore } from "./asset-store.ts";
 import type { CanvasClient } from "./canvas-client.ts";
+import type { LearningXClient } from "./learningx.ts";
 import { diffManifests, type ManifestChanges } from "./changes.ts";
 import { discoverCourse } from "./discovery.ts";
 import { CollectionError } from "./errors.ts";
@@ -13,6 +14,8 @@ import { acquireCourseLock, recoverInterruptedRuns } from "./run-lock.ts";
 
 export interface CollectCourseInput {
   client: CanvasClient;
+  /** Lecture materials (WBS-039); without it only Canvas files are collected. */
+  learningx?: LearningXClient | undefined;
   store: AssetStore;
   /** Data root chosen by the host; manifests and sync runs are written under it. */
   root: string;
@@ -62,7 +65,7 @@ export async function collectCourse(input: CollectCourseInput): Promise<CollectC
       courseId = course.id;
       previous = await readCurrentManifest(input.root, { courseId: course.id, accountKey: input.accountKey });
       manifest = previous;
-      const result = await collectResources({ client: input.client, store: input.store, course, weeks, previous, now, retry });
+      const result = await collectResources({ client: input.client, learningx: input.learningx, store: input.store, course, weeks, previous, now, retry });
       const committed = await commitManifest(input.root, input.store, {
         course,
         weeks,

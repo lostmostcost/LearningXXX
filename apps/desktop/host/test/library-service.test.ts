@@ -15,14 +15,16 @@ const STORAGE = "https://files.example.test";
 const PDF = "%PDF-synthetic-week1";
 
 /** Minimal synthetic Canvas: one course, one week, one PDF. */
-function lms(options: { user?: number; status?: number; offline?: boolean } = {}) {
-  const json = (body: unknown) => new Response(JSON.stringify(body));
+function lms(options: { user?: number; status?: number; offline?: boolean; signedOut?: boolean } = {}) {
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
   return (async (input: string | URL | Request) => {
     if (options.offline) throw new TypeError("network down");
     const url = new URL(String(input));
     if (url.origin === STORAGE) return new Response(PDF);
     const path = url.pathname + url.search;
     if (options.status) return new Response("", { status: options.status });
+    // Real KHU Canvas when signed out (WBS-038): users/self is 404, everything else 401.
+    if (options.signedOut) return path === "/api/v1/users/self" ? json({ errors: [{ message: "not found" }] }, 404) : json({ status: "unauthenticated" }, 401);
     if (path === "/api/v1/users/self") return json({ id: options.user ?? 4242, name: "합성 사용자" });
     if (path === "/api/v1/courses/95899") return json({ id: 95899, name: "합성 논리회로", enrollment_term_id: 122 });
     if (path === "/api/v1/courses/95899/modules?per_page=100") return json([{ id: 1, name: "1주차", position: 1 }]);
@@ -101,6 +103,17 @@ test("a missing sign-in opens the login window and runs nothing", async () => {
   assert.equal(s.logins(), 1);
   assert.deepEqual(s.progress, []);
   assert.equal((await s.library.run({ scope: "all_courses" }).catch(() => "refused-again")), "refused-again", "the lock was released");
+});
+
+test("signed out on real Canvas (users/self is 404) opens the login window and says so", async () => {
+  const s = setup(lms({ signedOut: true }));
+  await s.library.init();
+  const error = await s.library.run({ scope: "all_courses" }).then(() => assert.fail("expected AUTH_REQUIRED"), (e: { appError?: { code: string; message: string; retryable: boolean } }) => e.appError);
+  assert.equal(error?.code, "AUTH_REQUIRED");
+  assert.equal(error?.retryable, false);
+  assert.match(error!.message, /로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요/);
+  assert.equal(s.logins(), 1);
+  assert.deepEqual(s.progress, []);
 });
 
 test("offline after a collection: everything already collected stays readable", async () => {

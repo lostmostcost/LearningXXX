@@ -36,6 +36,7 @@ export class MediaService {
   readonly #o: MediaServiceOptions;
   #partition: Partition | undefined;
   #activation: Promise<void> = Promise.resolve();
+  #closing = false;
   #downloads = new Map<string, { abort: AbortController; done: Promise<void> }>();
   constructor(options: MediaServiceOptions) { this.#o = options; }
 
@@ -75,6 +76,7 @@ export class MediaService {
   }
 
   async #activate(): Promise<Partition> {
+    if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
     const key = this.#o.accountKey(); if (!key) fail("AUTH_REQUIRED", "학교 자료를 먼저 수집해 계정을 확인하세요.");
     AccountKey.parse(key);
     const operation = this.#activation.catch(() => {}).then(async () => {
@@ -98,12 +100,14 @@ export class MediaService {
       p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), ...(this.#o.contextFor ? { contextFor: this.#o.contextFor } : {}) });
       for (const d of catalog.downloads) if (d.status === "running" || d.status === "queued") { d.status = "failed"; d.errorCode = "RUN_INTERRUPTED"; }
       await this.#save(p);
+      if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
       if (key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 다시 여세요.");
       this.#partition = p;
       for (const asset of catalog.assets) p.queue.enqueue(asset);
       p.queue.start();
     });
     this.#activation = operation; await operation;
+    if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
     if (key !== this.#o.accountKey() || this.#partition?.key !== key) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 다시 여세요.");
     return this.#partition;
   }
@@ -190,7 +194,7 @@ export class MediaService {
     const done = Promise.resolve().then(async () => {
       try {
         item.status = "running"; await this.#save(p);
-        if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+        if (this.#closing || p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정 변경 또는 앱 종료로 중단했습니다.");
         const asset = await downloadVideo({ root: p.root, courseId, resourceId: item.resourceId, sourceId, title, ...this.#o.video(course, sourceId), signal: abort.signal, onProgress: (received, total) => { item.receivedBytes = received; if (total !== undefined) item.totalBytes = total; } });
         if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 새 계정으로 전달하지 않았습니다.");
         p.catalog.assets.push(asset); item.assetId = asset.id; item.status = "succeeded";
@@ -213,5 +217,11 @@ export class MediaService {
     if (!p.catalog.downloads.some((d) => d.id === downloadId && d.courseId === courseId)) fail("NOT_FOUND", "다운로드를 찾지 못했습니다.");
     const active = this.#downloads.get(downloadId); active?.abort.abort(); await active?.done; return {};
   }
-  async stop() { for (const d of this.#downloads.values()) d.abort.abort(); await Promise.allSettled([...this.#downloads.values()].map((d) => d.done)); await this.#partition?.queue.stop(); }
+  async stop() {
+    this.#closing = true;
+    await this.#activation.catch(() => {});
+    for (const d of this.#downloads.values()) d.abort.abort();
+    await Promise.allSettled([...this.#downloads.values()].map((d) => d.done));
+    await this.#partition?.queue.stop();
+  }
 }

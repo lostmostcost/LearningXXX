@@ -115,3 +115,10 @@ test("legacy recording IPC cannot list or play another account and rejects/stops
   await assert.rejects(handlers["recording.stop"]!({ recordingId: started.recording.id }), /현재 계정/);
   assert.equal(s.calls(), 0); await media.stop();
 });
+
+test("quit during partition initialization cannot start a worker after stop returned", async () => {
+  const s = await setup(), media = s.make();
+  const recovering = assert.rejects(media.recover(), /종료/);
+  await media.stop(); await recovering; await tick(); assert.equal(s.calls(), 0);
+  await assert.rejects(media.recover(), /종료/);
+});

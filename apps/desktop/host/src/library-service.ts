@@ -13,7 +13,7 @@ import {
 } from "@learningxxx/collector";
 import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
-/** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). More courses are added here. */
+/** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). Used when the enrolled courses cannot be listed. */
 export const DEFAULT_SOURCE_COURSES: readonly string[] = ["95899"];
 
 export interface LibraryServiceOptions {
@@ -24,10 +24,14 @@ export interface LibraryServiceOptions {
   /** Lecture materials through the same sign-in (WBS-039). */
   learningx?: () => LearningXClient;
   sourceCourseIds?: readonly string[];
+  /** Lists the enrolled courses for "collect all" (WBS-041); `sourceCourseIds` is the fallback. */
+  discoverCourses?: (client: CanvasClient) => Promise<string[]>;
   /** Pushed to the renderer: `running` first, then each final run. */
   onProgress?: (run: SyncRun) => void;
   /** Shown when the LMS says the sign-in is missing or expired. */
   openLogin?: () => void;
+  /** Signs in with saved details before a run when the session has lapsed (WBS-040). */
+  ensureSignedIn?: () => Promise<void>;
   collect?: (input: CollectCourseInput) => Promise<CollectCourseResult>;
   now?: () => Date;
   newId?: () => string;
@@ -88,7 +92,7 @@ export class LibraryService {
       if (!signedOut) throw error;
       this.#o.openLogin?.();
       // The school cookie lasts only while the app runs, so each launch may need a new sign-in.
-      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 앱을 다시 켜면 다시 로그인해야 할 수 있습니다.");
+      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 로그인 설정에 저장해 두면 다음부터 자동으로 로그인합니다.");
     }
     const id = (me as { id?: unknown } | null)?.id;
     if (typeof id !== "number" && typeof id !== "string") fail("SOURCE_CHANGED", "LMS 사용자 정보를 읽지 못했습니다.");
@@ -114,20 +118,35 @@ export class LibraryService {
       if (!known) fail("NOT_FOUND", "이 과목은 아직 수집한 적이 없습니다. 전체 수집을 실행하세요.");
       targets = [known.sourceCourseId];
     } else {
-      targets = [...(this.#o.sourceCourseIds ?? DEFAULT_SOURCE_COURSES)];
+      targets = [];
     }
     const marker = randomUUID();
     this.#running.add(marker);
     try {
+      await this.#o.ensureSignedIn?.();
       const client = this.#o.client();
       // CollectionError carries `appError`, which the router passes to the renderer as is.
       const accountKey = await this.#resolveAccount(client);
+      if (targets.length === 0) targets = await this.#allCourses(client);
       const ids = targets.map(() => (this.#o.newId ?? randomUUID)());
       void this.#collectAll(client, accountKey, targets, ids).finally(() => this.#running.delete(marker));
       return { syncRunId: ids[0]! };
     } catch (error) {
       this.#running.delete(marker);
       throw error;
+    }
+  }
+
+  /** Enrolled courses when they can be listed; otherwise the configured ones, so collection still runs. */
+  async #allCourses(client: CanvasClient): Promise<string[]> {
+    const fallback = [...(this.#o.sourceCourseIds ?? DEFAULT_SOURCE_COURSES)];
+    if (!this.#o.discoverCourses) return fallback;
+    try {
+      const found = await this.#o.discoverCourses(client);
+      return found.length > 0 ? found : fallback;
+    } catch (error) {
+      if (error instanceof CollectionError && error.appError.code === "AUTH_REQUIRED") throw error;
+      return fallback;
     }
   }
 

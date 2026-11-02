@@ -7,6 +7,16 @@ import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
 
+export const CredentialStatus = z.object({
+  school: z.boolean(),
+  /** The school refused the saved password; nothing is retried until it is saved again. */
+  schoolRejected: z.boolean(),
+  canvasToken: z.boolean(),
+  /** False when the Mac's Keychain-backed encryption is unavailable, so nothing can be saved. */
+  available: z.boolean(),
+});
+export type CredentialStatus = z.infer<typeof CredentialStatus>;
+
 /**
  * Renderer → host request channels (ADR-002: preload exposes only these).
  * The host re-validates every request with the same schema; renderer-side
@@ -20,6 +30,25 @@ export const IpcChannels = {
   "collection.status": {
     request: z.object({}),
     response: z.object({ lastSucceeded: SyncRun.optional(), current: SyncRun.optional() }),
+  },
+  /** Whether sign-in details are saved on this Mac; values are never sent back (WBS-040). */
+  "credentials.status": {
+    request: z.object({}),
+    response: CredentialStatus,
+  },
+  /** Tries the school sign-in once with these details and saves them only if the school accepts. */
+  "credentials.saveSchool": {
+    request: z.object({ schoolId: z.string().trim().min(1).max(64), password: z.string().min(1).max(256) }),
+    response: CredentialStatus,
+  },
+  /** Checks the Canvas access token against Canvas and saves it only if it works. */
+  "credentials.saveCanvasToken": {
+    request: z.object({ token: z.string().trim().min(10).max(512) }),
+    response: CredentialStatus,
+  },
+  "credentials.clear": {
+    request: z.object({ which: z.enum(["school", "canvasToken"]) }),
+    response: CredentialStatus,
   },
   "library.manifest": {
     request: z.object({ courseId: Id }),

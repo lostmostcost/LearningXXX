@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell, systemPreferences } from "electron";
+import { CanvasClient, CollectionError, listActiveCourses } from "@learningxxx/collector";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -9,7 +10,10 @@ import { FileService } from "./file-service.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
-import { createLearningXClient, createLmsClient, openLoginWindow } from "./lms-session.ts";
+import { CredentialService } from "./credential-service.ts";
+import { CredentialStore } from "./credential-store.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps } from "./lms-session.ts";
+import { schoolLogin } from "./school-login.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
@@ -56,9 +60,28 @@ app.whenReady().then(async () => {
   const dataRoot = join(app.getPath("userData"), "data");
   let sessions: SessionService;
   let loginWindow: BrowserWindow | undefined;
+  const credentials = new CredentialService({
+    store: new CredentialStore(join(app.getPath("userData"), "credentials.bin"), {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (plain) => safeStorage.encryptString(plain),
+      decrypt: (data) => safeStorage.decryptString(data),
+    }),
+    login: (schoolId, password) => schoolLogin(schoolLoginDeps(), schoolId, password),
+    signedIn: async () => (await learningxToken()) !== undefined,
+    checkCanvasToken: async (token) => {
+      try {
+        await new CanvasClient({ getAuthHeaders: async () => ({ Authorization: `Bearer ${token}` }) }).getObject("/api/v1/users/self");
+        return "ok";
+      } catch (error) {
+        return error instanceof CollectionError && error.appError.code === "AUTH_REQUIRED" ? "rejected" : "failed";
+      }
+    },
+  });
   const library = new LibraryService({
     root: join(dataRoot, "library"),
-    client: createLmsClient,
+    client: () => createLmsClient(() => credentials.canvasToken()),
+    ensureSignedIn: () => credentials.ensureSignedIn(),
+    discoverCourses: listActiveCourses,
     learningx: createLearningXClient,
     onProgress: (syncRun) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "collection.progress", syncRun });
@@ -137,7 +160,7 @@ app.whenReady().then(async () => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "modify.job", job });
     },
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, modifier));
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

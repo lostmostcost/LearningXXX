@@ -73,6 +73,15 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .run-changes { margin-top: 8px; }
 
 .capture-preview { display: block; max-width: 100%; max-height: 200px; object-fit: contain; border: 1px solid var(--line); margin: 4px 0; }
+.signin { max-width: 440px; width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 16px; }
+.signin::backdrop { background: rgb(0 0 0 / 0.35); }
+.signin form { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.signin h3 { font-size: 13px; margin: 4px 0; }
+.signin label { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
+.signin input { font: inherit; padding: 4px 6px; }
+.signin button { margin-right: 6px; }
+.course-picker { font-size: 12px; color: var(--muted); }
+.course-picker select { font: inherit; max-width: 16em; }
 
 .modify { padding: 12px 16px; border-bottom: 1px solid #d0d0d0; max-height: 60vh; overflow: auto; }
 .modify textarea { display: block; width: 100%; min-height: 72px; margin-bottom: 8px; box-sizing: border-box; }

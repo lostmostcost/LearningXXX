@@ -542,7 +542,8 @@
       ],
       "paths": [
         "docs/qa/",
-        "tests/acceptance/"
+        "tests/acceptance/",
+        "docs/pm/wbs.json"
       ],
       "spec": "QA-001",
       "requirements": [
@@ -554,10 +555,11 @@
         "REQ-006"
       ],
       "acceptance": "각 기능의 작동 구조를 설명하고 담당 개발자 본인이 A 주요 기능이 완성됐을 때 실제 과목 시나리오를 직접 사용한다. 상대방 QA는 필수가 아니다. 피드백·수정·재검수 증거를 연결해야 A gate를 통과한다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-020-a-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81b0a224f1b376bdb48a?pvs=204",
-      "qa_mode": "developer_self_test"
+      "qa_mode": "developer_self_test",
+      "scope_note": "2026-11-02 Claude: 기능 설명·자가 테스트 진행표(docs/qa/WBS-020-a-self-test.md)와 자동 사전 확인을 준비. 담당 개발자 직접 확인 항목 4~9 미실행."
     },
     {
       "id": "WBS-021",

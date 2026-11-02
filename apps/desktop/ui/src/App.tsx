@@ -48,6 +48,7 @@ export function App() {
   const [pinned,setPinned]=useState(false);
   const [drawer,setDrawer]=useState(false);
   const [section,setSection]=useState("book");
+  const [rightTab, setRightTab] = useState<"chat" | "recording">("chat");
   const [weekIndex,setWeekIndex]=useState(0);
   const [tray,setTray]=useState(false);
   const courseEpoch=useRef(0);
@@ -126,13 +127,14 @@ export function App() {
     [library],
   );
   const collectButton = IN_APP && !FIXTURE_MODE ? (
-    <button onClick={() => void collect()} disabled={collecting}>{collecting ? "수집 중…" : "수집 실행"}</button>
+    <button aria-label={collecting ? "수집 중…" : "자료 수집"} title={collecting ? "수집 중…" : "자료 수집"} onClick={() => void collect()} disabled={collecting}><Icon name="refresh" /></button>
   ) : null;
 
   const selectAction = (selection: SelectedText, intent: SelectionIntent) => {
     setSelectionRequest({ id: crypto.randomUUID(), selection: { ...selection }, intent,
       ...(activeSessionId ? { targetSessionId: activeSessionId } : {}) });
     setView("chat");
+    setRightTab("chat");
   };
   const selectionUsed = useCallback((id: string) => setSelectionRequest((r) => r?.id === id ? undefined : r), []);
   const openSelection = (selection: SelectedText): boolean => {
@@ -170,7 +172,7 @@ export function App() {
 
   return (
     <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id!);setDrawer(true);}}}><Icon name={id!}/></button>)}<button title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}else{setDrawer(true);}}}}><Icon name={id!}/></button>)}<button title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark">Learning<span>XXX</span></strong>
@@ -185,7 +187,7 @@ export function App() {
           </label>
         ) : null}
         <span>{library ? library.course.title : "과목 없음"} · {activeSessionId ? "세션 선택됨" : "세션 없음"}</span>
-        {IN_APP && !FIXTURE_MODE ? <button aria-expanded={modifying} onClick={() => setModifying((open) => !open)}>앱 수정</button> : null}
+        {IN_APP && !FIXTURE_MODE ? <button aria-label="앱 수정" title="앱 수정" aria-expanded={modifying} onClick={() => setModifying((open) => !open)}><Icon name="code" /></button> : null}
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">
             <button role="tab" aria-selected={view === "materials"} onClick={() => setView("materials")}>자료</button>
@@ -203,7 +205,6 @@ export function App() {
         {panel("library", "과목과 자료", library ? (
           <>
             {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
-            {section==='mic' && IN_APP && !FIXTURE_MODE ? <RecordingPanel courseId={library.course.id} /> : null}
           </>
         ) : (
           <>
@@ -216,16 +217,25 @@ export function App() {
         {panel("viewer", "자료 뷰어", (
           <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
-        {panel("chat", "채팅", window.host ? (
-          <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
-            selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []}
-            viewing={viewingOf(selected?.assets.map((a) => a.id) ?? [], shownPage)} snapshotPage={snapshotPage} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
-        ) : (
-          <>
-            <h2>채팅</h2>
-            <p>앱 안에서 실행하면 채팅할 수 있습니다.</p>
-          </>
-        ))}
+        {panel("chat", "채팅과 녹음", <>
+          <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 'chat' : event.key === 'End' ? 'recording' : rightTab === 'chat' ? 'recording' : 'chat';
+            setRightTab(next);
+            document.getElementById(`tool-${next}`)?.focus();
+          }}>
+            {([['chat', '채팅'], ['recording', '녹음']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={`tool-panel-${id}`} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : 'mic'} />{label}</button>)}
+          </div>
+          <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
+            {window.host ? <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
+              selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []}
+              viewing={viewingOf(selected?.assets.map((a) => a.id) ?? [], shownPage)} snapshotPage={snapshotPage} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
+          </div>
+          <div className="tool-pane recording-pane" id="tool-panel-recording" role="tabpanel" aria-labelledby="tool-recording" hidden={rightTab !== 'recording'}>
+            {IN_APP && !FIXTURE_MODE && library ? <RecordingPanel courseId={library.course.id} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
+          </div>
+        </>)}
       </main>
     </div>
   );

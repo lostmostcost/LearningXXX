@@ -187,6 +187,14 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     sessions.filter((s) => showArchived || s.archivedAt === undefined),
     courseId,
   );
+  const sessionMenu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (sessionMenu.current && event.target instanceof Node && !sessionMenu.current.contains(event.target)) sessionMenu.current.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, []);
   const sessionButton = (s: Session) => (
     <li key={s.appSessionId}>
       {renaming === s.appSessionId ? (
@@ -204,7 +212,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
           }}
         />
       ) : (
-        <button className="entry" aria-pressed={s.appSessionId === activeId} onClick={() => setActiveId(s.appSessionId)}>
+        <button className="entry" aria-pressed={s.appSessionId === activeId} onClick={() => { setActiveId(s.appSessionId); if (sessionMenu.current) { sessionMenu.current.open = false; sessionMenu.current.querySelector('summary')?.focus(); } }}>
           <span className="title">{s.title}</span>
           {s.archivedAt ? <span className="badge">보관됨</span> : null}
           {s.status === "interrupted" ? <span className="badge">중단됨</span> : null}
@@ -215,14 +223,19 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
 
   return (
     <div className="chat">
-      <h2>채팅</h2>
-      <div className="session-actions">
-        <button onClick={() => void create("course")} disabled={!courseId} title={courseId ? "" : "과목 자료를 먼저 수집하세요"}>과목 세션 만들기</button>
-        <button onClick={() => void create("independent")}>독립 세션 만들기</button>
-        <label className="meta"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> 보관된 세션 보기</label>
+      <div className="session-toolbar">
+        <details className="session-menu" ref={sessionMenu} onKeyDown={(e) => { if (e.key === 'Escape' && sessionMenu.current) { sessionMenu.current.open = false; sessionMenu.current.querySelector('summary')?.focus(); } }}>
+          <summary aria-label="세션 목록"><Icon name="chat" /><span>{active?.title ?? '세션 선택'}</span><Icon name="chevron" /></summary>
+          <div className="session-dropdown">
+            <label className="meta"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> 보관된 세션 보기</label>
+            {shown.course.length ? <><p className="meta">{courseTitle ?? "과목"}</p><ul className="entries">{shown.course.map(sessionButton)}</ul></> : null}
+            {shown.independent.length ? <><p className="meta">독립 세션</p><ul className="entries">{shown.independent.map(sessionButton)}</ul></> : null}
+            {!shown.course.length && !shown.independent.length ? <p className="meta">새 세션을 만들어 시작하세요.</p> : null}
+          </div>
+        </details>
+        <button onClick={() => void create("course")} disabled={!courseId} aria-label="과목 세션 만들기" title={courseId ? "과목 세션 만들기" : "과목 자료를 먼저 수집하세요"}><Icon name="plus" /></button>
+        <button onClick={() => void create("independent")} aria-label="독립 세션 만들기" title="독립 세션 만들기"><Icon name="independent" /></button>
       </div>
-      {shown.course.length ? <><p className="meta">{courseTitle ?? "과목"}</p><ul className="entries">{shown.course.map(sessionButton)}</ul></> : null}
-      {shown.independent.length ? <><p className="meta">독립 세션</p><ul className="entries">{shown.independent.map(sessionButton)}</ul></> : null}
       {notice ? <p role="alert" className="notice-box">{notice}</p> : null}
       {selectionRequest ? <div className="notice-box selection-preview">
         <p>{INTENT_LABEL[selectionRequest.intent]} · {selectionRequest.selection.page}쪽 선택 문장</p>
@@ -239,16 +252,17 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
       {active ? (
         <>
           <div className="session-head">
-            <strong>{active.title}</strong>
-            <button onClick={() => setRenaming(active.appSessionId)}>이름 바꾸기</button>
+            <span className="meta">{active.mode === "independent" ? "독립 세션" : "과목 세션"}</span>
+            <button aria-label="세션 이름 바꾸기" title="세션 이름 바꾸기" onClick={() => { setRenaming(active.appSessionId); if (active.archivedAt) setShowArchived(true); if (sessionMenu.current) sessionMenu.current.open = true; }}><Icon name="edit" /></button>
             <button
+              aria-label={active.archivedAt ? "보관 해제" : "세션 보관"} title={active.archivedAt ? "보관 해제" : "세션 보관"}
               onClick={async () => {
                 const r = await invoke("session.archive", { appSessionId: active.appSessionId, archived: active.archivedAt === undefined });
                 if (!r.ok) setNotice(r.error.message);
                 void reload();
               }}
             >
-              {active.archivedAt ? "보관 해제" : "보관"}
+              <Icon name="archive" />
             </button>
           </div>
           {active.mode === "independent" ? (
@@ -302,7 +316,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
             />
             <div className="composer-actions">
               <button disabled={running || draft.attachments.length >= 8} title="로컬 파일 첨부" aria-label="로컬 파일 첨부" onClick={() => void prepare()}><Icon name="plus"/></button>
-              {selectedAssets.map((asset) => <button key={asset.id} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}>자료 첨부: {asset.name}</button>)}
+              {selectedAssets.map((asset) => <button key={asset.id} title={`자료 첨부: ${asset.name}`} aria-label={`자료 첨부: ${asset.name}`} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}><Icon name="book" /></button>)}
               <button disabled={running || draft.attachments.length >= 8} title="화면 캡처" aria-label="화면 캡처" onClick={() => void prepareCapture()}><Icon name="capture"/></button>
               <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block" aria-label="보내기" title="보내기"><Icon name="send"/></button>
             </div>

@@ -630,17 +630,21 @@
         "host"
       ],
       "paths": [
-        "apps/desktop/host/"
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
       ],
       "spec": "SPEC-004",
       "requirements": [
         "REQ-007"
       ],
       "acceptance": "마이크 권한·시작/중지·청크 보존·원본 확정·job 등록을 구현한다. 잠자기·강제 종료·디스크 부족에서 손실/복구 범위를 검증한다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-023-recording",
       "url": "https://app.notion.com/p/40bbd7ec20cd81e0892be7f90ea834e1?pvs=204",
-      "qa_mode": "appropriate_checks_only"
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-02 자율 진행 위임. 녹음 UI(ui)·IPC 채널(contracts)은 영역 밖 예외(docs/pm/decision-log.md)."
     },
     {
       "id": "WBS-024",

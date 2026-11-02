@@ -1400,6 +1400,37 @@
       "branch": "feat/WBS-048-chat-recording-tabs",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd8130a9a5c3f55f119d77"
+    },
+    {
+      "id": "WBS-049",
+      "title": "PDF 연속 탐색·Markdown 답변·슬래시 명령",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-048"
+      ],
+      "areas": [
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-003.md"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-004",
+        "REQ-006",
+        "REQ-009"
+      ],
+      "acceptance": "트랙패드 확대/축소와 연속 PDF 스크롤, Markdown 답변과 실제 지원 범위의 / 명령 제안을 제공한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-049-reading-chat",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd811ebf62d4759e32402a"
     }
   ],
   "qaPolicy": {

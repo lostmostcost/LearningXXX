@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { TextLayer, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+import { PdfSheet } from "./PdfSheet.tsx";
+import { clampZoom, pageScale, wheelZoom, type FitMode } from "./pdf-navigation.ts";
 import "pdfjs-dist/web/pdf_viewer.css";
 import { PDF_MESSAGES, type PdfState } from "./document.ts";
 import type { OpenedPdf } from "./pdf.ts";
@@ -7,7 +9,7 @@ import { selectedText, type PageLocation, type SelectedText, type SelectionInten
 
 export type AssetLoader = (assetId: string) => Promise<Uint8Array | undefined>;
 export type PdfOpener = (bytes: Uint8Array) => Promise<OpenedPdf>;
-const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
+
 
 /** Longest side of the page image sent to the AI; enough to read slide text. */
 const SNAPSHOT_MAX = 1600;
@@ -26,18 +28,50 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
   const [state, setState] = useState<PdfState>({ kind: "loading" });
   const [doc, setDoc] = useState<PDFDocumentProxy>();
   const [page, setPage] = useState(1);
-  const [manualZoom,setManualZoom]=useState(1);
-  const effectiveZoom=useRef(1);
-  const [fit,setFit]=useState<"page"|"width"|"manual">("page");
-  const [bounds,setBounds]=useState({width:600,height:700});
-  const viewportBox=useRef<HTMLDivElement>(null);
-  useEffect(()=>{const el=viewportBox.current;if(!el)return;const observer=new ResizeObserver(([entry])=>{if(entry&&entry.contentRect.width>0&&entry.contentRect.height>0)setBounds({width:entry.contentRect.width,height:entry.contentRect.height});});observer.observe(el);return()=>observer.disconnect();},[state.kind]);
+  const [manualZoom, setManualZoom] = useState(1);
+  const [fit, setFit] = useState<FitMode>('page');
+  const [size, setSize] = useState({ width: 595, height: 842 });
+  const [bounds, setBounds] = useState({ width: 600, height: 700 });
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
+  const viewportBox = useRef<HTMLDivElement | null>(null);
+  const bindViewport = useCallback((el: HTMLDivElement | null) => { viewportBox.current = el; setViewport(el); }, []);
   const [selection, setSelection] = useState<SelectedText>();
-  const [rendering, setRendering] = useState(false);
-  const [pageError, setPageError] = useState<string>();
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const textLayer = useRef<HTMLDivElement>(null);
-  const sheet = useRef<HTMLDivElement>(null);
+  const anchor = useRef<{ number: string; x: number; y: number; clientX: number; clientY: number } | undefined>(undefined);
+  const effectiveZoom = useRef(1);
+  effectiveZoom.current = pageScale(size, bounds, fit, manualZoom);
+  const goTo = (number: number) => {
+    const element = viewportBox.current?.querySelector<HTMLElement>(`[data-page="${number}"]`);
+    if (element) { viewportBox.current!.scrollTop += element.getBoundingClientRect().top - viewportBox.current!.getBoundingClientRect().top - 16; setPage(number); }
+  };
+  useEffect(() => {
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => { if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) setBounds({ width: entry.contentRect.width, height: entry.contentRect.height }); });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [viewport]);
+  useEffect(() => {
+    if (!viewport) return;
+    const wheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const sheets = [...viewport.querySelectorAll<HTMLElement>('[data-page]')];
+      const target = sheets.find(el => { const r = el.getBoundingClientRect(); return event.clientY >= r.top && event.clientY <= r.bottom; }) ?? sheets.find(el => el.dataset.page === String(page));
+      if (target) { const rect = target.getBoundingClientRect(); anchor.current = { number: target.dataset.page!, x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height, clientX: event.clientX, clientY: event.clientY }; }
+      const current = fit === 'manual' ? effectiveZoom.current : Number(target?.dataset.scale ?? effectiveZoom.current);
+      const next = wheelZoom(current, event.deltaY, event.deltaMode);
+      effectiveZoom.current = next;
+      setFit('manual'); setManualZoom(next);
+    };
+    viewport.addEventListener('wheel', wheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', wheel);
+  }, [viewport, page, fit]);
+  useLayoutEffect(() => {
+    const at = anchor.current, box = viewportBox.current;
+    if (!at || !box) return;
+    const sheet = box.querySelector<HTMLElement>(`[data-page="${at.number}"]`);
+    if (sheet) { const rect = sheet.getBoundingClientRect(); box.scrollLeft += rect.left + rect.width * at.x - at.clientX; box.scrollTop += rect.top + rect.height * at.y - at.clientY; }
+    anchor.current = undefined;
+  }, [manualZoom, fit]);
 
   useEffect(() => {
     let alive = true;
@@ -51,6 +85,10 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
       if (!bytes || !open) return setState({ kind: "unavailable" });
       opened = await open(bytes);
       if (!alive) return void opened.close();
+      const first = await opened.doc?.getPage(1);
+      if (!alive) return;
+      if (first) { const v = first.getViewport({ scale: 1 }); setSize({ width: v.width, height: v.height }); }
+      setFit("page"); setManualZoom(1);
       setDoc(opened.doc);
       setState(opened.state);
     })().catch(() => alive && setState({ kind: "broken" }));
@@ -59,47 +97,9 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
 
   useEffect(() => {
     if (location?.assetId === assetId && state.kind === "ready") {
-      setPage(Math.max(1, Math.min(location.page, state.pageCount)));
+      goTo(Math.max(1, Math.min(location.page, state.pageCount)));
     }
   }, [location, assetId, state]);
-
-  useEffect(() => {
-    const target = canvas.current, layer = textLayer.current, wrapper = sheet.current;
-    if (!doc || !target || !layer || !wrapper) return;
-    let task: RenderTask | undefined, textTask: TextLayer | undefined;
-    let cancelled = false;
-    setSelection(undefined);
-    setPageError(undefined);
-    setRendering(true);
-    layer.replaceChildren();
-    void (async () => {
-      const pdfPage = await doc.getPage(page);
-      if (cancelled) return;
-      const base=pdfPage.getViewport({scale:1});
-      const zoom = fit==='manual'?manualZoom:Math.max(.1,Math.min((bounds.width-8)/base.width,fit==='page'?(bounds.height-8)/base.height:Infinity)), ratio = window.devicePixelRatio || 1;
-      effectiveZoom.current=zoom;
-      const viewport = pdfPage.getViewport({ scale: zoom });
-      const pixels = pdfPage.getViewport({ scale: zoom * ratio });
-      wrapper.style.setProperty("--total-scale-factor", String(zoom * pdfPage.userUnit));
-      target.width = Math.floor(pixels.width);
-      target.height = Math.floor(pixels.height);
-      target.style.width = `${viewport.width}px`;
-      target.style.height = `${viewport.height}px`;
-      wrapper.style.width = `${viewport.width}px`;
-      wrapper.style.height = `${viewport.height}px`;
-      task = pdfPage.render({ canvas: target, viewport: pixels });
-      const renderText = pdfPage.getTextContent().then(async (content) => {
-        if (cancelled) return;
-        textTask = new TextLayer({ textContentSource: content, container: layer, viewport });
-        await textTask.render();
-      });
-      await Promise.all([task.promise, renderText]);
-      if (!cancelled) setRendering(false);
-    })().catch(() => {
-      if (!cancelled) { layer.replaceChildren(); setRendering(false); setPageError("이 쪽을 표시하지 못했습니다. 쪽 이동이나 확대/축소 후 다시 확인하세요."); }
-    });
-    return () => { cancelled = true; task?.cancel(); textTask?.cancel(); };
-  }, [doc, page, manualZoom,fit,bounds]);
 
   useEffect(() => {
     if (state.kind === "ready") onPage?.(assetId, page);
@@ -124,12 +124,14 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
 
   useEffect(() => {
     const update = () => {
-      const layer = textLayer.current;
-      setSelection(!rendering && layer ? selectedText(window.getSelection(), layer, assetId, page) : undefined);
+      const current = window.getSelection();
+      const layer = current?.anchorNode?.parentElement?.closest<HTMLElement>('.textLayer');
+      const sheet = layer?.closest<HTMLElement>('[data-page]');
+      setSelection(layer && sheet?.dataset.ready === 'true' && viewportBox.current?.contains(layer) ? selectedText(current, layer, assetId, Number(sheet.dataset.page)) : undefined);
     };
     document.addEventListener("selectionchange", update);
     return () => document.removeEventListener("selectionchange", update);
-  }, [assetId, page, rendering]);
+  }, [assetId, manualZoom, fit]);
 
   if (state.kind === "loading") return <p role="status">PDF를 여는 중입니다…</p>;
   if (state.kind !== "ready") return <p role="alert" className="notice-box">{PDF_MESSAGES[state.kind]}</p>;
@@ -138,28 +140,30 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
     <div className="pdf">
       {state.hasText ? null : <p role="note" className="notice-box">{PDF_MESSAGES.noText}</p>}
       <div className="pdf-toolbar" role="toolbar" aria-label="PDF 보기">
-        <button onClick={() => setPage((p) => p - 1)} disabled={page <= 1} aria-label="이전 쪽">‹</button>
+        <button onClick={() => goTo(page - 1)} disabled={page <= 1} aria-label="이전 쪽">‹</button>
         <span aria-live="polite">{page} / {state.pageCount} 쪽</span>
-        <button onClick={() => setPage((p) => p + 1)} disabled={page >= state.pageCount} aria-label="다음 쪽">›</button>
-        <button onClick={() => {setFit("manual");setManualZoom(Math.max(.1,effectiveZoom.current/1.2));}} disabled={fit==='manual'&&manualZoom<=.1} aria-label="축소">−</button>
+        <button onClick={() => goTo(page + 1)} disabled={page >= state.pageCount} aria-label="다음 쪽">›</button>
+        <button onClick={() => {setFit("manual");setManualZoom(clampZoom(effectiveZoom.current/1.2));}} disabled={fit==='manual'&&manualZoom<=.1} aria-label="축소">−</button>
         <button onClick={() => {setFit("manual");setManualZoom(1);}} aria-label="원래 크기">{fit==='manual'?`${Math.round(zoom*100)}%`:'자동'}</button>
-        <button onClick={() => {setFit("manual");setManualZoom(Math.min(3,effectiveZoom.current*1.2));}} disabled={fit==='manual'&&manualZoom>=3} aria-label="확대">+</button>
+        <button onClick={() => {setFit("manual");setManualZoom(clampZoom(effectiveZoom.current*1.2));}} disabled={fit==='manual'&&manualZoom>=4} aria-label="확대">+</button>
       </div>
       <div className="fit-tools"><button aria-pressed={fit==='page'} onClick={()=>setFit("page")}>페이지 맞춤</button><button aria-pressed={fit==='width'} onClick={()=>setFit("width")}>폭 맞춤</button></div>
       <div className="selection-actions" role="toolbar" aria-label="선택 텍스트 도구">
         {([ ["translate_en_ko", "영어 → 한국어"], ["translate_ko_en", "한국어 → 영어"], ["explain_simply", "쉽게 설명"] ] as const).map(([intent, label]) => (
-          <button key={intent} disabled={!selection || !onSelectionAction || rendering} onMouseDown={(e) => e.preventDefault()}
+          <button key={intent} disabled={!selection || !onSelectionAction} onMouseDown={(e) => e.preventDefault()}
             onClick={() => selection && onSelectionAction?.({ ...selection }, intent)}>{label}</button>
         ))}
         <span className="meta">문장을 선택한 뒤 누르세요. 채팅에서 확인 후 보냅니다. 최대 20,000자</span>
       </div>
-      {rendering ? <p role="status">{page}쪽을 표시하는 중…</p> : null}
-      {pageError ? <p role="alert" className="notice-box">{pageError}</p> : null}
-      <div className="pdf-page" ref={viewportBox}>
-        <div ref={sheet} className="pdf-sheet" >
-          <canvas ref={canvas} aria-label={`${page}쪽`} />
-          <div ref={textLayer} className="textLayer" aria-label={`${page}쪽 텍스트`} />
-        </div>
+      <div className="pdf-page pdf-continuous" ref={bindViewport} tabIndex={0} aria-label="PDF 연속 스크롤" onScroll={() => {
+        const box = viewportBox.current;
+        if (!box) return;
+        const top = box.getBoundingClientRect().top + box.clientHeight * .35;
+        const sheets = [...box.querySelectorAll<HTMLElement>('[data-page]')];
+        const current = sheets.find(el => el.getBoundingClientRect().bottom > top) ?? sheets.at(-1);
+        if (current) setPage(Number(current.dataset.page));
+      }}>
+        {doc ? Array.from({ length: state.pageCount }, (_, index) => <PdfSheet key={`${assetId}:${index}`} doc={doc} number={index + 1} root={viewport} bounds={bounds} fit={fit} zoom={manualZoom} initialSize={size} />) : null}
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { COMMANDS, COMMAND_HELP, commandSuggestions, parseCommand } from "./commands.ts";
+import { MarkdownAnswer } from "./MarkdownAnswer.tsx";
 import { Icon } from "./StudyUI.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerDraft, Session } from "@learningxxx/contracts";
@@ -26,7 +28,7 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
         {turn.sent.text}
       </div>
       <div className="answer" aria-live={isOpen(turn) ? "polite" : "off"}>
-        {turn.answer}
+        <MarkdownAnswer text={turn.answer} />
         {turn.tools.map((t, i) => (
           <p key={i} className="meta">도구 {t.tool} {t.targets.join(", ")} · {DECISION_LABEL[t.decision]}</p>
         ))}
@@ -60,6 +62,13 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
   const [transcript, setTranscript] = useState<Transcript>(emptyTranscript);
   const [notice, setNotice] = useState<string>();
   const [showArchived, setShowArchived] = useState(false);
+  const commandLock = useRef(false);
+  const currentContext = useRef({ courseId, activeId });
+  currentContext.current = { courseId, activeId };
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [dismissedCommand, setDismissedCommand] = useState<string>();
+  const composerInput = useRef<HTMLTextAreaElement>(null);
   const [renaming, setRenaming] = useState<string>();
   const handledSelection = useRef<string | undefined>(undefined);
 
@@ -110,14 +119,17 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
   };
 
   const create = async (mode: "course" | "independent") => {
+    if (mode === 'course' && !courseId) { setNotice('과목을 먼저 선택하세요.'); return false; }
+    const originActive = activeId;
     const count = sessions.filter((s) => s.mode === mode).length + 1;
     const result =
       mode === "course" && courseId
         ? await invoke("session.create", { mode, courseId, title: `${courseTitle ?? "과목"} 세션 ${count}` })
         : await invoke("session.create", { mode: "independent", title: `독립 세션 ${count}` });
-    if (!result.ok) return setNotice(result.error.message);
+    if (!result.ok) { setNotice(result.error.message); return false; }
     await reload();
-    setActiveId(result.data.session.appSessionId);
+    if (currentContext.current.courseId === courseId && currentContext.current.activeId === originActive) setActiveId(result.data.session.appSessionId);
+    return true;
   };
 
   const start = async (sent: ReturnType<typeof freeze>, viewingImage?: Uint8Array<ArrayBuffer>) => {
@@ -171,8 +183,39 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     patchAttachment(target, item.id);
   };
 
+  const suggestions = dismissedCommand === `${activeId}:${draft.text}` ? [] : commandSuggestions(draft.text);
+  const insertCommand = (name: string) => {
+    if (!active) return;
+    setDraft(active.appSessionId, { ...draft, text: name + ' ' });
+    composerInput.current?.focus();
+  };
   const send = async () => {
-    if (!active || block) return;
+    if (!active || commandLock.current) return;
+    const command = parseCommand(draft.text);
+    if (draft.text.trim() === '/') { setNotice(COMMAND_HELP); return; }
+    if (command) {
+      const known = COMMANDS.find(c => c.name === command.name);
+      if (!known?.supported) { setNotice(known?.description ?? '지원하지 않는 앱 명령입니다. /help로 확인하세요. AI에게 전송하지 않았습니다.'); return; }
+      const target = active.appSessionId;
+      const clearCommand = () => setDrafts(ds => ds[target]?.text === draft.text ? { ...ds, [target]: { ...ds[target]!, text: '' } } : ds);
+      if (command.name === '/help') { setNotice(COMMAND_HELP); clearCommand(); return; }
+      if (command.name === '/resume') { if (sessionMenu.current) sessionMenu.current.open = true; clearCommand(); return; }
+      if (command.name === '/status') { setNotice(`${active.mode === 'independent' ? '독립' : '과목'} 세션 · ${active.title} · ${running ? '응답 중' : active.status}`); clearCommand(); return; }
+      if (running) { setNotice('응답이 끝난 뒤 실행하세요.'); return; }
+      if (command.name === '/rename' && !command.args) { setRenaming(target); if (active.archivedAt) setShowArchived(true); if (sessionMenu.current) sessionMenu.current.open = true; clearCommand(); return; }
+      commandLock.current = true;
+      setCommandBusy(true);
+      try {
+        if (command.name === '/clear') { if (await create(active.mode)) clearCommand(); }
+        if (command.name === '/rename') {
+          const result = await invoke('session.rename', { appSessionId: target, title: command.args });
+          if (result.ok) { await reload(); clearCommand(); } else setNotice(result.error.message);
+        }
+      } catch { setNotice('명령을 완료하지 못했습니다. 입력은 보존했습니다. 다시 시도하세요.'); }
+      finally { commandLock.current = false; setCommandBusy(false); }
+      return;
+    }
+    if (block) return;
     const target = active.appSessionId;
     const sent = freeze(draft, target, viewingFor(active, courseId, viewing));
     setDraft(target, emptyDraft());
@@ -236,7 +279,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
         <button onClick={() => void create("course")} disabled={!courseId} aria-label="과목 세션 만들기" title={courseId ? "과목 세션 만들기" : "과목 자료를 먼저 수집하세요"}><Icon name="plus" /></button>
         <button onClick={() => void create("independent")} aria-label="독립 세션 만들기" title="독립 세션 만들기"><Icon name="independent" /></button>
       </div>
-      {notice ? <p role="alert" className="notice-box">{notice}</p> : null}
+      {notice ? <p role="alert" className="notice-box chat-notice">{notice}</p> : null}
       {selectionRequest ? <div className="notice-box selection-preview">
         <p>{INTENT_LABEL[selectionRequest.intent]} · {selectionRequest.selection.page}쪽 선택 문장</p>
         <blockquote>{selectionRequest.selection.text}</blockquote>
@@ -268,7 +311,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
           {active.mode === "independent" ? (
             <p role="note" className="notice-box">독립 세션: 과목 자료, 이전 대화, 메모를 보지 않습니다. 직접 첨부한 것만 전달됩니다.</p>
           ) : null}
-          <FilesSection key={active.appSessionId} session={active} running={running} onChanged={() => void reload()} />
+          <details className="file-tools" key={active.appSessionId}><summary aria-label="파일 작업" title="작업 폴더와 변경된 파일"><Icon name="folder" /></summary><FilesSection key={active.appSessionId} session={active} running={running} onChanged={() => void reload()} /></details>
           <ol className="transcript">
             {transcript.turns.filter((t) => t.appSessionId === active.appSessionId).map((turn) => (
               <TurnView
@@ -305,20 +348,33 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
               const name = shown && selectedAssets.find((a) => a.id === shown.assetId)?.name;
               return name ? <p className="meta">함께 전달: 지금 보는 자료 {name}{shown.page ? ` ${shown.page}쪽(화면 포함)` : ""}</p> : null;
             })()}
+            {suggestions.length ? <div className="command-menu" role="listbox" id="slash-commands" aria-label="앱 명령어 · CLI 전체 명령과 다름">
+              {suggestions.map((item, index) => <button type="button" role="option" id={`slash-option-${index}`} aria-selected={index === commandIndex % suggestions.length} aria-disabled={!item.supported} key={item.name} onMouseDown={e => e.preventDefault()} onClick={() => item.supported ? insertCommand(item.name) : setNotice(item.description)}><strong>{item.name}</strong><span>{item.description}</span></button>)}
+            </div> : null}
             <textarea
+              ref={composerInput}
               aria-label="메시지 입력"
+              aria-controls={suggestions.length ? 'slash-commands' : undefined}
+              aria-expanded={suggestions.length > 0}
+              aria-activedescendant={suggestions.length ? `slash-option-${commandIndex % suggestions.length}` : undefined}
               value={draft.text}
               placeholder={active.mode === "independent" ? "독립 세션에 보낼 내용" : "자료에 대해 물어보세요"}
-              onChange={(e) => setDraft(active.appSessionId, { ...draft, text: e.target.value })}
+              onChange={(e) => { setCommandIndex(0); setDismissedCommand(undefined); setDraft(active.appSessionId, { ...draft, text: e.target.value }); }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
+                if (e.nativeEvent.isComposing) return;
+                if (suggestions.length && !e.metaKey && !e.ctrlKey) {
+                  if (e.key === 'Escape') { e.preventDefault(); setDismissedCommand(`${activeId}:${draft.text}`); return; }
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setCommandIndex(i => (i + (e.key === 'ArrowDown' ? 1 : suggestions.length - 1)) % suggestions.length); return; }
+                  if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); const choice = suggestions[commandIndex % suggestions.length]!; if (choice.supported) insertCommand(choice.name); else setNotice(choice.description); return; }
+                }
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || (parseCommand(draft.text) && !e.shiftKey))) { e.preventDefault(); void send(); }
               }}
             />
             <div className="composer-actions">
               <button disabled={running || draft.attachments.length >= 8} title="로컬 파일 첨부" aria-label="로컬 파일 첨부" onClick={() => void prepare()}><Icon name="plus"/></button>
               {selectedAssets.map((asset) => <button key={asset.id} title={`자료 첨부: ${asset.name}`} aria-label={`자료 첨부: ${asset.name}`} disabled={running || draft.attachments.length >= 8} onClick={() => void prepare(asset.id)}><Icon name="book" /></button>)}
               <button disabled={running || draft.attachments.length >= 8} title="화면 캡처" aria-label="화면 캡처" onClick={() => void prepareCapture()}><Icon name="capture"/></button>
-              <button onClick={() => void send()} disabled={block !== undefined} aria-describedby="send-block" aria-label="보내기" title="보내기"><Icon name="send"/></button>
+              <button onClick={() => void send()} disabled={commandBusy || (parseCommand(draft.text) ? false : block !== undefined)} aria-describedby="send-block" aria-label="보내기" title="보내기"><Icon name="send"/></button>
             </div>
             <p id="send-block" className="meta">{block && block !== "empty" ? BLOCK_REASON[block] : "⌘+Enter로 보내기"}</p>
           </div>

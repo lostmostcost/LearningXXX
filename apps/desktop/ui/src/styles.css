@@ -87,5 +87,19 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .modify textarea { display: block; width: 100%; min-height: 72px; margin-bottom: 8px; box-sizing: border-box; }
 .modify pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+.media-demo { padding: 20px; max-width: 1280px; margin: auto; }
+.media-demo h1 { font-size: 22px; }
+.media-demo-options { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+.media-columns { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; }
+.media-detail { min-width: 0; }
+.media-detail audio, .media-detail video { display: block; width: 100%; max-height: 320px; margin: 8px 0; }
+.media-detail progress { margin: 0 8px; }
+.media-detail pre, .media-demo pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.media-detail button { margin: 4px; }
+.segment-list { padding-left: 20px; }
+.segment-list li { margin: 8px 0; }
+.segment-list li span { white-space: pre-wrap; }
+@media (max-width: 700px) { .media-columns { grid-template-columns: minmax(0, 1fr); } }
+
 .recordings { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
 .recordings audio { display: block; width: 100%; margin-top: 4px; }

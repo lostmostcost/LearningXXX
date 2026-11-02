@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { installFakeHost } from "./fake-host.ts";
 import { FIXTURE_MANIFEST } from "./fixtures.ts";
+import { TranscriptDemo } from "./TranscriptDemo.tsx";
 import "./styles.css";
 
 // `?fixture` in a plain browser: an in-memory host so the chat flow can be tried. Never inside the app.
@@ -12,6 +13,6 @@ const root = document.getElementById("root");
 if (root === null) throw new Error("missing root element");
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {new URLSearchParams(window.location.search).has("mediaFixture") && window.host === undefined ? <TranscriptDemo /> : <App />}
   </StrictMode>,
 );

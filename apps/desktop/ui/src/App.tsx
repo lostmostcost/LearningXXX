@@ -57,7 +57,7 @@ export function App() {
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
   const [courses, setCourses] = useState<Course[]>(FIXTURE_MODE ? [FIXTURE_MANIFEST.course] : []);
-  const courseRef = useRef<string | undefined>(undefined);
+  const courseRef = useRef<string | undefined>(FIXTURE_MODE ? FIXTURE_MANIFEST.course.id : undefined);
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
   const [location, setLocation] = useState<PageLocation>();
@@ -80,10 +80,13 @@ export function App() {
     if(epoch!==courseEpoch.current)return;
     setCourses(loaded.courses);
     setLibrary(loaded.library);
+    courseRef.current=loaded.library?.course.id;
   }, []);
 
   /** Switching courses closes the open material; sessions stay per course in the chat panel. */
   const chooseCourse = useCallback(async (courseId: string) => {
+    if(courseRef.current===courseId)return;
+    setLibrary(undefined);
     const epoch=++courseEpoch.current;
     courseRef.current = courseId;
     setSelectionRequest(undefined);setShownPage(undefined);setLocation(undefined);snapshot.current=undefined;setWeekIndex(0);

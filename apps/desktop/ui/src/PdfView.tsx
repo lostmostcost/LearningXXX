@@ -26,7 +26,8 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
   const [state, setState] = useState<PdfState>({ kind: "loading" });
   const [doc, setDoc] = useState<PDFDocumentProxy>();
   const [page, setPage] = useState(1);
-  const [zoomIndex, setZoomIndex] = useState(2);
+  const [manualZoom,setManualZoom]=useState(1);
+  const effectiveZoom=useRef(1);
   const [fit,setFit]=useState<"page"|"width"|"manual">("page");
   const [bounds,setBounds]=useState({width:600,height:700});
   const viewportBox=useRef<HTMLDivElement>(null);
@@ -75,7 +76,8 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
       const pdfPage = await doc.getPage(page);
       if (cancelled) return;
       const base=pdfPage.getViewport({scale:1});
-      const zoom = fit==='manual'?(ZOOMS[zoomIndex]??1):Math.max(.1,Math.min((bounds.width-8)/base.width,fit==='page'?(bounds.height-8)/base.height:Infinity)), ratio = window.devicePixelRatio || 1;
+      const zoom = fit==='manual'?manualZoom:Math.max(.1,Math.min((bounds.width-8)/base.width,fit==='page'?(bounds.height-8)/base.height:Infinity)), ratio = window.devicePixelRatio || 1;
+      effectiveZoom.current=zoom;
       const viewport = pdfPage.getViewport({ scale: zoom });
       const pixels = pdfPage.getViewport({ scale: zoom * ratio });
       wrapper.style.setProperty("--total-scale-factor", String(zoom * pdfPage.userUnit));
@@ -97,7 +99,7 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
       if (!cancelled) { layer.replaceChildren(); setRendering(false); setPageError("이 쪽을 표시하지 못했습니다. 쪽 이동이나 확대/축소 후 다시 확인하세요."); }
     });
     return () => { cancelled = true; task?.cancel(); textTask?.cancel(); };
-  }, [doc, page, zoomIndex,fit,bounds]);
+  }, [doc, page, manualZoom,fit,bounds]);
 
   useEffect(() => {
     if (state.kind === "ready") onPage?.(assetId, page);
@@ -131,7 +133,7 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
 
   if (state.kind === "loading") return <p role="status">PDF를 여는 중입니다…</p>;
   if (state.kind !== "ready") return <p role="alert" className="notice-box">{PDF_MESSAGES[state.kind]}</p>;
-  const zoom = ZOOMS[zoomIndex] ?? 1;
+  const zoom = manualZoom;
   return (
     <div className="pdf">
       {state.hasText ? null : <p role="note" className="notice-box">{PDF_MESSAGES.noText}</p>}
@@ -139,9 +141,9 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
         <button onClick={() => setPage((p) => p - 1)} disabled={page <= 1} aria-label="이전 쪽">‹</button>
         <span aria-live="polite">{page} / {state.pageCount} 쪽</span>
         <button onClick={() => setPage((p) => p + 1)} disabled={page >= state.pageCount} aria-label="다음 쪽">›</button>
-        <button onClick={() => {setFit("manual");setZoomIndex((z) => z - 1);}} disabled={zoomIndex <= 0} aria-label="축소">−</button>
-        <button onClick={() => {setFit("manual");setZoomIndex(2);}} aria-label="원래 크기">{fit==='manual'?`${Math.round(zoom*100)}%`:'자동'}</button>
-        <button onClick={() => {setFit("manual");setZoomIndex((z) => z + 1);}} disabled={zoomIndex >= ZOOMS.length - 1} aria-label="확대">+</button>
+        <button onClick={() => {setFit("manual");setManualZoom(Math.max(.1,effectiveZoom.current/1.2));}} disabled={fit==='manual'&&manualZoom<=.1} aria-label="축소">−</button>
+        <button onClick={() => {setFit("manual");setManualZoom(1);}} aria-label="원래 크기">{fit==='manual'?`${Math.round(zoom*100)}%`:'자동'}</button>
+        <button onClick={() => {setFit("manual");setManualZoom(Math.min(3,effectiveZoom.current*1.2));}} disabled={fit==='manual'&&manualZoom>=3} aria-label="확대">+</button>
       </div>
       <div className="fit-tools"><button aria-pressed={fit==='page'} onClick={()=>setFit("page")}>페이지 맞춤</button><button aria-pressed={fit==='width'} onClick={()=>setFit("width")}>폭 맞춤</button></div>
       <div className="selection-actions" role="toolbar" aria-label="선택 텍스트 도구">

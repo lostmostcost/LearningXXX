@@ -20,6 +20,7 @@ queued → running → succeeded / failed / cancelled. source hash+engine+parame
 TranscriptSegment: startMs, endMs, text, confidence?; 화자 분리는 MVP 필수로 가정하지 않는다. 원문 타임스탬프와 연결하여 해당 구간을 재생한다. 수정 전사본은 원본 엔진 출력과 구분한다.
 
 ## 엔진·비용·위치
+결정(2026-11-02, ADR-003): Qwen3-ASR 1.7B를 각자의 Mac에서 MLX로 실행하고 녹음을 외부로 보내지 않는다. 개선은 용어 힌트·규칙 정리(자동)와 요청 시 Claude 보정본(별도 버전)으로 한다. 아래는 결정 전 기준으로 남긴다.
 STT 엔진과 Mac/서버 실행 위치는 아직 선택하지 않았다. 짧은 실제 표본으로 한국어·전문용어·긴 침묵·노이즈·처리시간·메모리·디스크를 비교한다. AI 채팅 구독 로그인 요건은 별도 STT 서비스의 무료 사용을 뜻하지 않는다. 기본 검토는 로컬 처리 후보이며 유료 외부 STT가 필요하면 비용·전송 범위를 새 결정으로 명시한다.
 
 ## UX와 실패

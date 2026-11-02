@@ -3,6 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
+import { MediaAsset, Recording } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -156,6 +157,37 @@ export const IpcChannels = {
     request: z.object({ runId: Id }),
     response: z.object({ run: Run }),
   },
+  /**
+   * REQ-007 (WBS-023). The host checks microphone permission and free space,
+   * then the renderer captures 16 kHz mono PCM and sends it in chunks.
+   */
+  "recording.start": {
+    request: z.object({ courseId: Id, title: z.string().trim().min(1).max(200).optional() }),
+    response: z.object({ recording: Recording }),
+  },
+  /** One chunk of 16-bit little-endian PCM, appended and flushed before the answer. `seq` starts at 0. */
+  "recording.chunk": {
+    request: z.object({
+      recordingId: Id,
+      seq: z.number().int().nonnegative(),
+      pcm: z.instanceof(Uint8Array).refine((b) => b.byteLength > 0 && b.byteLength <= 2_000_000 && b.byteLength % 2 === 0, "pcm chunk"),
+    }),
+    response: z.object({ savedMs: z.number().int().nonnegative() }),
+  },
+  /** Ends the recording and confirms the original; `reason` says why it stopped when the user did not. */
+  "recording.stop": {
+    request: z.object({ recordingId: Id, reason: z.enum(["user", "device_lost", "app_closing"]).optional() }),
+    response: z.object({ recording: Recording, asset: MediaAsset.optional() }),
+  },
+  "recording.list": {
+    request: z.object({ courseId: Id }),
+    response: z.object({ recordings: z.array(Recording), assets: z.array(MediaAsset) }),
+  },
+  /** The stored original, re-hashed before it is handed out, for playback. */
+  "media.asset": {
+    request: z.object({ assetId: Id }),
+    response: z.object({ mediaType: z.string().min(1), bytes: z.instanceof(Uint8Array) }),
+  },
   /** REQ-011. Also tells a freshly restarted app that its renderer really came up. */
   "modify.status": {
     request: z.object({}),
@@ -186,6 +218,8 @@ export const HostPush = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("run.event"), event: RunEvent }),
   z.object({ kind: z.literal("collection.progress"), syncRun: SyncRun }),
   z.object({ kind: z.literal("modify.job"), job: ModifyJob }),
+  /** The host stopped a recording on its own (sleep, low disk): the renderer stops capturing. */
+  z.object({ kind: z.literal("recording.stopped"), recording: Recording, asset: MediaAsset.optional() }),
 ]);
 export type HostPush = z.infer<typeof HostPush>;
 

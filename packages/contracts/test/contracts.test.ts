@@ -113,6 +113,11 @@ describe("producer → consumer round trip", () => {
       "session.rename": { appSessionId: sid, title: "이름" },
       "session.archive": { appSessionId: sid, archived: true },
       "session.transcript": { appSessionId: sid },
+      "recording.start": { courseId: sid },
+      "recording.chunk": { recordingId: sid, seq: 0, pcm: new Uint8Array(4) },
+      "recording.stop": { recordingId: sid },
+      "recording.list": { courseId: sid },
+      "media.asset": { assetId: sid },
       "captures.start": { appSessionId: sid },
       "attachments.chooseLocal": { appSessionId: sid },
       "attachments.prepareAsset": { appSessionId: sid, courseId: sid, assetId: sid },
@@ -140,7 +145,8 @@ describe("producer → consumer round trip", () => {
     };
     for (const channel of Object.keys(C.IpcChannels) as C.IpcChannel[]) {
       const schema = C.IpcChannels[channel].request as z.ZodType;
-      assert.ok(schema.safeParse(JSON.parse(JSON.stringify(samples[channel]))).success, channel);
+      // Electron IPC uses structured clone, which keeps Uint8Array (PCM chunks) intact.
+      assert.ok(schema.safeParse(structuredClone(samples[channel])).success, channel);
     }
   });
 });

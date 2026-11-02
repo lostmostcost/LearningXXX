@@ -84,3 +84,15 @@
 | 비교 대상을 whisper.cpp turbo와 Qwen3-ASR 1.7B로 좁힘 | Raon-Speech는 16GB Mac 초과·비상업 라이선스, Soniox는 클라우드 전용 | — |
 | Qwen3-ASR 1.7B 채택(이문찬: "qwen으로 정하고") | 대면 녹음 정확도가 뚜렷이 높음. 속도·메모리 2배는 백그라운드 자동 전사라 수용 | ADR-003 갱신 |
 | 실험 도구는 저장소 밖 가상환경(`.learningxxx-toolchain/stt`)에 설치, 녹음·전사는 저장소 밖에만 | 전역 설치 금지, 비공개 강의 내용 커밋 금지 | — |
+
+## WBS-023 대면 강의 녹음
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 렌더러가 AudioWorklet으로 16kHz 모노 PCM을 잡아 약 2초마다 host로 보내고, host가 한 파일에 덧붙인 뒤 매번 fsync | 강제 종료 시 잃는 것은 전송 중인 2초뿐. MediaRecorder WebM은 전사 엔진의 afconvert가 읽지 못함 | PR revert |
+| 멈추면 PCM → WAV → macOS `afconvert` AAC(.m4a, 48kbps)로 원본 확정, 실패하면 WAV를 원본으로 | 75분 강의가 WAV 약 145MB → m4a 약 27MB. 둘 다 전사 엔진이 읽음 | — |
+| 원본은 sha256 이름으로 `media/originals/`에 저장, 작업용 PCM은 확정 후 삭제 | 원본 덮어쓰기·중복 방지 | — |
+| 앱 재시작 시 `recording` 상태로 남은 녹음은 디스크까지 간 부분으로 `recovered_partial` 확정, 0바이트면 failed(RECORDING_INTERRUPTED) | SPEC-004 강제 종료 복구 | — |
+| 시작 시 500MB 미만이면 시작 거부, 녹음 중 100MB 미만이면 멈추고 저장(DISK_FULL), Mac 잠자기 전 멈추고 저장, 마이크 연결 끊기면 멈추고 저장 | 손실 범위를 명확히 | — |
+| 권한 요청 처리기: 렌더러의 media 권한은 앱 페이지의 오디오만 허용(카메라·화면 거부), 다른 권한은 기존 동작 유지 | 마이크만 필요 | — |
+| 원본 확정 시 `onOriginalConfirmed` 훅만 노출(현재 no-op), 전사 연결은 WBS-025에서 | 두 작업 병렬 진행, 파일 겹침 방지 | — |

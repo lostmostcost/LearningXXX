@@ -86,3 +86,6 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .modify { padding: 12px 16px; border-bottom: 1px solid var(--line); max-height: 60vh; overflow: auto; }
 .modify textarea { display: block; width: 100%; min-height: 72px; margin-bottom: 8px; box-sizing: border-box; }
 .modify pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.recordings { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.recordings audio { display: block; width: 100%; margin-top: 4px; }

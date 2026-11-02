@@ -80,3 +80,5 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .signin label { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
 .signin input { font: inherit; padding: 4px 6px; }
 .signin button { margin-right: 6px; }
+.course-picker { font-size: 12px; color: var(--muted); }
+.course-picker select { font: inherit; max-width: 16em; }

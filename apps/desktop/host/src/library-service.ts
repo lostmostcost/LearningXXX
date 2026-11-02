@@ -13,7 +13,7 @@ import {
 } from "@learningxxx/collector";
 import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
-/** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). More courses are added here. */
+/** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). Used when the enrolled courses cannot be listed. */
 export const DEFAULT_SOURCE_COURSES: readonly string[] = ["95899"];
 
 export interface LibraryServiceOptions {
@@ -24,6 +24,8 @@ export interface LibraryServiceOptions {
   /** Lecture materials through the same sign-in (WBS-039). */
   learningx?: () => LearningXClient;
   sourceCourseIds?: readonly string[];
+  /** Lists the enrolled courses for "collect all" (WBS-041); `sourceCourseIds` is the fallback. */
+  discoverCourses?: (client: CanvasClient) => Promise<string[]>;
   /** Pushed to the renderer: `running` first, then each final run. */
   onProgress?: (run: SyncRun) => void;
   /** Shown when the LMS says the sign-in is missing or expired. */
@@ -116,7 +118,7 @@ export class LibraryService {
       if (!known) fail("NOT_FOUND", "이 과목은 아직 수집한 적이 없습니다. 전체 수집을 실행하세요.");
       targets = [known.sourceCourseId];
     } else {
-      targets = [...(this.#o.sourceCourseIds ?? DEFAULT_SOURCE_COURSES)];
+      targets = [];
     }
     const marker = randomUUID();
     this.#running.add(marker);
@@ -125,12 +127,26 @@ export class LibraryService {
       const client = this.#o.client();
       // CollectionError carries `appError`, which the router passes to the renderer as is.
       const accountKey = await this.#resolveAccount(client);
+      if (targets.length === 0) targets = await this.#allCourses(client);
       const ids = targets.map(() => (this.#o.newId ?? randomUUID)());
       void this.#collectAll(client, accountKey, targets, ids).finally(() => this.#running.delete(marker));
       return { syncRunId: ids[0]! };
     } catch (error) {
       this.#running.delete(marker);
       throw error;
+    }
+  }
+
+  /** Enrolled courses when they can be listed; otherwise the configured ones, so collection still runs. */
+  async #allCourses(client: CanvasClient): Promise<string[]> {
+    const fallback = [...(this.#o.sourceCourseIds ?? DEFAULT_SOURCE_COURSES)];
+    if (!this.#o.discoverCourses) return fallback;
+    try {
+      const found = await this.#o.discoverCourses(client);
+      return found.length > 0 ? found : fallback;
+    } catch (error) {
+      if (error instanceof CollectionError && error.appError.code === "AUTH_REQUIRED") throw error;
+      return fallback;
     }
   }
 

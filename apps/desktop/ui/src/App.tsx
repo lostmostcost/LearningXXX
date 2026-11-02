@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Course } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
@@ -16,13 +17,14 @@ import type { PageLocation, SelectedText, SelectionIntent, SelectionRequest } fr
 const FIXTURE_MODE = new URLSearchParams(window.location.search).has("fixture");
 const IN_APP = window.host !== undefined;
 
-/** The first course with collected material, read from disk by the host; works offline. */
-async function loadLocalLibrary(): Promise<Library | undefined> {
-  const courses = await invoke("library.courses", {});
-  const course = courses.ok ? courses.data.courses[0] : undefined;
-  if (!course) return undefined;
+/** Collected courses and the chosen one's material (the first by default), read from disk by the host; works offline. */
+async function loadLocalLibrary(courseId?: string): Promise<{ courses: Course[]; library?: Library }> {
+  const listed = await invoke("library.courses", {});
+  const courses = listed.ok ? listed.data.courses : [];
+  const course = courses.find((c) => c.id === courseId) ?? courses[0];
+  if (!course) return { courses };
   const result = await invoke("library.manifest", { courseId: course.id });
-  return result.ok && result.data.manifest ? buildLibrary(result.data.manifest) : undefined;
+  return result.ok && result.data.manifest ? { courses, library: buildLibrary(result.data.manifest) } : { courses };
 }
 
 function useWindowWidth(): number {
@@ -42,6 +44,8 @@ export function App() {
   const [collecting, setCollecting] = useState(false);
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const courseRef = useRef<string | undefined>(undefined);
   const [activeSessionId, setActiveSessionId] = useState<string>();
   const [selectionRequest, setSelectionRequest] = useState<SelectionRequest>();
   const [location, setLocation] = useState<PageLocation>();
@@ -52,7 +56,17 @@ export function App() {
   const refresh = useCallback(async () => {
     const result = await invoke("collection.status", {});
     setStatus(result.ok ? syncStatusText(result.data) : result.error.message);
-    setLibrary(await loadLocalLibrary());
+    const loaded = await loadLocalLibrary(courseRef.current);
+    setCourses(loaded.courses);
+    setLibrary(loaded.library);
+  }, []);
+
+  /** Switching courses closes the open material; sessions stay per course in the chat panel. */
+  const chooseCourse = useCallback(async (courseId: string) => {
+    courseRef.current = courseId;
+    setSelected(undefined);
+    setActiveSessionId(undefined);
+    setLibrary((await loadLocalLibrary(courseId)).library);
   }, []);
 
   useEffect(() => {
@@ -133,6 +147,13 @@ export function App() {
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
+        {courses.length > 1 && library ? (
+          <label className="course-picker">과목{" "}
+            <select value={library.course.id} onChange={(e) => void chooseCourse(e.target.value)}>
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </label>
+        ) : null}
         <span>{library ? library.course.title : "과목 없음"} · {activeSessionId ? "세션 선택됨" : "세션 없음"}</span>
         {narrow ? (
           <div role="tablist" aria-label="화면 전환">

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { AppError, Course, Week } from "@learningxxx/contracts";
-import { CanvasClient, CollectionError, discoverCourse } from "../src/index.ts";
+import { CanvasClient, CollectionError, discoverCourse, listActiveCourses } from "../src/index.ts";
 import { nextLink } from "../src/canvas-client.ts";
 
 const BASE = "https://lms.example.test";
@@ -165,4 +165,19 @@ test("refuses a course ID that could alter the request path", async () => {
 test("nextLink ignores other relations", () => {
   assert.equal(nextLink('<https://a.test/1>; rel="last"', "https://a.test"), undefined);
   assert.equal(nextLink(null, "https://a.test"), undefined);
+});
+
+test("active courses: only named, unrestricted student courses, in Canvas order (WBS-041)", async () => {
+  const { fetch } = server({
+    "/api/v1/courses?enrollment_state=active&enrollment_type=student&per_page=100": {
+      body: JSON.stringify([
+        { id: 95899, name: "논리회로" },
+        { id: 97001, name: "자료구조" },
+        { id: 97002, access_restricted_by_date: true },
+        { id: 97003, name: "잠긴 과목", access_restricted_by_date: true },
+        { id: 95899, name: "중복" },
+      ]),
+    },
+  });
+  assert.deepEqual(await listActiveCourses(client(fetch)), ["95899", "97001"]);
 });

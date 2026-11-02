@@ -4,7 +4,7 @@ export { KHU_COMMONS_BASE_URL, LearningXClient, validPayload } from "./learningx
 export type { LearningXClientOptions } from "./learningx.ts";
 export { createDirectoryStore } from "./asset-store.ts";
 export type { AssetStore, StoredAsset } from "./asset-store.ts";
-export { discoverCourse } from "./discovery.ts";
+export { discoverCourse, listActiveCourses } from "./discovery.ts";
 export type { DiscoveredCourse, DiscoveryInput } from "./discovery.ts";
 export { CollectionError } from "./errors.ts";
 export { collectResources, toUtc } from "./resources.ts";

@@ -1127,6 +1127,35 @@
       "qa_mode": "appropriate_checks_only",
       "scope_note": "2026-11-01 이문찬 자율 진행 위임. host·ui·contracts는 영역 밖 예외(결정 기록 docs/pm/decision-log.md).",
       "url": "https://app.notion.com/p/40bbd7ec20cd81d39b8ad4e8d1f015f9"
+    },
+    {
+      "id": "WBS-041",
+      "title": "수강 과목 전체 수집·과목 전환",
+      "phase": "A 핵심경험",
+      "priority": "P1",
+      "deps": [
+        "WBS-039"
+      ],
+      "areas": [
+        "collector",
+        "lms-auth"
+      ],
+      "paths": [
+        "packages/collector/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "수집 실행이 현재 수강 중인 학생 과목 전체를 수집하고(목록 실패 시 기존 과목으로 대체), 과목이 둘 이상이면 상단에서 과목을 전환한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-041-all-courses",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd81d894f1c98683853928",
+      "scope_note": "2026-11-02 자율 진행 위임. host·ui는 영역 밖 예외(docs/pm/decision-log.md)."
     }
   ],
   "qaPolicy": {

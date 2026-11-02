@@ -41,6 +41,18 @@ export function canRequest(job: ModifyJob | undefined): boolean {
   return job === undefined || ["applied", "rolled_back", "discarded"].includes(job.status);
 }
 
+/** Retrying is the same action, but it must not read as if nothing happened. */
+export function actionLabel(action: ModifyAction, status: ModifyStatus): string {
+  return action === "verify" && status === "verify_failed" ? "다시 검증" : ACTION_LABEL[action];
+}
+
+/** The lines of a long check log that say what actually broke. */
+export function failureLines(log: string): string[] {
+  // The test runner prints each failure again in its summary.
+  const lines = log.split("\n").filter((line) => /error TS\d+|✖|AssertionError|not ok /.test(line)).map((line) => line.trim());
+  return [...new Set(lines)].slice(0, 5);
+}
+
 export const ACTION_LABEL: Record<ModifyAction, string> = {
   cancel: "취소",
   verify: "Docker에서 검증",

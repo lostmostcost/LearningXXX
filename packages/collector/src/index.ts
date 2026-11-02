@@ -19,3 +19,7 @@ export { DEFAULT_RETRY, withRetry } from "./retry.ts";
 export type { RetryPolicy } from "./retry.ts";
 export { acquireCourseLock, recoverInterruptedRuns, STALE_LOCK_MS } from "./run-lock.ts";
 export type { CourseLock } from "./run-lock.ts";
+export { createCommonsVideoResolver } from "./video-source.ts";
+export type { CommonsVideoOptions, VideoSource } from "./video-source.ts";
+export { downloadVideo } from "./video-download.ts";
+export type { VideoDownloadInput } from "./video-download.ts";

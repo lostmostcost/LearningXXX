@@ -1,7 +1,8 @@
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CanvasClient, CollectionError, listActiveCourses } from "@learningxxx/collector";
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, systemPreferences } from "electron";
+import { statfsSync } from "node:fs";
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -21,6 +22,7 @@ import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
 import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
+import { RecordingService } from "./recording-service.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -171,7 +173,35 @@ app.whenReady().then(async () => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "modify.job", job });
     },
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier));
+  const recordings = new RecordingService({
+    dataRoot,
+    micPermission: async () => {
+      const status = systemPreferences.getMediaAccessStatus("microphone");
+      if (status === "granted") return "granted";
+      if (status === "not-determined") return (await systemPreferences.askForMediaAccess("microphone")) ? "granted" : "denied";
+      return "denied";
+    },
+    freeBytes: (path) => {
+      const stats = statfsSync(path);
+      return stats.bavail * stats.bsize;
+    },
+    // WBS-025 connects transcription here.
+    onOriginalConfirmed: () => undefined,
+    onStopped: (recording, asset) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "recording.stopped", recording, ...(asset ? { asset } : {}) });
+    },
+  });
+  // Recordings cut off by a quit or crash are confirmed from what reached the disk.
+  void recordings.recover().catch(() => undefined);
+  // A sleeping Mac stops capturing; keep what was recorded as a finished original.
+  powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
+  // The renderer may use the microphone (audio only) for recording; no camera, no screen.
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    if (permission !== "media") return callback(true);
+    const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
+    callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
+  });
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

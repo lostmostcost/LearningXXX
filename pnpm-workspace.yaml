@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/desktop/*
+  - services/transcriber
 # Supply-chain guard: only resolve versions published at least 14 days ago (minutes).
 minimumReleaseAge: 20160
 # No dependency install scripts run. The Electron binary is fetched explicitly on the Mac.

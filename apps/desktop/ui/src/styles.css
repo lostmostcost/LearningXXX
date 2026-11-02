@@ -100,3 +100,6 @@ blockquote { margin: 0 0 4px; padding-left: 8px; border-left: 3px solid var(--li
 .segment-list li { margin: 8px 0; }
 .segment-list li span { white-space: pre-wrap; }
 @media (max-width: 700px) { .media-columns { grid-template-columns: minmax(0, 1fr); } }
+
+.recordings { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.recordings audio { display: block; width: 100%; margin-top: 4px; }

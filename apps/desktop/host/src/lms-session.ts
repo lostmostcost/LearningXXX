@@ -1,29 +1,29 @@
 import { CanvasClient, KHU_CANVAS_BASE_URL, LearningXClient } from "@learningxxx/collector";
 import { BrowserWindow, session } from "electron";
+import { KHU_LOGIN_URL, type SchoolLoginDeps } from "./school-login.ts";
 import { isAllowedLoginUrl, LOGIN_WEB_PREFERENCES } from "./window-options.ts";
 
 /**
  * School sign-in lives in this Electron session, kept apart from the app UI.
- * Requests go through it, so this code never handles a credential and
- * the session survives restarts in Electron's own encrypted store.
+ * The school's cookies end when the app quits; saved sign-in details or a
+ * Canvas token (credential-store.ts) re-create or replace them (WBS-040).
  */
 const LMS_PARTITION = "persist:lms";
 
-export function createLmsClient(): CanvasClient {
+/**
+ * Canvas through the sign-in session, or with the user's own Canvas access
+ * token when one is saved (WBS-040): the token does not expire when the app quits.
+ */
+export function createLmsClient(canvasToken: () => string | undefined = () => undefined): CanvasClient {
   const lms = session.fromPartition(LMS_PARTITION);
   return new CanvasClient({
-    getAuthHeaders: async () => ({}),
+    getAuthHeaders: async () => {
+      const token = canvasToken();
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
     fetch: ((input, init) => lms.fetch(String(input), init)) as typeof globalThis.fetch,
   });
 }
-
-/**
- * School SSO entry that returns through LearningX, so one sign-in sets both the
- * Canvas session and the LearningX token (`xn_api_token`, about 2 hours).
- */
-export const KHU_LOGIN_URL =
-  "https://e-campus.khu.ac.kr/xn-sso/login.php?auto_login=&sso_only=&cvs_lgn=true&return_url=" +
-  encodeURIComponent(`https://e-campus.khu.ac.kr/xn-sso/gw-cb.php?from=web_redirect&login_type=standalone&return_url=${encodeURIComponent(`${KHU_CANVAS_BASE_URL}/learningx/login`)}`);
 
 const LEARNINGX_TOKEN = "xn_api_token";
 
@@ -37,7 +37,7 @@ function tokenUsable(token: string, now = Date.now()): boolean {
   }
 }
 
-async function learningxToken(): Promise<string | undefined> {
+export async function learningxToken(): Promise<string | undefined> {
   const [cookie] = await session.fromPartition(LMS_PARTITION).cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN });
   return cookie && tokenUsable(cookie.value) ? cookie.value : undefined;
 }
@@ -49,6 +49,16 @@ export function createLearningXClient(): LearningXClient {
     getToken: learningxToken,
     fetch: ((input, init) => lms.fetch(String(input), init)) as typeof globalThis.fetch,
   });
+}
+
+/** What the saved-details sign-in needs: this session's fetch, one cookie read, and the LearningX check. */
+export function schoolLoginDeps(): SchoolLoginDeps {
+  const lms = session.fromPartition(LMS_PARTITION);
+  return {
+    fetch: ((input, init) => lms.fetch(String(input), init)) as typeof globalThis.fetch,
+    cookie: async (url, name) => (await lms.cookies.get({ url, name }))[0]?.value,
+    signedIn: async () => (await learningxToken()) !== undefined,
+  };
 }
 
 export function openLoginWindow(): BrowserWindow {

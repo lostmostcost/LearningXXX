@@ -1099,6 +1099,34 @@
       "qa_mode": "appropriate_checks_only",
       "scope_note": "2026-11-01 사용자 지시로 khu-ecampus-archive(개인 아카이빙 스킬)의 LearningX→Commons 흐름을 참고해 새로 구현. khu-lecture-recorder는 열지 않음. 실제 LMS 5차 진단으로 흐름 확인(모듈 200, PDF 4.1MB %PDF). 영역 밖 예외(이문찬 결정): AGENTS.md·SPEC-001에 khu-ecampus-archive 참고 허용 문구 각 1줄, apps/desktop/host/ 로그인 창·LearningX 연결 최소 수정.",
       "url": "https://app.notion.com/p/40bbd7ec20cd814d9da6c94f2b7cec73"
+    },
+    {
+      "id": "WBS-040",
+      "title": "저장된 로그인 정보로 자동 로그인(키체인)",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-039"
+      ],
+      "areas": [
+        "lms-auth"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "학번·비밀번호와 Canvas 토큰을 키체인 키로 암호화해 이 Mac에만 저장한다. 저장 전 학교·Canvas에 한 번 확인하고, 수집 전 세션이 만료됐으면 한 번 자동 로그인한다. 거부된 비밀번호는 다시 저장할 때까지 재시도하지 않는다. 값은 렌더러·로그로 나가지 않는다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-040-auto-login",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-01 이문찬 자율 진행 위임. host·ui·contracts는 영역 밖 예외(결정 기록 docs/pm/decision-log.md).",
+      "url": "https://app.notion.com/p/40bbd7ec20cd81d39b8ad4e8d1f015f9"
     }
   ],
   "qaPolicy": {

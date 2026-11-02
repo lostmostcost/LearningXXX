@@ -1305,6 +1305,34 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd81598838fb2c54919081",
       "scope_note": "2026-11-02 WBS-044 사용 중 발견(이문찬). host에 pdfjs-dist 의존성 추가(lockfile). 자율 진행 위임에 따른 영역 밖 예외."
+    },
+    {
+      "id": "WBS-046",
+      "title": "전사 큐 엔진 버전·취소·알림 경계 결함 수정",
+      "phase": "B 전사",
+      "priority": "P0",
+      "deps": [
+        "WBS-025"
+      ],
+      "areas": [
+        "transcriber",
+        "shared"
+      ],
+      "paths": [
+        "services/transcriber/",
+        "docs/pm/wbs.json"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "엔진/파라미터 불일치 이전 job을 새 엔진으로 실행하지 않고 이전 결과를 보존한다. 취소/종료 후 늦은 결과와 진행을 반영하지 않는다. 알림 콜백 오류가 작업/큐를 손상시키지 않는다. 회귀 및 자체 리뷰를 기록한다.",
+      "status": "Review",
+      "branch": "fix/WBS-046-queue-boundaries",
+      "url": "https://app.notion.com/p/40cbd7ec20cd813bbde4f335183ed646",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "2026-11-02 다음 병렬 작업 사용자 지시로 발견한 SPEC-004 기존 수용 조건의 결함 수정. WBS-025 Done/8226e1e 기준. 026 UI 및 027 의존성 변경 없음. shared는 docs/pm/wbs.json의 이 작업 등록만. 제품 명세/API/lockfile/host/UI 변경 없음."
     }
   ],
   "qaPolicy": {

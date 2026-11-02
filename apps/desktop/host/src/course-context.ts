@@ -50,6 +50,7 @@ export function courseBrief(manifest: CollectionManifest, materials?: { dir: str
     materials?.entries.length
       ? [
           `자료 파일(→ 뒤 경로)은 읽기 전용 자료 폴더 \`${materials.dir}\` 안에 있습니다. 필요하면 Read로 직접 여세요.`,
+          "PDF는 같은 경로에 `.pdf.txt`(쪽별 텍스트, `=== N쪽 ===`으로 구분)가 있으면 그 파일을 먼저 읽으세요. PDF를 직접 여는 것보다 빠르고, 큰 PDF도 읽을 수 있습니다. 그림·도표는 텍스트에 없으니 필요하면 그렇다고 말하세요.",
           "이 폴더의 파일은 고치지 마세요. 정리·요약 결과는 작업 폴더(현재 폴더)나 사용자가 추가한 외부 폴더에 새 파일로 씁니다.",
           "사용자 메시지에 '지금 보고 있는 자료'가 붙어 있으면 '이 자료', '여기'는 그 파일(과 쪽)을 뜻합니다.",
         ].join("\n")

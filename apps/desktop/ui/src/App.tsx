@@ -13,6 +13,7 @@ import { openPdfInBrowser } from "./pdf-browser.ts";
 import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
+import type { PageSnapshot } from "./PdfView.tsx";
 import type { PageLocation, SelectedText, SelectionIntent, SelectionRequest } from "./selection.ts";
 
 /** `?fixture` shows the synthetic course (WBS-013); otherwise material comes from the host's local library (WBS-012). */
@@ -53,6 +54,9 @@ export function App() {
   const [location, setLocation] = useState<PageLocation>();
   const [shownPage, setShownPage] = useState<{ assetId: string; page: number }>();
   const onPage = useCallback((assetId: string, page: number) => setShownPage({ assetId, page }), []);
+  const snapshot = useRef<PageSnapshot | undefined>(undefined);
+  const onSnapshot = useCallback((s: PageSnapshot | undefined) => { snapshot.current = s; }, []);
+  const snapshotPage = useCallback(() => snapshot.current?.() ?? Promise.resolve(undefined), []);
   const [modifying, setModifying] = useState(false);
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
@@ -181,12 +185,12 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} />
+          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "채팅", window.host ? (
           <ChatPanel courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId}
             selectedAssets={selected?.assets.map((a) => ({ id: a.id, name: a.originalName })) ?? []}
-            viewing={viewingOf(selected?.assets.map((a) => a.id) ?? [], shownPage)} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
+            viewing={viewingOf(selected?.assets.map((a) => a.id) ?? [], shownPage)} snapshotPage={snapshotPage} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} onOpenSelection={openSelection} />
         ) : (
           <>
             <h2>채팅</h2>

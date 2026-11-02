@@ -1,6 +1,7 @@
 import { chmodSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import type { CollectionManifest } from "@learningxxx/contracts";
+import { pageTextFile } from "./pdf-text.ts";
 
 /** One collected file and where it appears in the course's materials folder. */
 export interface MaterialEntry {
@@ -9,6 +10,8 @@ export interface MaterialEntry {
   path: string;
   sha256: string;
   storageKey: string;
+  /** For a PDF: `<path>.txt`, its text page by page, when it could be read. */
+  textPath?: string;
 }
 
 /** Names people recognise, safe as one path component on macOS. */
@@ -48,12 +51,19 @@ const INDEX = ".learningxxx-materials.json";
  * originals (APFS clones, so no extra space). The AI may read them; the
  * originals in the library are never exposed. Unchanged files are left alone,
  * removed ones are deleted, and a file whose original fails verification is
- * left out rather than shown stale. Returns the entries actually present.
+ * left out rather than shown stale. Each PDF also gets `<name>.pdf.txt` with
+ * its text page by page, made once per version. Returns the entries actually
+ * present.
  */
 export async function syncMaterials(
   dir: string,
   entries: readonly MaterialEntry[],
-  source: { path: (storageKey: string) => string; verify: (storageKey: string, sha256: string) => Promise<boolean> },
+  source: {
+    path: (storageKey: string) => string;
+    verify: (storageKey: string, sha256: string) => Promise<boolean>;
+    /** Text of each page of a PDF; without it no text files are made. */
+    pageTexts?: (bytes: Uint8Array) => Promise<string[]>;
+  },
 ): Promise<MaterialEntry[]> {
   mkdirSync(dir, { recursive: true });
   const indexFile = `${dir}${INDEX}`; // beside the folder, not in it
@@ -67,18 +77,33 @@ export async function syncMaterials(
   const next: Record<string, string> = {};
   for (const entry of entries) {
     const target = join(dir, ...entry.path.split("/"));
-    if (index[entry.path] === entry.sha256 && existsSync(target)) {
+    if (index[entry.path] !== entry.sha256 || !existsSync(target)) {
+      rmSync(target, { force: true });
+      if (!(await source.verify(entry.storageKey, entry.sha256))) continue;
+      mkdirSync(join(target, ".."), { recursive: true });
+      copyFileSync(source.path(entry.storageKey), target, constants.COPYFILE_FICLONE);
+      chmodSync(target, 0o444);
+    }
+    next[entry.path] = entry.sha256;
+    const textPath = `${entry.path}.txt`;
+    const textFile = join(dir, ...textPath.split("/"));
+    if (!entry.path.toLowerCase().endsWith(".pdf") || !source.pageTexts) {
       present.push(entry);
-      next[entry.path] = entry.sha256;
       continue;
     }
-    rmSync(target, { force: true });
-    if (!(await source.verify(entry.storageKey, entry.sha256))) continue;
-    mkdirSync(join(target, ".."), { recursive: true });
-    copyFileSync(source.path(entry.storageKey), target, constants.COPYFILE_FICLONE);
-    chmodSync(target, 0o444);
-    present.push(entry);
-    next[entry.path] = entry.sha256;
+    if (index[textPath] !== entry.sha256 || !existsSync(textFile)) {
+      rmSync(textFile, { force: true });
+      try {
+        const pages = await source.pageTexts(new Uint8Array(readFileSync(target)));
+        writeFileSync(textFile, pageTextFile(entry.path.split("/").pop()!, pages), { mode: 0o444 });
+      } catch {
+        // An unreadable PDF still shows up; it just has no text file.
+        present.push(entry);
+        continue;
+      }
+    }
+    next[textPath] = entry.sha256;
+    present.push({ ...entry, textPath });
   }
   // Whatever is not in the layout any more goes: deleted at the source, renamed, or written by someone else.
   const keep = new Set(Object.keys(next).map((p) => join(dir, ...p.split("/"))));

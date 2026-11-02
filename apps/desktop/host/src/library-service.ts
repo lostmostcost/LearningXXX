@@ -12,6 +12,7 @@ import {
   recoverInterruptedRuns,
 } from "@learningxxx/collector";
 import { materialLayout, syncMaterials, type MaterialEntry } from "./course-materials.ts";
+import { pdfPageTexts } from "./pdf-text.ts";
 import type { AssetStore, CanvasClient, CollectCourseInput, CollectCourseResult, LearningXClient } from "@learningxxx/collector";
 
 /** The course from WBS-003: 2026-2 논리회로 (Canvas 95899). Used when the enrolled courses cannot be listed. */
@@ -210,6 +211,7 @@ export class LibraryService {
     const entries = await syncMaterials(dir, materialLayout(manifest), {
       path: (storageKey) => join(this.#o.root, storageKey),
       verify: (storageKey, sha256) => this.#store.verify(storageKey, sha256),
+      pageTexts: pdfPageTexts,
     });
     return { manifest, entries };
   }

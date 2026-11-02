@@ -9,10 +9,17 @@ export type AssetLoader = (assetId: string) => Promise<Uint8Array | undefined>;
 export type PdfOpener = (bytes: Uint8Array) => Promise<OpenedPdf>;
 const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const;
 
-export function PdfView({ assetId, loadAsset, open, onSelectionAction, location, onPage }: {
+/** Longest side of the page image sent to the AI; enough to read slide text. */
+const SNAPSHOT_MAX = 1600;
+
+export type PageSnapshot = () => Promise<Uint8Array<ArrayBuffer> | undefined>;
+
+export function PdfView({ assetId, loadAsset, open, onSelectionAction, location, onPage, onSnapshot }: {
   assetId: string; loadAsset?: AssetLoader; open?: PdfOpener;
   /** Told the page shown, so a chat message can say where the user is looking. */
   onPage?: ((assetId: string, page: number) => void) | undefined;
+  /** Given a way to draw the current page as a PNG (and undefined when it goes away). */
+  onSnapshot?: ((snapshot: PageSnapshot | undefined) => void) | undefined;
   onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined;
   location?: PageLocation | undefined;
 }) {
@@ -90,6 +97,23 @@ export function PdfView({ assetId, loadAsset, open, onSelectionAction, location,
   useEffect(() => {
     if (state.kind === "ready") onPage?.(assetId, page);
   }, [assetId, page, state.kind, onPage]);
+
+  useEffect(() => {
+    if (!doc || !onSnapshot) return;
+    // Drawn fresh at a fixed size, independent of the zoom on screen.
+    onSnapshot(async () => {
+      const pdfPage = await doc.getPage(page);
+      const base = pdfPage.getViewport({ scale: 1 });
+      const viewport = pdfPage.getViewport({ scale: SNAPSHOT_MAX / Math.max(base.width, base.height) });
+      const target = document.createElement("canvas");
+      target.width = Math.floor(viewport.width);
+      target.height = Math.floor(viewport.height);
+      await pdfPage.render({ canvas: target, viewport }).promise;
+      const blob = await new Promise<Blob | null>((resolve) => target.toBlob(resolve, "image/png"));
+      return blob ? new Uint8Array(await blob.arrayBuffer()) : undefined;
+    });
+    return () => onSnapshot(undefined);
+  }, [doc, page, onSnapshot]);
 
   useEffect(() => {
     const update = () => {

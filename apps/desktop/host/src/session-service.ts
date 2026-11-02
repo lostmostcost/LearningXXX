@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError, Run, Session } from "@learningxxx/contracts";
 import type { ChatTurn, ErrorCode, IpcRequest, RunChanges, RunEvent } from "@learningxxx/contracts";
@@ -25,7 +25,10 @@ export interface SessionServiceOptions {
    * the course's read-only materials folder at `materialsDir`, which the host
    * fills and the CLI may read. Undefined when nothing is collected.
    */
-  courseContext?: (courseId: string, materialsDir: string) => Promise<{ brief: string; paths: ReadonlyMap<string, string> } | undefined>;
+  courseContext?: (
+    courseId: string,
+    materialsDir: string,
+  ) => Promise<{ brief: string; paths: ReadonlyMap<string, { path: string; textPath?: string | undefined }> } | undefined>;
   /** Keeps what the chat showed, so it survives a restart. */
   transcripts?: TranscriptStore;
   model?: string;
@@ -38,6 +41,9 @@ function fail(code: ErrorCode, message: string): never {
 }
 
 const TERMINAL = new Set(["completed", "failed", "cancelled", "interrupted"]);
+
+const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const isPng = (bytes: Uint8Array) => PNG.every((b, i) => bytes[i] === b);
 
 const INTERRUPTED = AppError.parse({
   code: "RUN_INTERRUPTED",
@@ -98,6 +104,8 @@ export class SessionService {
     this.#newId = options.newId ?? randomUUID;
     this.history = options.history?.(this.#now);
     this.#state = options.store.load();
+    // Page images live only while their run does; any left by a quit go now.
+    rmSync(join(options.dataRoot, "viewing"), { recursive: true, force: true });
     this.#recover();
   }
 
@@ -242,7 +250,12 @@ export class SessionService {
     return updated;
   }
 
-  async startRun({ requestId, draft }: IpcRequest<"run.start">): Promise<Run> {
+  #releaseRun(runId: string): void {
+    this.#options.attachments?.releaseRun(runId);
+    rmSync(join(this.#options.dataRoot, "viewing", runId), { recursive: true, force: true });
+  }
+
+  async startRun({ requestId, draft, viewingImage }: IpcRequest<"run.start">): Promise<Run> {
     const repeated = this.#state.runs.find((r) => r.requestId === requestId);
     if (repeated !== undefined) return repeated;
 
@@ -272,6 +285,7 @@ export class SessionService {
     let contextFile: string | undefined;
     let materialsDir: string | undefined;
     let viewingNote: string | undefined;
+    let viewingDir: string | undefined;
     if (session.mode === "course" && session.courseId !== undefined) {
       try {
         const courseDir = join(this.#options.dataRoot, "courses", session.courseId);
@@ -283,7 +297,19 @@ export class SessionService {
           if (context.paths.size > 0) materialsDir = join(courseDir, "materials");
           const shown = draft.viewing && context.paths.get(draft.viewing.assetId);
           if (shown && materialsDir) {
-            viewingNote = `[지금 보고 있는 자료: ${join(materialsDir, shown)}${draft.viewing?.page ? `, ${draft.viewing.page}쪽` : ""}]`;
+            const page = draft.viewing?.page;
+            const parts = [
+              `[지금 보고 있는 자료: ${join(materialsDir, shown.path)}${page ? `, ${page}쪽` : ""}`,
+              ...(shown.textPath ? [`쪽별 텍스트: ${join(materialsDir, shown.textPath)}${page ? ` (=== ${page}쪽 ===)` : ""}`] : []),
+            ];
+            if (page && viewingImage && isPng(viewingImage)) {
+              viewingDir = join(this.#options.dataRoot, "viewing", runId);
+              mkdirSync(viewingDir, { recursive: true });
+              const image = join(viewingDir, `${page}쪽.png`);
+              writeFileSync(image, viewingImage, { mode: 0o444 });
+              parts.push(`이 쪽 화면: ${image}`);
+            }
+            viewingNote = parts.join(" · ") + "]";
           }
         }
       } catch {
@@ -294,7 +320,7 @@ export class SessionService {
       this.history?.begin(runId, appSessionId, workspacePath, externalFolders);
     } catch {
       // No baseline means no recovery path, so the run does not start.
-      this.#options.attachments?.releaseRun(runId);
+      this.#releaseRun(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       this.#endTurn(runId, { state: "failed", error: AppError.parse({ code: "INTERNAL", message: "실행 전 상태를 기록하지 못해 시작하지 않았습니다.", retryable: true }) });
@@ -312,7 +338,7 @@ export class SessionService {
           ...(externalFolders.length > 0 ? { writableDirs: externalFolders } : {}),
           ...(contextFile === undefined ? {} : { contextFile }),
           // The materials folder is read-only for the CLI, like attachment copies.
-          attachmentDirs: [...(inputs?.dirs ?? []), ...(materialsDir ? [materialsDir] : [])],
+          attachmentDirs: [...(inputs?.dirs ?? []), ...(materialsDir ? [materialsDir] : []), ...(viewingDir ? [viewingDir] : [])],
           prompt: [buildPrompt(draft), inputs?.prompt, viewingNote].filter(Boolean).join("\n\n"),
           ...(this.#options.model === undefined ? {} : { model: this.#options.model }),
         },
@@ -322,7 +348,7 @@ export class SessionService {
 
     if (!outcome.ok) {
       this.#recordChanges(runId);
-      this.#options.attachments?.releaseRun(runId);
+      this.#releaseRun(runId);
       this.#active.delete(appSessionId);
       this.#updateSession(appSessionId, { status: "idle" });
       // Cancelled before the CLI opened: the user stopped it, nothing failed.
@@ -366,7 +392,7 @@ export class SessionService {
         this.#updateSession(appSessionId, { status: "interrupted" });
       }
       this.#recordChanges(runId);
-      this.#options.attachments?.releaseRun(runId);
+      this.#releaseRun(runId);
       this.#active.delete(appSessionId);
     }
   }

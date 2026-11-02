@@ -357,14 +357,15 @@ test("a course session's CLI gets the course brief, its materials folder and wha
     courseContext: async (courseId, materialsDir) => {
       if (courseId !== COURSE) return undefined;
       mkdirSync(materialsDir, { recursive: true });
-      return { brief: "# 이 대화의 과목\n과목: 합성개론\n", paths: new Map([[ASSET, "01 1주차/OT.pdf"]]) };
+      return { brief: "# 이 대화의 과목\n과목: 합성개론\n", paths: new Map([[ASSET, { path: "01 1주차/OT.pdf", textPath: "01 1주차/OT.pdf.txt" }]]) };
     },
   });
   const course = service.create({ mode: "course", courseId: COURSE, title: "c" });
   const other = service.create({ mode: "course", courseId: OTHER_COURSE, title: "o" });
   const independent = service.create({ mode: "independent", title: "i" });
   for (const s of [course, other, independent]) {
-    await service.startRun({ requestId: randomUUID(), draft: { ...draft(s.appSessionId), viewing: { assetId: ASSET, page: 3 } } });
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
+    await service.startRun({ requestId: randomUUID(), draft: { ...draft(s.appSessionId), viewing: { assetId: ASSET, page: 3 } }, viewingImage: png });
     for (let i = 0; i < 3; i += 1) await tick();
   }
   const [c, o, i] = calls;
@@ -373,7 +374,11 @@ test("a course session's CLI gets the course brief, its materials folder and wha
   assert.ok(!c!.contextFile!.startsWith(join(dataRoot, course.workspaceKey)), "outside the session folder");
   const materials = join(dataRoot, "courses", COURSE, "materials");
   assert.ok(c!.attachmentDirs?.includes(materials));
-  assert.match(c!.prompt, new RegExp(`지금 보고 있는 자료: ${materials}/01 1주차/OT\\.pdf, 3쪽`));
+  const pageDir = join(dataRoot, "viewing", c!.runId);
+  assert.ok(c!.attachmentDirs?.includes(pageDir), "the page image folder is readable for that run");
+  assert.match(c!.prompt, new RegExp(`이 쪽 화면: ${pageDir}/3쪽\\.png`));
+  assert.equal(existsSync(pageDir), false, "and removed when the run ends");
+  assert.match(c!.prompt, new RegExp(`지금 보고 있는 자료: ${materials}/01 1주차/OT\\.pdf, 3쪽 · 쪽별 텍스트: ${materials}/01 1주차/OT\\.pdf\\.txt \\(=== 3쪽 ===\\)`));
   for (const req of [o!, i!]) {
     assert.equal(req.contextFile, undefined);
     assert.deepEqual(req.attachmentDirs, []);

@@ -44,10 +44,12 @@ function TurnView({ turn, onCancel, onRetry, onOpenSelection }: { turn: Turn; on
  * send time with their target session, so a session switch never re-routes a
  * message. Attachments are explicitly confirmed; captures use the same explicit confirmation.
  */
-export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [], viewing }: {
+export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActiveId, selectionRequest, onSelectionUsed, onOpenSelection, selectedAssets = [], viewing, snapshotPage }: {
   selectedAssets?: { id: string; name: string }[];
   /** The material open in the viewer; sent along to a session of this course only. */
   viewing?: ComposerDraft["viewing"];
+  /** Draws the page on screen as a PNG, sent along with `viewing`. */
+  snapshotPage?: (() => Promise<Uint8Array<ArrayBuffer> | undefined>) | undefined;
   courseId?: string | undefined; courseTitle?: string | undefined; activeId: string | undefined;
   onActiveId: (id: string) => void; selectionRequest?: SelectionRequest | undefined;
   onSelectionUsed: (id: string) => void; onOpenSelection: (s: SelectedText) => boolean;
@@ -117,8 +119,8 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     setActiveId(result.data.session.appSessionId);
   };
 
-  const start = async (sent: ReturnType<typeof freeze>) => {
-    const result = await invoke("run.start", { requestId: crypto.randomUUID(), draft: sent });
+  const start = async (sent: ReturnType<typeof freeze>, viewingImage?: Uint8Array<ArrayBuffer>) => {
+    const result = await invoke("run.start", { requestId: crypto.randomUUID(), draft: sent, ...(viewingImage ? { viewingImage } : {}) });
     if (!result.ok) {
       setNotice(result.error.message);
       return false;
@@ -174,8 +176,10 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
     const sent = freeze(draft, target, viewingFor(active, courseId, viewing));
     setDraft(target, emptyDraft());
     setNotice(undefined);
+    // Only with a page: the image shows what the page's text alone may miss.
+    const image = sent.viewing?.page ? await snapshotPage?.().catch(() => undefined) : undefined;
     // Refused before it started: give the text back to the same session only.
-    if (!(await start(sent))) setDrafts((d) => ({ ...d, [target]: restoreIfEmpty(d[target], draft) }));
+    if (!(await start(sent, image))) setDrafts((d) => ({ ...d, [target]: restoreIfEmpty(d[target], draft) }));
   };
 
   const shown = visibleSessions(
@@ -284,7 +288,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
             {(() => {
               const shown = viewingFor(active, courseId, viewing);
               const name = shown && selectedAssets.find((a) => a.id === shown.assetId)?.name;
-              return name ? <p className="meta">함께 전달: 지금 보는 자료 {name}{shown.page ? ` ${shown.page}쪽` : ""}</p> : null;
+              return name ? <p className="meta">함께 전달: 지금 보는 자료 {name}{shown.page ? ` ${shown.page}쪽(화면 포함)` : ""}</p> : null;
             })()}
             <textarea
               aria-label="메시지 입력"

@@ -19,6 +19,14 @@
 - Never open/read/copy/port/refer to khu-lecture-recorder skill during implementation.
 - Do not commit credentials, recordings, downloaded lectures or private course content.
 
+## Mandatory AI self-review after every implementation step
+- For each logical implementation step (function, module, or user flow), complete this loop before moving to the next step: write code → review the actual diff and relevant surrounding code/callers as a reviewer → identify bugs and design flaws → fix them → run appropriate targeted checks → review the resulting changes again. Do not defer all review to the final PR.
+- Review correctness and requirements, API/data contracts and ownership, error/cancel/retry/restart paths, races, session/account boundaries, path/permission/privacy handling, compatibility and recovery. Examine failure cases and interactions, not only the happy path or the code just added. Passing tests do not replace code review.
+- Fix findings within the authorized scope. Unresolved correctness, security/privacy, data-loss, isolation or acceptance-blocking defects prevent advancement of the affected step and prevent merge/Done. If a fix needs a new decision, path or claim, record the evidence and blocker and resolve authorization; never silently skip the defect or expand scope.
+- After a fix, run regression tests or other checks appropriate to its risk and re-review the fix. At the final integration/PR stage, review the complete diff against current main and check for interactions missed by the individual steps.
+- Keep brief evidence in the task or PR: stage and reviewed files/commit, findings (location, impact and cause), fixes, actual commands/results, re-review result and remaining risks. If no new findings were found, state the actual review scope and result; do not invent defects or claim the code is bug-free. Track non-blocking follow-ups with the reason they can remain.
+- This is the implementing AI agent's own review and repair obligation; it adds no mandatory peer approval, separate agent, extra human QA card or full-suite run after every small edit. Existing claim rules, required final checks and major-feature developer self-tests still apply. Apply it to the remaining stages of work already in progress.
+
 ## Evidence and completion
 - Identify WBS/REQ IDs, spec version, allowed paths, dependency commits and acceptance tests.
 - Do not label unrun tests, unimplemented features, human QA or decisions as completed.

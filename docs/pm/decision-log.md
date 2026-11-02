@@ -38,3 +38,14 @@
 - 영향: REQ-010, 모든 구현 WBS의 남은 단계, AGENTS.md, OPS-001 v0.2.2, agent-task 양식. 제품 기능/API/데이터/마이그레이션 변경은 없다. 단계별 리뷰 기록과 적절한 검사로 준수를 확인하며 형식만 검사하는 새 테스트는 만들지 않는다.
 - 유지: claim/허용 경로, 기존 최종 필수 검사, 일반 작업의 추가 사람 QA 불요, WBS-020/028/031 담당자 자가 테스트. 별도 에이전트·상대 승인은 새 의무가 아니다.
 - 영역 밖 예외: 사용자 지시를 이행하는 공유 문서 5개만 수정. WBS-031 shared claim은 유지하고 PR #32 issuecomment-6566044499로 통지. WBS-042의 paths/scope_note 및 PR에서 파일·이유를 기록한다.
+
+## WBS-031 PR #32 검토·병합 (이문찬 지시 "검토하고 병합해")
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 안상현의 Draft PR #32를 이문찬 지시로 Ready 전환 후 병합 | 소유자 직접 지시. 담당 개발자 자가 테스트(실제 앱 요청·적용·재시작·자동 복구)는 미실행이므로 WBS-031은 Done이 아닌 상태로 둠 | main에서 병합 commit revert |
+| 충돌(handlers.ts·main.ts·styles.css)은 양쪽 기능을 모두 살려 해결: `createHandlers(…, attachments, credentials, modifier)` 순서 | 기존 호출부(테스트·인수 harness)는 앞 4개 인자만 쓰므로 영향 없음 | — |
+| 안상현 브랜치에 rebase 대신 main merge commit을 push(force push 없음) | 남의 브랜치 이력을 덮지 않기 위해. 안상현이 이미 같은 방식으로 main을 merge해 둠 | — |
+| 검토 중 수정: 앱 수정 패널 테두리 `#d0d0d0` → `var(--line)` | 다크 모드에서 안 보이는 고정 색. 비차단 | — |
+
+검토 범위(AGENTS 단계별 자체 리뷰): app-modifier(modifier·verify·watchdog·git), cli-adapter app_modify 정책, contracts, host 연결, UI 패널, main과의 통합. 차단 결함 없음. 잔여 위험: PR 본문의 알려진 제한(적용된 코드는 Mac 권한으로 실행, 검증 컨테이너 네트워크 열림, AI가 검사 코드도 바꿀 수 있음)과 실제 Electron 적용·복구 미시험.

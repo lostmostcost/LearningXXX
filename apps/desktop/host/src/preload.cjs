@@ -29,6 +29,14 @@ const CHANNELS = new Set([
   "files.sessionChanges",
   "files.restore",
   "files.trash",
+  "modify.status",
+  "modify.chooseSource",
+  "modify.start",
+  "modify.cancel",
+  "modify.verify",
+  "modify.apply",
+  "modify.rollback",
+  "modify.discard",
 ]);
 
 contextBridge.exposeInMainWorld("host", {

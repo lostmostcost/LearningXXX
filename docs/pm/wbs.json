@@ -841,11 +841,19 @@
       ],
       "areas": [
         "app-modifier",
-        "host"
+        "cli",
+        "host",
+        "shared",
+        "ui"
       ],
       "paths": [
         "packages/app-modifier/",
-        "apps/desktop/host/"
+        "packages/cli-adapter/",
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "docs/pm/wbs.json"
       ],
       "spec": "SPEC-005",
       "requirements": [
@@ -855,7 +863,8 @@
       "status": "Backlog",
       "branch": "feat/WBS-031-app-modifier",
       "url": "https://app.notion.com/p/40bbd7ec20cd8118b6cac151dbc01744?pvs=204",
-      "qa_mode": "developer_self_test"
+      "qa_mode": "developer_self_test",
+      "scope_note": "2026-11-01 안상현 결정: 앱 안 요청에 IPC·화면·CLI 수정 모드·새 패키지 lockfile이 필요해 OPS-001 영역 확대 절차로 shared·ui·cli claim과 경로를 추가한다. 검증은 Docker(docker compose tools)에서 실행한다."
     },
     {
       "id": "WBS-032",

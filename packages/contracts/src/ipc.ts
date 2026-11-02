@@ -3,6 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
+import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
 
@@ -141,6 +142,26 @@ export const IpcChannels = {
     request: z.object({ runId: Id }),
     response: z.object({ run: Run }),
   },
+  /** REQ-011. Also tells a freshly restarted app that its renderer really came up. */
+  "modify.status": {
+    request: z.object({}),
+    response: z.object({ sourceConfigured: z.boolean(), job: ModifyJob.optional() }),
+  },
+  /** The host opens the folder picker and accepts only this app's own source. */
+  "modify.chooseSource": {
+    request: z.object({}),
+    response: z.object({ sourceConfigured: z.boolean() }),
+  },
+  /** The host asks the user again before anything runs; the renderer cannot skip it. */
+  "modify.start": {
+    request: z.object({ requestId: Id, prompt: z.string().trim().min(1).max(4000) }),
+    response: z.object({ job: ModifyJob }),
+  },
+  "modify.cancel": { request: z.object({ jobId: Id }), response: z.object({ job: ModifyJob }) },
+  "modify.verify": { request: z.object({ jobId: Id }), response: z.object({ job: ModifyJob }) },
+  "modify.apply": { request: z.object({ jobId: Id }), response: z.object({ job: ModifyJob }) },
+  "modify.rollback": { request: z.object({ jobId: Id }), response: z.object({ job: ModifyJob }) },
+  "modify.discard": { request: z.object({ jobId: Id }), response: z.object({ job: ModifyJob }) },
 } as const;
 export type IpcChannel = keyof typeof IpcChannels;
 export type IpcRequest<C extends IpcChannel> = z.infer<(typeof IpcChannels)[C]["request"]>;
@@ -150,6 +171,7 @@ export type IpcResponse<C extends IpcChannel> = z.infer<(typeof IpcChannels)[C][
 export const HostPush = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("run.event"), event: RunEvent }),
   z.object({ kind: z.literal("collection.progress"), syncRun: SyncRun }),
+  z.object({ kind: z.literal("modify.job"), job: ModifyJob }),
 ]);
 export type HostPush = z.infer<typeof HostPush>;
 

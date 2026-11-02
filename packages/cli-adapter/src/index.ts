@@ -1,6 +1,7 @@
 export { MESSAGES, classifyFailure, type FailureSignals } from "./classify.ts";
 export { cliCandidates, locateCli, probeCli, type CliProbe, type Located } from "./locate.ts";
 export {
+  APP_MODIFY_TOOLS,
   COURSE_TOOLS,
   FORBIDDEN_ENV,
   INDEPENDENT_TOOLS,

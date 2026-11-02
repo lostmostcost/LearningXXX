@@ -255,7 +255,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
       return fail(appError("FORBIDDEN_CREDENTIAL_ENV", MESSAGES.API_KEY_SOURCE, { apiKeySource: String(init.apiKeySource) }));
     }
     const version = str(init.claude_code_version) ?? "unknown";
-    if (req.mode === "independent" && !verified.includes(version)) {
+    if (req.mode !== "course" && !verified.includes(version)) {
       return fail(appError("CLI_VERSION_MISMATCH", MESSAGES.CLI_VERSION_MISMATCH, { found: version }));
     }
     const sameTools = toolList.length === expectedTools.size && toolList.every((t) => expectedTools.has(t));

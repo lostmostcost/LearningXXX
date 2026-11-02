@@ -123,6 +123,14 @@ describe("producer → consumer round trip", () => {
       "files.sessionChanges": { appSessionId: sid },
       "files.restore": { runId: sid },
       "files.trash": { appSessionId: sid, runId: sid, key: "notes/a.md" },
+      "modify.status": {},
+      "modify.chooseSource": {},
+      "modify.start": { requestId: sid, prompt: "버튼 문구를 바꿔줘" },
+      "modify.cancel": { jobId: sid },
+      "modify.verify": { jobId: sid },
+      "modify.apply": { jobId: sid },
+      "modify.rollback": { jobId: sid },
+      "modify.discard": { jobId: sid },
     };
     for (const channel of Object.keys(C.IpcChannels) as C.IpcChannel[]) {
       const schema = C.IpcChannels[channel].request as z.ZodType;

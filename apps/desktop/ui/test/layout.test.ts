@@ -31,3 +31,10 @@ test("Shift+F6 cycles backward and wraps", () => {
 test("focus on a hidden panel returns to the first visible one", () => {
   assert.equal(nextPanel("chat", visiblePanels(true, "materials")), "library");
 });
+
+test("WBS-068: the edge course list closes only once the pointer is past the list and the rail", async () => {
+  const { edgeClosesAt, EDGE_DRAWER_WIDTH, RAIL_WIDTH } = await import("../src/layout.ts");
+  assert.equal(edgeClosesAt(0), false);
+  assert.equal(edgeClosesAt(EDGE_DRAWER_WIDTH + RAIL_WIDTH), false, "on the pushed rail it stays open");
+  assert.equal(edgeClosesAt(EDGE_DRAWER_WIDTH + RAIL_WIDTH + 40), true);
+});

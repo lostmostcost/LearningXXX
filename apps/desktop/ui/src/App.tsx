@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Course, IpcResponse, MediaAsset } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
-import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
+import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
@@ -56,6 +56,18 @@ export function App() {
   const [home,setHome]=useState(true);
   const [pinned,setPinned]=useState(false);
   const [drawer,setDrawer]=useState(false);
+  // WBS-068: the course list also slides in when the pointer rests on the screen's left edge.
+  const [edge,setEdge]=useState(false);
+  const edgeTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  useEffect(()=>{
+    if(!edge)return;
+    const move=(event:MouseEvent)=>{if(edgeClosesAt(event.clientX))setEdge(false);};
+    const out=(event:MouseEvent)=>{if(!event.relatedTarget)setEdge(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setEdge(false);};
+    document.addEventListener('mousemove',move);document.addEventListener('mouseout',out);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseout',out);document.removeEventListener('keydown',escape);};
+  },[edge]);
+  useEffect(()=>()=>clearTimeout(edgeTimer.current),[]);
   const [section,setSection]=useState("book");
   const [rightTab, setRightTab] = useState<"chat" | "recording" | "transcripts">("chat");
   const [weekIndex,setWeekIndex]=useState(0);
@@ -223,9 +235,10 @@ export function App() {
     );
 
   return (
-    <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
+    <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''} ${edge&&!pinned&&!drawer?'sidebar-edge':''}`}>
+      {pinned||drawer?null:<div className="edge-zone" aria-hidden="true" onMouseEnter={()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>setEdge(true),EDGE_OPEN_DELAY_MS);}} onMouseLeave={()=>{if(!edge)clearTimeout(edgeTimer.current);}}/>}
       <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
-      <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
+      <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark">Learning<span>XXX</span>{devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
         {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => { setRightTab("recording"); setView("chat"); }} title="녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}

@@ -1476,6 +1476,48 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd8132a434d03b47d611c8",
       "scope_note": "CR-050 사용자 직접 승인: 일반 native Claude 환경으로 전환. 과거 대화 초기화/마이그레이션 생략 승인. 기존 structured 기록 UI를 제품에서 제거. shared 선점 하 AGENTS/PRD/실행 계약/lockfile 갱신."
+    },
+    {
+      "id": "WBS-051",
+      "title": "Claude Code 기반 채팅 UI·핵심 명령",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-050"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "cli",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/",
+        "packages/cli-adapter/",
+        "packages/contracts/",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-002.md",
+        "docs/specs/SPEC-003.md",
+        "docs/decisions/ADR-002-runtime-placement.md"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-009"
+      ],
+      "acceptance": "기본 채팅 UI와 고급 터미널, 실제 모델/강도/계획 모드와 핵심 명령을 연결하고 권한·세션·취소·첨부를 보존한다.",
+      "status": "Review",
+      "branch": "feat/WBS-051-chat-experience",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81c39746c128e774d031",
+      "scope_note": "CR-051 사용자 직접 승인: 채팅 기본·고급 PTY, 공식 SDK/설치 CLI 구독 연결, 실제 모델·강도·모드·명령. ui/host/cli/shared 선점 내 수정. SPEC-002 v0.3.0·SPEC-003 v0.4.0. 단계별 실제 diff 리뷰·수정 및 합성/실제 구독 검증 근거는 Notion WBS와 PR에 기록."
     }
   ],
   "qaPolicy": {

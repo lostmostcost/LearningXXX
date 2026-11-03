@@ -14,6 +14,7 @@ export interface Pty {
 export type SpawnPty = (file: string, args: string[], options: { cwd: string; env: Record<string, string>; cols: number; rows: number; name: string }) => Promise<Pty>;
 interface Entry { id: string; session: string; pty: Pty; chunks: { seq: number; data: string }[]; seq: number; bytes: number; clippedSeq: number; state: 'running' | 'exited'; exitCode?: number; closing: boolean; subscriptions: Disposable[] }
 export interface TerminalOptions {
+  canOpen?: (id: string) => boolean;
   hookPath?: string;
   root: string; getSession: (id: string) => Session; env?: NodeJS.ProcessEnv;
   prepare?: () => Promise<{ path: string; env: Record<string, string> }>;
@@ -30,8 +31,9 @@ export class NativeTerminalService {
   constructor(options: TerminalOptions) { this.#options = options; }
   async open(request: { appSessionId: string; cols: number; rows: number }) {
     const session = this.#options.getSession(request.appSessionId);
-    if (session.engine !== 'native') fail('기존 채팅 기록입니다. 새 Claude Code 대화를 만드세요.');
+    if (!['native', 'chat'].includes(session.engine ?? '')) fail('기존 채팅 기록입니다. 새 Claude Code 대화를 만드세요.');
     if (session.archivedAt || session.status === 'running') fail('보관되었거나 기존 채팅에서 실행 중인 세션입니다.');
+    if (this.#options.canOpen && !this.#options.canOpen(request.appSessionId)) fail('채팅 연결을 먼저 종료하세요.');
     if (this.#closing) fail('앱을 종료하는 중입니다.');
     const existing = this.#entries.get(this.#sessions.get(session.appSessionId) ?? '');
     if (existing?.closing && existing.state === 'running') fail('Claude Code를 종료하는 중입니다. 잠시 후 다시 연결하세요.');

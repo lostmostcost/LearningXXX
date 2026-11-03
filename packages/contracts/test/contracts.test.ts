@@ -99,6 +99,11 @@ describe("producer → consumer round trip", () => {
   it("every IPC channel round-trips a valid request through the host validator", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
+      'chat.rewind': { appSessionId: sid, messageId: sid, preview: true },
+      'chat.open': { appSessionId: sid }, 'chat.state': { appSessionId: sid },
+      'chat.send': { appSessionId: sid, requestId: sid, text: 'fixture' }, 'chat.configure': { appSessionId: sid, mode: 'plan' },
+      'chat.answer': { appSessionId: sid, permissionId: sid, allow: false }, 'chat.interrupt': { appSessionId: sid },
+      'chat.info': { appSessionId: sid, kind: 'context' }, 'chat.detach': { appSessionId: sid }, 'chat.back': { appSessionId: sid },
       'terminal.stage': { appSessionId: sid, attachmentId: sid },
       'terminal.open': { appSessionId: sid, cols: 80, rows: 24 },
       'terminal.read': { terminalId: sid, after: 0 },

@@ -1,3 +1,4 @@
+import { ConversationService } from "./conversation-service.ts";
 import { NativeTerminalService } from "./native-terminal.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -223,12 +224,14 @@ app.whenReady().then(async () => {
   await recordings.recover().catch(() => undefined);
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
-  const terminals = new NativeTerminalService({ root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
+  let conversations: ConversationService;
+  const terminals = new NativeTerminalService({ canOpen: id => !conversations?.active(id), root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
+  conversations = new ConversationService({ root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: id => terminals.isActive(id) });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    void (async () => { try { await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
+    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
   });
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
   powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
@@ -238,7 +241,7 @@ app.whenReady().then(async () => {
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals));
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

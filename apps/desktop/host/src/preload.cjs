@@ -3,6 +3,17 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Must equal IpcChannels in @learningxxx/contracts; test/boundary.test.ts enforces it.
 const CHANNELS = new Set([
+  "chat.rewind",
+  "chat.open",
+  "chat.state",
+  "chat.send",
+  "chat.configure",
+  "chat.answer",
+  "chat.interrupt",
+  "chat.info",
+  "chat.detach",
+  "chat.back",
+
   "terminal.stage",
   "terminal.open",
   "terminal.read",

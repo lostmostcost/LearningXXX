@@ -44,3 +44,5 @@ export function parseVersioned<S extends z.ZodType>(schema: S, input: unknown): 
     },
   };
 }
+
+export { CHAT_COMMANDS, parseChatCommand } from "./chat-commands.ts";

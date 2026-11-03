@@ -1,4 +1,4 @@
-import type { HostPush, IpcChannel, Run, RunEvent, Session } from "@learningxxx/contracts";
+import type { HostPush, IpcChannel, IpcResponse, Run, RunEvent, Session } from "@learningxxx/contracts";
 import { INTENT_LABEL } from "./selection.ts";
 import type { ComposerDraft } from "@learningxxx/contracts";
 
@@ -25,8 +25,29 @@ export function installFakeHost(courseTitle: string): void {
   const event = (run: Run, seq: number, type: RunEvent["type"], payload: unknown) =>
     push({ kind: "run.event", event: { schemaVersion: 1, eventId: crypto.randomUUID(), runId: run.runId, seq, occurredAt: now(), type, payload } as RunEvent });
 
+  type Chat = IpcResponse<'chat.state'>;
+  const chats = new Map<string, Chat>();
+  const chatTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const freshChat = (): Chat => ({ messages: [], busy: false, connected: true, error: '', model: 'sonnet', effort: 'default', mode: 'default', models: [
+    { value: 'sonnet', displayName: 'Sonnet · 합성', supportedEffortLevels: ['low', 'medium', 'high'], supportsAutoMode: true },
+    { value: 'haiku', displayName: 'Haiku · 합성' },
+  ], commands: [{ name: 'compact', description: '대화 문맥 압축', argumentHint: '' }, { name: 'code-review', description: '변경 사항 검토', argumentHint: '' }, { name: 'init', description: 'CLAUDE.md 작성', argumentHint: '' }], permissions: [], totalCost: 0, tokens: 0, sessionId: crypto.randomUUID() });
+  const finishChat = (id: string) => {
+    const chat = chats.get(id)!; clearTimeout(chatTimers.get(id)); chat.busy = false; chat.permissions = [];
+    chat.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: '강의 자료를 함께 살펴볼게요.\n\n**조합 논리회로**는 현재 입력에 따라 출력이 결정되는 회로예요.\n\n- **AND**: 두 입력이 모두 1일 때\n- **OR**: 하나라도 1일 때\n- **NOT**: 입력을 반전\n\n| A | B | AND |\n|---|---|---|\n| 0 | 1 | 0 |\n| 1 | 1 | 1 |\n\n```verilog\nassign y = a & b;\n```\n\n다음으로 진리표를 같이 작성해볼까요?\n\n*합성 UI 예제 · 실제 Claude 응답이 아닙니다.*', tools: [{ id: 'fixture-tool', name: 'Read · synthetic.pdf', input: '{"file_path":"/tmp/synthetic.pdf"}' }] });
+  };
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
+    'chat.open': p => { const id = String(p.appSessionId); if (!chats.has(id)) chats.set(id, freshChat()); chats.get(id)!.connected = true; return ok(structuredClone(chats.get(id))); },
+    'chat.state': p => ok(structuredClone(chats.get(String(p.appSessionId)))),
+    'chat.configure': p => { const chat = chats.get(String(p.appSessionId))!; if (p.model) { chat.model = String(p.model); chat.effort = 'default'; } if (p.effort) chat.effort = String(p.effort); if (p.mode) chat.mode = String(p.mode); return ok(structuredClone(chat)); },
+    'chat.send': p => { const id = String(p.appSessionId), chat = chats.get(id)!; if (chat.busy) return fail('INVALID_REQUEST', '응답 중입니다.'); chat.messages.push({ id: String(p.requestId), role: 'user', text: String(p.text), tools: [] }); chat.busy = true; if (String(p.text).includes('권한')) chat.permissions.push({ id: crypto.randomUUID(), tool: 'Write', input: { file_path: '/tmp/learningxxx-example.md', content: '합성 예제' } }); else chatTimers.set(id, setTimeout(() => finishChat(id), 650)); return ok(structuredClone(chat)); },
+    'chat.answer': p => { const id = String(p.appSessionId), chat = chats.get(id)!; if (p.allow) finishChat(id); else { chat.permissions = []; chat.busy = false; } return ok(structuredClone(chat)); },
+    'chat.interrupt': p => { const id = String(p.appSessionId), chat = chats.get(id)!; clearTimeout(chatTimers.get(id)); chat.busy = false; chat.permissions = []; return ok(structuredClone(chat)); },
+    'chat.info': p => ok({ text: p.kind === 'usage' ? '5시간 한도: 12% 사용\n주간 한도: 4% 사용\n\n합성 예제입니다.' : p.kind === 'context' ? '문맥 사용량: 3,200 / 200,000 토큰 · 합성 예제' : p.kind === 'skills' ? '/compact — 문맥 압축\n/code-review — 검토' : p.kind === 'mcp' ? '연결된 MCP 서버가 없습니다. (합성)' : '엔진 추정 비용: $0.01 · 구독 청구액이 아님 · 합성' }),
+    'chat.rewind': () => ok({ canRewind: true, filesChanged: ['notes.md'], insertions: 2, deletions: 1 }),
+    'chat.detach': p => { chats.get(String(p.appSessionId))!.connected = false; return ok({}); },
+    'chat.back': p => { const id = String(p.appSessionId); chats.get(id)!.connected = true; if (terminalOutput.has(id)) terminalOutput.get(id)!.closed = true; return ok(structuredClone(chats.get(id))); },
     "terminal.open": p => { const id = String(p.appSessionId); if (!terminalOutput.has(id)) terminalOutput.set(id, { seq: 1, data: '\x1b[1mClaude Code · 합성 화면\x1b[0m\r\n실제 계정이나 CLI를 사용하지 않는 UI 예제입니다.\r\n\r\n❯ ', closed: false }); return ok({ terminalId: id }); },
     "terminal.read": p => { const t = terminalOutput.get(String(p.terminalId))!; return ok({ chunks: Number(p.after) < t.seq ? [{ seq: t.seq, data: t.data }] : [], state: t.closed ? 'exited' : 'running', gap: false }); },
     "terminal.write": p => { const t = terminalOutput.get(String(p.terminalId))!; t.data = String(p.data) === '/' ? '\r\n /help       도움말\r\n /model      모델 선택\r\n /compact    문맥 압축\r\n /resume     세션 선택\r\n /skills     스킬 목록\r\n❯ /' : String(p.data); t.seq++; return ok({}); },
@@ -39,7 +60,7 @@ export function installFakeHost(courseTitle: string): void {
       const id = crypto.randomUUID();
       const session = {
         appSessionId: id, mode: p.mode, ...(p.engine ? { engine: p.engine } : {}), ...(p.mode === "course" ? { courseId: p.courseId } : {}),
-        workspaceKey: p.engine === "native" ? `native-sessions/${id}` : p.mode === "course" ? `courses/${String(p.courseId)}/sessions/${id}` : `sessions/${id}`,
+        workspaceKey: (p.engine === "native" || p.engine === "chat") ? `native-sessions/${id}` : p.mode === "course" ? `courses/${String(p.courseId)}/sessions/${id}` : `sessions/${id}`,
         title: p.title, createdAt: now(), lastUsedAt: now(), status: "idle",
       } as Session;
       sessions.push(session);

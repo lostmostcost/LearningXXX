@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Snapshot: 2026-11-03 · v0.2.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.3.0 · Notion is authoritative; refresh after approved changes.
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.
@@ -43,3 +43,10 @@ API 환경변수가 존재하는 환경, 로그인 만료, usage limit, 취소 �
 세션 engine=native를 분리 저장하고 과거 기록은 마이그레이션하지 않는다(사용자 초기화 승인). native 세션은 별도 시작 폴더를 갖지만 글로벌 Claude 설정/기억/플러그인과 CLI의 명시적 다른 세션 resume를 허용한다. 구독 인증 preflight·API 환경 거부·권한 우회 미사용을 유지하며 --permission-mode default로 시작한다. 이후 권한 선택은 CLI 화면에서 사용자가 한다. native 파일 조작에 과거 host 파일 UI의 폴더 제한·trash-only·자동 복구 보장을 적용한다고 표시하지 않는다.
 SessionStart 훅은 session_id UUID와 이력 파일 위치만 원자적으로 저장하여 /clear,/resume 변경 후 재연결에 사용한다. 대화 본문·토큰·자격증명을 훅 파일에 저장하지 않는다. 훅이 꺼져 매핑이 없으면 해당 시작 폴더 --continue를 사용한다. 처음부터 기존 structured 이력을 native에 자동 주입하지 않는다.
 PTY는 host가 고른 공식 실행 파일만 실행하고 renderer는 path/args/env를 지정하지 못한다. IPC 입력 크기·터미널 크기·동시 프로세스·재생 버퍼를 제한한다. 화면 전환은 연결만 분리하고 CLI는 유지한다. 명시 종료·앱 종료는 프로세스를 중단한다. 출력은 메모리의 제한된 재생 버퍼이며 실제 대화 이력은 Claude Code가 관리한다. 중단된 입력을 앱이 자동 재전송하지 않는다.
+
+
+## CR-051 · 공식 SDK 채팅과 고급 터미널
+사용자 직접 승인: 채팅을 기본 화면으로, 터미널은 고급 도구로 유지한다. host의 공식 Agent SDK 0.3.301이 설치된 공식 CLI를 실행하며 구독 로그인 preflight/API 환경 거부와 일반 전역 설정·기억·스킬 허용(CR-050)을 유지한다. API 키/토큰 추출/서버 인증은 사용하지 않는다. 새 engine=chat은 이전 기록을 마이그레이션하지 않는다.
+모델·강도는 엔진이 제공하는 값만 선택하고 실제 제어 API로 변경한다. 일반·계획·편집 자동 승인과 해당 모델/엔진이 허용하는 자동 모드를 제공한다. 기본 일반 모드이며 앱이 bypassPermissions/dontAsk를 선택하지 않는다. 권한·질문은 세션별 명시 카드로 응답하고 취소/종료 시 거부한다. SDK와 PTY를 동일 세션에서 동시에 실행하지 않는다. 고급 화면 전환은 현재 연결을 종료한 뒤 같은 CLI 세션 ID로 재개하며 원본 이력을 읽어 표시를 맞춘다.
+전송 UUID는 불명확한 응답 후 같은 내용 재시도에도 유지해 중복 실행을 막는다. 취소는 SDK에 아직 전달하지 않은 입력과 엔진 대기 입력도 중단하고 확인할 수 없으면 연결을 종료한다. 자동 재전송하지 않는다. 파일 복구는 엔진 체크포인트 미리보기와 명시 확인 후 실행한다. 새 파일은 삭제될 수 있으며 Bash·외부 변경·대화 문맥은 복구하지 않는다. 일반 파일 도구에 과거 host trash-only 보장을 표시하지 않는다. 사용량 조회는 공식 SDK의 실험 API를 분리해 사용하며 실패를 미조회로 표시한다.
+CR: https://app.notion.com/p/40dbd7ec20cd814aaefff0ff176ee897 · WBS-051. 실제 SDK 구독 사용 근거: https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan (확인 2026-11-03).

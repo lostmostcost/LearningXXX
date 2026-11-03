@@ -6,11 +6,12 @@ import { CourseWorkspaceService } from "./course-workspace.ts";
 import { weekNotes } from "./week-notes.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirectoryStore, listActiveCourses } from "@learningxxx/collector";
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
-import { app, BrowserWindow, Menu, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, Menu, protocol, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -49,6 +50,11 @@ import { Timetable } from "./timetable.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
+import { AssignmentWorkspaces } from "./assignment-workspaces.ts";
+import { assignmentSources } from "./assignment-sources.ts";
+import { ASSIGNMENT_CSP, printAssignment } from "./assignment-printer.ts";
+
+protocol.registerSchemesAsPrivileged([{ scheme: 'assignment-preview', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 const INVOKE_CHANNEL = "host:invoke";
 const PUSH_CHANNEL = "host:push";
@@ -451,14 +457,59 @@ app.whenReady().then(async () => {
   const previewTimer = setInterval(() => { void automation?.tick().catch(() => undefined); }, 10 * 60_000);
   setTimeout(() => { void automation?.tick().catch(() => undefined); }, 60_000).unref();
   const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: async (courseId) => [...await notesFor(courseId), ...await memos.notes(courseId), ...await study.weekNotes(courseId)], knowledge: (courseId) => knowledge.markdown(courseId) });
-  const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
-  conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
+  let assignments: AssignmentWorkspaces;
+  const prepareCourse = async (id: string, cwd: string) => {
+    const binding = await courseWorkspaces.prepare(id, cwd), extra = await assignments?.context(id);
+    return binding && extra ? { ...binding, brief: binding.brief + extra, startupBrief: (binding.startupBrief ?? binding.brief) + extra } : binding;
+  };
+  conversations = new ConversationService({ prepareCourse, beforeSend: id => assignments?.beforeSend(id), root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
+  assignments = new AssignmentWorkspaces({
+    root: join(dataRoot, 'assignment-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), accountKey: () => library.accountKey(),
+    manifest: id => library.manifest(id), getSession: id => sessions.get(id), createSession: (courseId, title) => sessions.create({ mode: 'course', engine: 'chat', courseId, title }), busy: id => conversations.busy(id),
+    isQuiz: async (scope, manifest) => {
+      const sourceId = manifest.items.find(i => i.resource.id === scope.assignmentId)?.resource.sourceId;
+      return /^quiz:/.test(sourceId ?? '') || ((await learning.status(scope.courseId))?.items.some(i => i.kind === 'quiz' && i.sourceRef === `assignment:${sourceId}`) ?? false);
+    },
+    sources: async (scope, manifest) => assignmentSources(manifest, {
+      asset: async id => (await library.asset({ courseId: scope.courseId, assetId: id })).bytes, pdf: pdfPageTexts,
+      notes: [...await notesFor(scope.courseId), ...await memos.notes(scope.courseId), ...await study.weekNotes(scope.courseId)], summary: await knowledge.markdown(scope.courseId),
+    }),
+    generate: async (input, signal, assertCurrent) => {
+      // WBS-091 is a dependency-free engine; keep its source beside the local app, not in a global cache.
+      const engine = join(__dirname, '../../../../packages/learning-artifacts/src');
+      const model = await import(pathToFileURL(join(engine, 'model.mjs')).href) as { snapshot(x: unknown): unknown; generationPrompt(x: unknown): string; validatePlan(x: unknown, s: unknown): unknown };
+      const documents = await import(pathToFileURL(join(engine, 'documents.mjs')).href) as { documentHtml(p: unknown, s: unknown): string };
+      assertCurrent();
+      try {
+        const snapshot = model.snapshot({ ...input, kind: 'document' });
+        const answer = await claudeText({ prompt: model.generationPrompt(snapshot), what: '과제 초안 만들기', signal });
+        assertCurrent();
+        const text = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(answer.trim())?.[1] ?? answer;
+        return documents.documentHtml(model.validatePlan(text, snapshot), snapshot);
+      } catch (error) {
+        if ((error as { appError?: unknown }).appError || signal.aborted) throw error;
+        const code = (error as { code?: string }).code;
+        const message = code === 'TOO_LARGE' ? '자료가 초기 생성 한도(전체 50만 자)를 넘습니다. 과제 채팅에서 원본을 나눠 검토해 주세요.' : code === 'MISSING_INSTRUCTIONS' ? '이 과제의 읽을 수 있는 안내가 필요합니다.' : '초안 형식·출처 검증에 실패했습니다. 이전 판은 보존했습니다. 다시 만들거나 과제 채팅에서 수정해 주세요.';
+        throw Object.assign(new Error(message), { appError: { code: 'INVALID_REQUEST', message, retryable: false } });
+      }
+    },
+    print: printAssignment,
+    show: async (path, how) => { if (how === 'reveal') shell.showItemInFolder(path); else { const error = await shell.openPath(path); if (error) throw new Error('PDF를 열지 못했습니다.'); } },
+  });
+  protocol.handle('assignment-preview', async request => {
+    try {
+      const url = new URL(request.url), ids = url.pathname.split('/').filter(Boolean);
+      if (request.method !== 'GET' || url.hostname !== 'view' || url.search || ids.length !== 3 || !ids.every(id => /^[0-9a-f-]{36}$/i.test(id))) return new Response('', { status: 404 });
+      const html = await assignments.preview({ courseId: ids[0]!, assignmentId: ids[1]!, revision: ids[2]! });
+      return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': ASSIGNMENT_CSP, 'Cache-Control': 'no-store' } });
+    } catch { return new Response('과제 초안을 불러오지 못했습니다. 과제 화면을 다시 열어 주세요.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
+  });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    clearInterval(previewTimer); automation?.stop();
+    clearInterval(previewTimer); automation?.stop(); assignments.stopAll();
     void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
@@ -499,6 +550,9 @@ app.whenReady().then(async () => {
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
+    'assignment.open': request => assignments.open(request), 'assignment.state': request => assignments.state(request),
+    'assignment.generate': request => assignments.generate(request), 'assignment.cancel': request => assignments.cancel(request),
+    'assignment.export': request => assignments.export(request), 'assignment.showPdf': request => assignments.showPdf(request),
     // WBS-080: opens the macOS Settings pane for a permission the app needs; fixed addresses only.
     "app.openSettings": async ({ pane }) => { await shell.openExternal(PRIVACY_PANES[pane]); return {}; },
     // WBS-081: files a conversation made, listed and opened by id only.

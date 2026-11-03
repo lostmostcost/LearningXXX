@@ -2975,11 +2975,14 @@
         "REQ-013"
       ],
       "acceptance": "과제 안내/AI 제출 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제 고정 전용 세션에서 모든 주차 읽기, 공식 Claude 구독으로 최초 초안·수정 결과 새 판 실시간 미리보기와 PDF 내보내기. 이전 판·원본 보존, 명시 실행·누락 입력 확인, 전환/취소/실패/재시작/동시 요청·파일 경계 회귀.",
-      "status": "Backlog",
+      "status": "Review",
       "branch": "feat/WBS-097-assignment-workspace",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81a5a719d7305a8fa9c0",
-      "scope_note": "CR-093 사용자 승인 과제 요구를 WBS-092에서 독립 작업으로 분리. 영상 앱 연결은 WBS-092, 실제 지정 과제 제출은 WBS-058. WBS-094 뒤 task/area claim 확보 후 진행."
+      "scope_note": "CR-093 사용자 승인 과제 요구를 WBS-092에서 독립 작업으로 분리. 영상 앱 연결은 WBS-092, 실제 지정 과제 제출은 WBS-058. WBS-094 뒤 task/area claim 확보 후 진행. 실제 대규모 과목의 초기 생성 입력은 사용자가 명시적으로 선택할 수 있으며 제외 자료를 누락으로 표시하고 부분 생성 동의를 받는다. 전체 주차 전용 채팅 열람 범위는 유지한다.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-097.md: staged diff reviews, targeted host/UI/contracts/engine checks; actual official subscription draft and PDF generation; full container checks. Native chat edit request hit the subscription usage limit (09:40 Asia/Seoul reset); not marked passed. Manual working-file write verified actual preview/new-version publication and original PDF retention. WBS-058 remains deferred by latest owner reply."
+      ]
     }
   ],
   "qaPolicy": {

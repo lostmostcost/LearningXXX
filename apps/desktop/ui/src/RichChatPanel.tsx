@@ -17,11 +17,12 @@ type Note = { title: string; text: string; settings?: 'screen' | undefined };
 type Rewind = { id: string; result: IpcResponse<'chat.rewind'> };
 
 /** Session IDs are captured before every async action; switching views never retargets a send. */
-export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing }: {
+export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing, fixed = false, blocked = false }: {
   courseId: string | undefined; courseTitle: string | undefined; activeId: string | undefined; onActiveId: (id: string) => void;
   selectedAssets: { id: string; name: string }[]; selectionRequest: SelectionRequest | undefined; onSelectionUsed: (id: string) => void;
   /** WBS-082: what is open in the viewer, sent with each message. */
   viewing?: { week?: string; title?: string; page?: number } | undefined;
+  fixed?: boolean; blocked?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [snapshot, setSnapshot] = useState<{ id: string; state: State }>();
@@ -85,6 +86,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   useEffect(() => { if (!menuOpen) return; const close = (e: PointerEvent) => { if (!menu.current?.contains(e.target as Node)) setMenuOpen(false); }; const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); }; document.addEventListener('pointerdown', close); document.addEventListener('keydown', esc); return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc); }; }, [menuOpen]);
 
   const create = async (independent = false) => {
+    if (fixed) return;
     if (createLock.current) return;
     createLock.current = true; setCreating(true); const origin = { ...context.current };
     try {
@@ -118,7 +120,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
     });
   };
   const send = async () => {
-    if (!activeId || !state?.connected || busy) return;
+    if (!activeId || !state?.connected || busy || blocked) return;
     const id = activeId, content = { ...draft, attachments: [...draft.attachments] }, command = parseChatCommand(content.text);
     if (pending && command?.name !== 'stop') return;
     if (!content.text.trim() && !content.attachments.length) return;
@@ -129,6 +131,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       if (command) {
         const item = items.find(c => c.name === command.name);
         if (!item || !item.available) { tell(id, `/${command.name}`, '이 명령은 현재 채팅 연결에서 제공되지 않습니다. 고급 터미널에서 사용할 수 있습니다.'); return; }
+        if (fixed && ['new', 'resume'].includes(item.action)) return tell(id, '과제 전용 대화', '새 대화는 초안 미리보기의 “새 과제 대화”를 사용하세요. 기존 대화와 초안 판은 보존됩니다.');
         if (['model', 'effort', 'mode', 'plan'].includes(item.action)) {
           if (!command.args && item.action !== 'plan') { ({ model: modelPicker, effort: effortPicker, mode: modePicker }[item.action])?.current?.focus(); clear(); return; }
           const change = item.action === 'plan' ? { mode: /^(off|default|normal)$/i.test(command.args) ? 'default' : 'plan' } : item.action === 'model' ? { model: command.args } : item.action === 'effort' ? { effort: command.args.toLowerCase() } : { mode: ({ normal: 'default', edit: 'acceptEdits', off: 'default' } as Record<string, string>)[command.args] ?? command.args };
@@ -174,19 +177,19 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
     });
   };
   const currentModel = state?.models.find(m => m.value === state.model || m.resolvedModel === state.model);
-  const disabled = busy || !!state?.busy || !state?.connected;
+  const disabled = blocked || busy || !!state?.busy || !state?.connected;
 
   return <section className="rich-chat" aria-label="Claude Code 채팅">
-    <div className="session-toolbar"><div className="session-menu" ref={menu}>
+    {fixed ? <div className="session-toolbar assignment-chat-heading"><strong>과제 전용 · 전체 주차</strong><small>{active?.title ?? '과제 대화 준비 중…'}</small></div> : <div className="session-toolbar"><div className="session-menu" ref={menu}>
       <button className="session-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span>{active?.title ?? '대화 선택'}</span><Icon name="chevron" /></button>
       {menuOpen ? <div className="session-dropdown" role="menu"><button aria-pressed={showArchived} title="보관한 대화 포함" aria-label="보관한 대화 포함" onClick={() => setShowArchived(!showArchived)}><Icon name="archive" />보관한 대화</button>{sessions.filter(s => (!s.archivedAt || showArchived) && (s.mode === 'independent' || s.courseId === courseId)).map(s => <button key={s.appSessionId} role="menuitem" aria-current={s.appSessionId === activeId} onClick={async () => { if (s.archivedAt) { const r = await invoke('session.archive', { appSessionId: s.appSessionId, archived: false }); if (!r.ok) return tell(s.appSessionId, '보관 해제 실패', r.error.message); await reload(); } onActiveId(s.appSessionId); setMenuOpen(false); }}><Icon name={s.mode === 'course' ? 'book' : 'chat'} /><span>{s.title}{s.archivedAt ? " · 보관됨" : ""}</span></button>)}{!sessions.length ? <p>새 대화를 시작하세요.</p> : null}</div> : null}
-    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title="이 대화가 만든 파일" aria-label="이 대화가 만든 파일" aria-pressed={outputsFor === active.appSessionId} onClick={() => setOutputsFor(o => (o === active.appSessionId ? undefined : active.appSessionId))}><Icon name="folder" /></button> : null}{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>
+    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title="이 대화가 만든 파일" aria-label="이 대화가 만든 파일" aria-pressed={outputsFor === active.appSessionId} onClick={() => setOutputsFor(o => (o === active.appSessionId ? undefined : active.appSessionId))}><Icon name="folder" /></button> : null}{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>}
 
     {createError ? <p className="chat-error" role="alert">{createError}</p> : null}
     {active && outputsFor === active.appSessionId ? <ChatOutputs key={active.appSessionId} appSessionId={active.appSessionId} busy={!!state?.busy} onClose={() => setOutputsFor(undefined)} /> : null}
     {<>
       <div className="conversation-scroll" ref={list} onScroll={() => { if (list.current) nearBottom.current = list.current.scrollHeight - list.current.scrollTop - list.current.clientHeight < 80; }} role="log" aria-label="대화 기록">
-        {!state?.messages.length ? <div className="chat-welcome"><span className="claude-spark">✳</span><h3>함께 생각해볼까요?</h3><p>자료에 관해 묻거나, / 로 도구를 찾아보세요.</p>{!active ? <button onClick={() => void create()} disabled={creating}>대화 시작</button> : null}</div> : null}
+        {!state?.messages.length ? <div className="chat-welcome"><span className="claude-spark">✳</span><h3>{fixed ? '과제를 함께 다듬어요' : '함께 생각해볼까요?'}</h3><p>{fixed ? '이 과목의 모든 주차 자료를 읽을 수 있습니다. 초안 작성·수정을 요청하면 미리보기에 반영됩니다.' : '자료에 관해 묻거나, / 로 도구를 찾아보세요.'}</p>{!active && !fixed ? <button onClick={() => void create()} disabled={creating}>대화 시작</button> : null}</div> : null}
         {state?.messages.map(m => <article key={m.id} className={`conversation-message ${m.role}`}><div className="message-author">{m.role === 'user' ? '나' : m.role === 'assistant' ? 'Claude' : 'Claude Code'}</div>{m.text ? <MarkdownAnswer text={m.text} /> : null}{m.tools.map(t => <details className="tool-card" key={t.id}><summary><Icon name="code" /><span>{t.name}</span><Icon name="chevron" /></summary><pre>{t.input}</pre></details>)}</article>)}
         {state?.permissions.map(p => <PermissionCard key={p.id} permission={p} disabled={busy} onAnswer={(allow, answers) => { if (!activeId) return; const id = activeId; void action(id, async () => { const r = await invoke('chat.answer', { appSessionId: id, permissionId: p.id, allow, ...(answers ? { answers } : {}) }); if (r.ok) accept(id, r.data); else tell(id, '확인 요청', r.error.message); }); }} />)}
         {state?.busy ? <div className="working-status" role="status"><span />{state.permissions.length ? '확인을 기다리고 있어요' : 'Claude가 작업하고 있어요'}</div> : null}
@@ -200,13 +203,13 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       {activeId ? <div className="rich-composer"><div className="composer">
         {showCommands ? <div ref={commandMenu} id="chat-command-menu" className="command-menu" role="listbox" aria-label="Claude Code 명령">{choices.map((c, i) => <button id={`chat-command-${i}`} key={c.name} type="button" role="option" aria-selected={i === commandIndex} onMouseDown={e => e.preventDefault()} onClick={() => { setDraft(activeId, d => ({ ...d, text: '/' + c.name + ' ' })); input.current?.focus(); }}><strong>/{c.name} <em>{c.label}</em></strong><span>{c.available ? c.description : '고급 터미널에서 사용'}</span></button>)}</div> : null}
         {draft.attachments.length ? <div className="attachment-chips">{draft.attachments.map(a => <span key={a.id}><Icon name="book" />{a.name}<button title="입력에서 첨부 제거" aria-label="입력에서 첨부 제거" onClick={() => setDraft(activeId, d => ({ ...d, attachments: d.attachments.filter(x => x.id !== a.id) }))}>×</button></span>)}</div> : null}
-        <textarea ref={input} value={draft.text} disabled={!state?.connected} maxLength={90000} aria-label="Claude에게 메시지" aria-controls={showCommands ? "chat-command-menu" : undefined} aria-activedescendant={showCommands ? `chat-command-${Math.min(commandIndex, choices.length - 1)}` : undefined} placeholder="무엇이든 물어보세요. / 명령" onChange={e => setDraft(activeId, d => ({ ...d, text: e.target.value }))} onKeyDown={e => {
+        <textarea ref={input} value={draft.text} disabled={!state?.connected || blocked} maxLength={90000} aria-label="Claude에게 메시지" aria-controls={showCommands ? "chat-command-menu" : undefined} aria-activedescendant={showCommands ? `chat-command-${Math.min(commandIndex, choices.length - 1)}` : undefined} placeholder={blocked ? '초안 생성 완료 후 수정할 수 있습니다.' : fixed ? '과제 초안을 어떻게 수정할까요?' : '무엇이든 물어보세요. / 명령'} onChange={e => setDraft(activeId, d => ({ ...d, text: e.target.value }))} onKeyDown={e => {
           if (e.nativeEvent.isComposing) return;
           if (e.key === 'Escape') { setCommandsHidden(true); return; }
           if (showCommands && ['ArrowDown', 'ArrowUp', 'Tab', 'Enter'].includes(e.key)) { e.preventDefault(); if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setCommandIndex(i => (i + (e.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length); else { setDraft(activeId, d => ({ ...d, text: '/' + choices[Math.min(commandIndex, choices.length - 1)]!.name + ' ' })); } return; }
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
         }} />
-        <div className="composer-actions"><button disabled={busy || !!pending} aria-label="파일 첨부" title="파일 첨부" onClick={() => void attach('local')}><Icon name="plus" /></button><button disabled={busy || !!pending} aria-label="화면 캡처" title="화면 캡처" onClick={() => void attach('capture')}><Icon name="capture" /></button>{selectedAssets.map(a => <button key={a.id} disabled={busy || !!pending} title={`자료 첨부: ${a.name}`} aria-label={`자료 첨부: ${a.name}`} onClick={() => void attach('asset', a.id)}><Icon name="book" /></button>)}<span className="composer-spacer" />{state?.busy ? <button disabled={busy} className="send-button" aria-label="응답 중지" title="응답 중지" onClick={() => { const id = activeId; void action(id, async () => { const r = await invoke('chat.interrupt', { appSessionId: id }); if (r.ok) accept(id, r.data); else tell(id, '중지 실패', r.error.message); }); }}><Icon name="stop" /></button> : <button className="send-button" disabled={busy || !state?.connected || !!pending || !draft.text.trim() && !draft.attachments.length} aria-label="메시지 전송" title="메시지 전송" onClick={() => void send()}><Icon name="send" /></button>}</div>
+        <div className="composer-actions"><button disabled={busy || !!pending} aria-label="파일 첨부" title="파일 첨부" onClick={() => void attach('local')}><Icon name="plus" /></button><button disabled={busy || !!pending} aria-label="화면 캡처" title="화면 캡처" onClick={() => void attach('capture')}><Icon name="capture" /></button>{selectedAssets.map(a => <button key={a.id} disabled={busy || !!pending} title={`자료 첨부: ${a.name}`} aria-label={`자료 첨부: ${a.name}`} onClick={() => void attach('asset', a.id)}><Icon name="book" /></button>)}<span className="composer-spacer" />{state?.busy ? <button disabled={busy} className="send-button" aria-label="응답 중지" title="응답 중지" onClick={() => { const id = activeId; void action(id, async () => { const r = await invoke('chat.interrupt', { appSessionId: id }); if (r.ok) accept(id, r.data); else tell(id, '중지 실패', r.error.message); }); }}><Icon name="stop" /></button> : <button className="send-button" disabled={blocked || busy || !state?.connected || !!pending || !draft.text.trim() && !draft.attachments.length} aria-label="메시지 전송" title="메시지 전송" onClick={() => void send()}><Icon name="send" /></button>}</div>
       </div><div className="chat-controls"><select ref={modelPicker} aria-label="모델" title="/model" disabled={disabled} value={currentModel?.value ?? ''} onChange={e => configure({ model: e.target.value })}><option value="" disabled>기본 모델</option>{state?.models.map(m => <option key={m.value} value={m.value}>{m.displayName}</option>)}</select><select ref={effortPicker} aria-label="추론 강도" title="/effort · 다음 요청부터" disabled={disabled || !currentModel} value={state?.effort ?? 'default'} onChange={e => configure({ effort: e.target.value })}><option value="default">기본 강도</option>{currentModel?.supportedEffortLevels?.map(l => <option key={l} value={l}>{l}</option>)}</select><select ref={modePicker} aria-label="실행 모드" title="/plan · /permissions" disabled={disabled} value={state?.mode ?? 'default'} onChange={e => configure({ mode: e.target.value })}>{Object.entries(MODE_LABEL).filter(([key]) => key !== 'auto' || currentModel?.supportsAutoMode).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div><div className="chat-environment">Claude Code · 구독 로그인 · 일반 환경{state?.mode === 'acceptEdits' ? ' · 파일 편집 자동 승인' : ''}</div></div> : null}
     </>}
   </section>;

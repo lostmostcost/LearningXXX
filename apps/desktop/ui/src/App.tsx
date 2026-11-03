@@ -7,6 +7,7 @@ import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import brandLogo from "../../../../assets/branding/yolo-univ-logo.png";
 import { RichChatPanel } from "./RichChatPanel.tsx";
+import { AssignmentPanel, useAssignment } from "./AssignmentPanel.tsx";
 import { CourseKnowledge } from "./CourseKnowledge.tsx";
 import { MemoPanel } from "./MemoPanel.tsx";
 import { AddMaterials, ManualControls } from "./AddMaterials.tsx";
@@ -132,6 +133,9 @@ export function App() {
   const devLabel = buildLabel(build);
   useEffect(() => { document.title = devLabel ? `YOLO UNIV — ${devLabel}` : "YOLO UNIV"; }, [devLabel]);
   const selectedItem = selected ? itemForResource(learning.status, selected.resource) : undefined;
+  const assignmentScope = IN_APP && !FIXTURE_MODE && !home && !knowledgeOpen && !playing && library && selected?.resource.kind === 'assignment' && selectedItem?.kind !== 'quiz' ? { courseId: library.course.id, assignmentId: selected.resource.id } : undefined;
+  const assignment = useAssignment(assignmentScope);
+  useEffect(() => { if (assignmentScope) setRightTab('chat'); }, [assignmentScope?.courseId, assignmentScope?.assignmentId]);
   // WBS-056: an LMS PDF whose page is actually drawn in the viewer is a view the LMS records
   // (once per item; retry on failure). A PDF that cannot be opened is not.
   const { recordView } = learning;
@@ -302,6 +306,7 @@ export function App() {
         {children}
       </section>
     );
+  const materialViewer = <Viewer entry={selected} lms={selected?.resource.source==='manual'&&library ? <ManualControls key={selected.resource.id} courseId={library.course.id} resourceId={selected.resource.id} weeks={weekList} weekId={selected.resource.weekId} onDone={(removed)=>{if(removed)setSelected(undefined);void refresh();}}/> : selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />;
 
   return (
     <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''} ${edge&&!pinned&&!drawer?'sidebar-edge':''}`}>
@@ -380,7 +385,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weeks={weekList} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selected?.resource.source==='manual'&&library ? <ManualControls key={selected.resource.id} courseId={library.course.id} resourceId={selected.resource.id} weeks={weekList} weekId={selected.resource.weekId} onDone={(removed)=>{if(removed)setSelected(undefined);void refresh();}}/> : selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weeks={weekList} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : assignmentScope ? <AssignmentPanel key={`${assignmentScope.courseId}/${assignmentScope.assignmentId}`} workspace={assignment} instructions={materialViewer} /> : materialViewer
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {
@@ -394,7 +399,7 @@ export function App() {
             {([['chat', '채팅'], ['memo', '메모'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : id === "memo" ? "tool-panel-memo" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'memo' ? 'edit' : id === 'recording' ? 'mic' : 'file'} />{label}{id === 'recording' ? recLight : null}</button>)}
           </div>
           <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
-            {window.host ? <RichChatPanel viewing={viewing} selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
+            {window.host ? <RichChatPanel viewing={assignmentScope ? { title: selected!.resource.title } : viewing} selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={assignmentScope ? assignment.state?.sessionId : activeSessionId} onActiveId={id => { if (!assignmentScope) setActiveSessionId(id); }} fixed={!!assignmentScope} blocked={assignment.state?.phase === 'generating' && !!assignmentScope} selectionRequest={assignmentScope ? undefined : selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
           <div className="tool-pane" id="tool-panel-memo" role="tabpanel" aria-labelledby="tool-memo" hidden={rightTab !== 'memo'}>
             {/* WBS-086: the memo of the week being looked at. */}

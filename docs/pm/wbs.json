@@ -1783,6 +1783,31 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81e98699f67208d15e39?pvs=204",
       "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-060",
+      "title": "재시작 후 채팅 대화 재개 실패 수정",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "docs/pm/",
+        "docs/qa/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [
+        "REQ-004"
+      ],
+      "acceptance": "채팅으로만 쓴 과목·일반 대화를 앱 재시작 후 열면 이전 메시지가 보이고 같은 문맥으로 이어진다. 기록이 빠진 기존 대화도 원본 Claude Code 기록이 있으면 다시 열린다.",
+      "status": "Backlog",
+      "branch": "fix/WBS-060-chat-resume",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81d3a848fdf4a9beccab?pvs=204",
+      "scope_note": "WBS-029 AI 앱 안 검수 결함 D-1에서 분리(2026-11-03). WBS-056 Done 뒤 진행."
     }
   ],
   "qaPolicy": {

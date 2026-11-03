@@ -43,6 +43,8 @@ export function installFakeHost(courseTitle: string): void {
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
   const fakeViewed = new Set<string>();
   let fakeRec: { id: string; courseId: string; bytes: number } | undefined;
+  const fakeCorrections: (typeof SAMPLE_TRANSCRIPT)[] = [];
+  let fakeReadable = false;
   // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
   let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
   const forCourse = (courseId: unknown) => fakeRecordings.filter((r) => r.courseId === String(courseId) || r.id === SAMPLE_RECORDINGS[0]!.id).map((r) => ({ ...r, courseId: String(courseId) }));
@@ -70,7 +72,7 @@ export function installFakeHost(courseTitle: string): void {
     'media.pauseTranscription': () => ok({ paused: true }),
     'media.resumeTranscription': () => ok({ paused: false }),
     'media.cancelTranscription': () => ok({}),
-    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT] : [], downloads: [] }),
+    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: fakeReadable ? ['readable', 'corrections', 'readable_app'] : ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT, ...fakeCorrections] : [], downloads: [] }),
     'media.original': async () => ok({ bytes: new Uint8Array(await syntheticAudio().arrayBuffer()), mediaType: 'audio/wav' }),
     'media.retry': () => { fixtureJob = SAMPLE_JOBS[2]!; return ok({}); },
     'media.open': () => ok({}),
@@ -103,6 +105,9 @@ export function installFakeHost(courseTitle: string): void {
     ] }),
     "media.importRun": async (p) => { await new Promise((r) => setTimeout(r, 400)); return ok({ imported: (p.itemIds as string[]).length, skipped: 0, failed: [] }); },
     "media.importStatus": () => ok({ running: false, done: 0, total: 0 }),
+    // WBS-069: corrections and a readable note, in memory.
+    "media.saveCorrection": (p) => { const base = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((t) => t.id === p.basedOnTranscriptId)!; const id = crypto.randomUUID(); fakeCorrections.push({ ...base, id, kind: "corrected", engine: { name: "manual", version: "user" }, basedOnTranscriptId: base.id, createdAt: now(), segments: base.segments.map((seg, i) => ({ ...seg, text: (p.texts as string[])[i] ?? seg.text })) }); return ok({ transcriptId: id }); },
+    "media.makeReadable": async () => { await new Promise((r) => setTimeout(r, 700)); fakeReadable = true; return ok({ doc: "readable_app" }); },
     "media.importedDoc": (p) => ok({ text: `# 합성 ${String(p.doc)}\n\n합성 UI 예제 문서입니다.` }),
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),
     "recording.assign": (p) => { const i = fakeRecordings.findIndex((r) => r.id === p.recordingId); if (i < 0) return fail('NOT_FOUND', '녹음을 찾을 수 없습니다.'); const { lectureSourceId: _old, ...rest } = fakeRecordings[i]!; fakeRecordings[i] = { ...rest, weekId: String(p.weekId), ...(p.lectureSourceId ? { lectureSourceId: String(p.lectureSourceId) } : {}) }; return ok({ recording: fakeRecordings[i] }); },

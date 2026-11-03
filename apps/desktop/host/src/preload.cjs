@@ -69,6 +69,8 @@ const CHANNELS = new Set([
   "media.importRun",
   "media.importStatus",
   "media.importedDoc",
+  "media.saveCorrection",
+  "media.makeReadable",
   "media.pauseTranscription",
   "media.resumeTranscription",
   "media.cancelTranscription",

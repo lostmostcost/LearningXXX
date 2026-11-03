@@ -146,6 +146,8 @@ describe("producer → consumer round trip", () => {
       "media.importRun": { planId: sid, itemIds: ["a".repeat(16)] },
       "media.importStatus": {},
       "media.importedDoc": { courseId: sid, assetId: sid, doc: "readable" },
+      "media.saveCorrection": { courseId: sid, assetId: sid, basedOnTranscriptId: sid, texts: ["고친 문장"] },
+      "media.makeReadable": { courseId: sid, assetId: sid, transcriptId: sid },
       "media.pauseTranscription": {},
       "media.resumeTranscription": {},
       "media.cancelTranscription": { courseId: sid, jobId: sid },

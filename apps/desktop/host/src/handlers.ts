@@ -154,6 +154,8 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "media.importRun": (request) => importing().run(request),
     "media.importStatus": async () => importing().status(),
     "media.importedDoc": ({ courseId, assetId, doc }) => libraryMedia().importedDoc(courseId, assetId, doc),
+    "media.saveCorrection": ({ courseId, assetId, basedOnTranscriptId, texts }) => libraryMedia().saveCorrection(courseId, assetId, basedOnTranscriptId, texts),
+    "media.makeReadable": ({ courseId, assetId, transcriptId }) => libraryMedia().makeReadable(courseId, assetId, transcriptId),
     "media.retry": ({ courseId, jobId }) => libraryMedia().retry(courseId, jobId),
     "media.pauseTranscription": () => libraryMedia().pauseTranscription(),
     "media.resumeTranscription": () => libraryMedia().resumeTranscription(),

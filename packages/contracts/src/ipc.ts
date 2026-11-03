@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { ImportItem, ImportedDocKind, LectureSourceId, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportItem, ImportedDocKind, LectureSourceId, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -294,6 +294,20 @@ export const IpcChannels = {
   },
   "media.importStatus": { request: z.object({}), response: z.object({ running: z.boolean(), done: z.number().int().nonnegative(), total: z.number().int().nonnegative() }) },
   /** A copied note (정리본·교정 기록·전사 md·srt) of an imported original, as text. */
+  /**
+   * WBS-069: saves the user's corrections of a transcript version as a new
+   * "corrected" version (same times, new text). The version edited stays as it was.
+   */
+  "media.saveCorrection": {
+    request: z.object({ courseId: Id, assetId: Id, basedOnTranscriptId: Id, texts: z.array(z.string().max(MAX_SEGMENT_TEXT)).min(1).max(MAX_CORRECTION_SEGMENTS) }),
+    response: z.object({ transcriptId: Id }),
+  },
+  /**
+   * WBS-069: on request, the official Claude Code (subscription login, read-only
+   * isolated run) turns a transcript version into a readable note, kept as the
+   * "readable_app" document of that original. One at a time.
+   */
+  "media.makeReadable": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id }), response: z.object({ doc: z.literal("readable_app") }) },
   "media.importedDoc": { request: z.object({ courseId: Id, assetId: Id, doc: ImportedDocKind }), response: z.object({ text: z.string() }) },
   /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
   "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },

@@ -1752,11 +1752,11 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "확인 대화상자를 거친 수동 제출과, 사용자가 등록 시 확인한 규칙에 따른 자동 제출을 제공한다. 시작 전 연습용 과제 제출 흐름을 실측한다.",
-      "status": "Backlog",
+      "status": "Blocked",
       "branch": "feat/WBS-058-assignment-submit",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기."
     },
     {
       "id": "WBS-059",
@@ -2071,11 +2071,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "전사 문장을 직접 고쳐 저장(원본 보존)하고, 요청 시 Claude Code(구독)로 가독성 정리본을 만든다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-069-transcript-edit",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81a9a9aac116789ac5c2?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed contracts (MANUAL_ENGINE, limits, media.saveCorrection/makeReadable, readable_app doc), MediaService corrections (new corrected version with same times, based on the edited version, count check, account check, stored apart from engine output, cached) and makeReadable (one at a time, aborted on stop, note stored as readable_app doc without touching transcription), readable runner (independent CLI mode, empty folder removed afterwards, 10-minute limit, failures surfaced), UI edit mode, version labels, readable button and notices. Checks: new host tests (correction chain and validation, readable note one-at-a-time and storage, runner mode/prompt/cleanup/failure), pnpm -r run check. Fixture preview: edit → new '직접 고친 판' shown, readable note → '앱 정리본(Claude)' document. A real Claude Code run was not made by the agent (uses the owner's subscription)."
+      ]
     },
     {
       "id": "WBS-070",

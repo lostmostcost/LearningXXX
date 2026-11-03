@@ -94,8 +94,13 @@ describe("one run at a time", () => {
     // Without the gate a fast first run could finish first, and two back-to-back runs are allowed.
     let open: () => void = () => {};
     const gate = new Promise<void>((resolve) => (open = resolve));
-    const { run } = setup({ wrapFetch: (fetch) => async (input, init) => { await gate; return fetch(input, init); } });
+    // The second start waits until the first is inside its LMS call (and so holds the lock);
+    // otherwise, under load, the second could take the lock first and the first would be refused.
+    let entered: () => void = () => {};
+    const inside = new Promise<void>((resolve) => (entered = resolve));
+    const { run } = setup({ wrapFetch: (fetch) => async (input, init) => { entered(); await gate; return fetch(input, init); } });
     const first = run();
+    await inside;
     // If the lock were missing, the second run would wait on the gate too: fail after 2 s instead of hanging.
     const timeout = new Promise<string>((resolve) => setTimeout(() => resolve("no lock: second run started"), 2000).unref());
     const second = await Promise.race([run().then(() => "second run finished", (e: unknown) => e), timeout]);

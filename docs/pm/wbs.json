@@ -1735,7 +1735,8 @@
       "phase": "MVP 검수",
       "priority": "P1",
       "deps": [
-        "WBS-055"
+        "WBS-055",
+        "WBS-092"
       ],
       "areas": [
         "host",
@@ -1756,7 +1757,7 @@
       "branch": "feat/WBS-058-assignment-submit",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행."
     },
     {
       "id": "WBS-059",
@@ -2807,11 +2808,69 @@
         "docs/specs/SPEC-006.md",
         "pnpm-lock.yaml"
       ],
-      "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증.",
-      "status": "Backlog",
+      "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증. CR-093: 과제 안내/AI 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제별 세션에서 해당 과목 모든 주차 읽기, 새 판 실시간 미리보기·이전 판 보존, 전환/실패/취소/재시작 회귀.",
+      "status": "Blocked",
       "branch": "feat/WBS-092-artifact-workflows",
       "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
-      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음."
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058."
+    },
+    {
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "spec": "PRD-001",
+      "qa_mode": "appropriate_checks_only",
+      "id": "WBS-093",
+      "title": "YOLO UNIV 로고·앱 아이콘 자산 제작",
+      "deps": [],
+      "areas": [
+        "branding",
+        "pm"
+      ],
+      "paths": [
+        "assets/branding/",
+        "docs/pm/"
+      ],
+      "requirements": [
+        "REQ-003"
+      ],
+      "acceptance": "학사모를 쓴 YOLO 로고 PNG(투명), 앱 아이콘 PNG와 macOS ICNS를 제작하고 작은 크기·투명 배경·변환 파일을 검증한다. 원본 프롬프트와 재생성/패키징 방법을 남긴다. 앱 적용 완료와 구분한다.",
+      "status": "Review",
+      "branch": "feat/WBS-093-yolo-brand-assets",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81b6b313d3d9962df0ff",
+      "scope_note": "CR-093 사용자 직접 승인(2026-11-04). branding/pm claim으로 독립 자산과 요구 추적만 진행. host/ui/shared·root 파일 미변경.",
+      "review_evidence": [
+        "Reviewed generated logo lettering/cap/transparency and 64px app icon. Found halo/grain around first logo; corrected via built-in image_gen and re-reviewed. A corner-background removal attempt had edge artifacts and was rejected; retained the clean original tile icon. build-icon.sh reviewed for quoting, temporary folder cleanup, source preservation and failure publication: bash -n PASS; host bash execution PASS. Sandbox iconutil initially rejected a valid iconset; same host command passed. sips confirms source 1254x1254 RGB, logo 2172x724 RGBA, app PNG 1024x1024; iconutil round-trip yields all 10 standard PNG sizes. Re-reviewed script, README, exact prompt provenance and WBS/decision changes. scripts/check.py 94 tasks PASS; tooling 20 OK (container-only version check 1 skipped on host). App/Dock integration not performed, WBS-094 pending shared area."
+      ]
+    },
+    {
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "spec": "PRD-001",
+      "qa_mode": "appropriate_checks_only",
+      "id": "WBS-094",
+      "title": "앱 이름 YOLO UNIV 변경·로고와 아이콘 적용",
+      "deps": [
+        "WBS-093"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "assets/branding/",
+        "docs/pm/"
+      ],
+      "requirements": [
+        "REQ-003"
+      ],
+      "acceptance": "앱 표시명·창 제목·첫 화면·네이티브 아이콘을 YOLO UNIV로 적용하고 기존 자료·학교 로그인·세션이 유지됨을 확인한다. 루트 manifest 수정이 필요하면 shared claim 하 경로 추가 후 진행.",
+      "status": "Blocked",
+      "branch": "feat/WBS-094-yolo-univ-brand",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81d9b03df0bae9c97b27",
+      "scope_note": "CR-093 사용자 직접 승인(2026-11-04). WBS-093 자산과 WBS-085 host/ui/shared claim 해제 대기."
     }
   ],
   "qaPolicy": {

@@ -1,0 +1,23 @@
+{
+  "tool": "built-in image_gen.imagegen",
+  "date": "2026-11-04",
+  "task": "WBS-093",
+  "approvedChange": "CR-093",
+  "icon": {
+    "prompt": "Create one finished square macOS app icon for YOLO UNIV. A warm ivory rounded square tile, centered ultra-bold dark navy text arranged exactly as two rows \"YO\" over \"LO\", together reading YOLO, topped by a clearly recognizable flat diamond graduation mortarboard with a small golden yellow tassel on the right. Bold friendly geometric sans lettering, both O shapes have a tiny eye glint to suggest an expressive typographic mascot, no animal or human body. Crisp flat vector-like design, premium university AI app branding. Large safe margins, all glyphs must be complete and legible, no cropping. No UNIV text in this small app icon. No other words, no photorealism, no bevel, no glow, no drop shadow, no decorative frame. Deliver just a single icon filling a square canvas.",
+    "transparent_background": false,
+    "output": "yolo-univ-icon-source.png"
+  },
+  "logo": {
+    "prompt": "Create the companion horizontal logo lockup for this exact YOLO UNIV app icon. Preserve this reference mark: graduation mortarboard with gold tassel above stacked YO / LO navy rounded letters. On the LEFT use a smaller complete version of the reference graduation-cap YOLO mark WITHOUT the ivory rounded square tile. On its RIGHT set the exact text \"YOLO UNIV\" in a single horizontal line of bold rounded geometric dark navy lettering, distinct letters, carefully spaced and fully legible. Actual transparent background, crisp clean edges, all letters and cap fully visible with generous margins. Flat vector-like logo, no glow, no lighting, no background, no mockup, no shadow. This is a wide horizontal brand logo, not an app icon.",
+    "reference": "yolo-univ-icon-source.png",
+    "transparent_background": true,
+    "cleanup_prompt": "Clean this exact logo for production use. Preserve the same exact YOLO UNIV wording, layout and graduation-cap YO/LO mark. Remove ALL gray/white halos, ALL grain, ALL speckles, ALL shadows and glow around the artwork. Every pixel outside the navy letters, navy graduation hat and yellow tassel must be fully transparent with zero alpha, including the interior holes of the letters. Flat solid dark navy shapes and solid gold tassel only; clean antialiased edges narrowly following each shape. No shading, no lighting, no outer aura. Preserve complete legible lettering and proportions. Transparent background.",
+    "output": "yolo-univ-logo.png"
+  },
+  "derived": [
+    "yolo-univ-icon.png",
+    "yolo-univ.icns"
+  ],
+  "packaging": "bash assets/branding/build-icon.sh"
+}

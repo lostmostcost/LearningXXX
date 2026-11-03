@@ -2163,16 +2163,18 @@
         "apps/desktop/ui/",
         "packages/contracts/",
         "docs/pm/",
-        "spikes/pdf-translation/"
+        "spikes/pdf-translation/",
+        "pnpm-lock.yaml",
+        "apps/desktop/host/package.json"
       ],
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "스파이크 후: 페이지 범위를 고르면 글자만 선호 언어로 바꾼 새 PDF를 만들고 토글로 원본과 전환한다. 스캔본 제외.",
-      "status": "Blocked",
+      "status": "Backlog",
       "branch": "spike/WBS-072-pdf-translation",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b78b1cf0998e869bb4?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조. 2026-11-03 스파이크 완료(spikes/pdf-translation/README.md). 구현은 pdf-lib·@pdf-lib/fontkit 추가(루트 pnpm-lock.yaml·host package.json 경로 추가) 승인 대기."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조. 2026-11-03 스파이크 완료(spikes/pdf-translation/README.md). 구현은 pdf-lib·@pdf-lib/fontkit 추가(루트 pnpm-lock.yaml·host package.json 경로 추가) 승인 대기. 2026-11-04 이문찬이 pdf-lib 의존성 추가 승인(루트 pnpm-lock.yaml 포함)."
     },
     {
       "id": "WBS-073",
@@ -2367,6 +2369,60 @@
       "review_evidence": [
         "Removed node-pty (host), @xterm/xterm and @xterm/addon-fit (ui), setup:pty script and prepare-pty.cjs, --external:node-pty in the build, node-pty in pnpm-workspace allowBuilds, NATIVE-TERMINAL.md; checked no source imports them. Lockfile regenerated with the pinned pnpm 12.14.0 (--lockfile-only, deletions only, supply-chain policy pass). Checks: docker compose run --rm tools with frozen lockfile install — all packages pass; check.py, check_scope.py."
       ]
+    },
+    {
+      "id": "WBS-080",
+      "title": "화면 캡처 권한을 앱이 직접 요청",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [
+        "REQ-003"
+      ],
+      "acceptance": "처음 캡처할 때 앱이 macOS 화면 기록 권한을 직접 요청해 시스템 설정 목록에 앱이 나타나고, 거부된 경우 설정 화면을 바로 열 수 있다.",
+      "status": "Backlog",
+      "branch": "fix/WBS-080-capture-permission",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81d8af72eee3b15f8d14?pvs=204",
+      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견."
+    },
+    {
+      "id": "WBS-081",
+      "title": "채팅이 만든 파일(outputs)을 앱 안에서 보기·열기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [
+        "REQ-009"
+      ],
+      "acceptance": "채팅 화면에서 그 대화가 만든 파일(outputs) 목록을 보고, 앱 안에서 열거나(텍스트·PDF) Finder에서 보여 줄 수 있다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-081-chat-outputs",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd814eb89af35480a77245?pvs=204",
+      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견."
     }
   ],
   "qaPolicy": {

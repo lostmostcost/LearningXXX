@@ -93,6 +93,7 @@ export class LearningXClient {
     const url = new URL(result.download_url, this.#commons);
     if (url.origin !== this.#commons) throw collectionError("SOURCE_CHANGED", "강의 자료가 다른 주소로 안내되어 받지 않았습니다.");
     const ext = (typeof result.extension === "string" && result.extension ? result.extension : extension).toLowerCase();
+    if (!LEARNINGX_FILE_TYPES.has(ext)) throw collectionError("UNSUPPORTED_FORMAT", "이 강의 자료의 파일 형식은 아직 지원하지 않습니다.");
 
     const viewer = `${this.#commons}/em/${contentId}`;
     const opened = await this.#send(viewer, { headers: { Referer: `${this.#canvas}/` } });

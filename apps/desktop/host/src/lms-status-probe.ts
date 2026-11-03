@@ -50,7 +50,7 @@ export interface StatusProbeDeps {
   ensureSignedIn: () => Promise<void>;
   learningxToken: () => Promise<string | undefined>;
   canvas: () => CanvasClient;
-  courses: () => Promise<{ sourceCourseId: string }[]>;
+  courses: () => Promise<{ sourceCourseId: string; title?: string }[]>;
 }
 
 export async function runLmsStatusProbe(out: string, deps: StatusProbeDeps): Promise<void> {
@@ -62,6 +62,9 @@ export async function runLmsStatusProbe(out: string, deps: StatusProbeDeps): Pro
   const lms = session.fromPartition(LMS_PARTITION);
   const shapes: Record<string, Shape> = { lxModule: {}, lxItem: {}, lxAttendanceItem: {}, assignment: {}, quiz: {}, canvasModule: {} };
   const itemTypes: Record<string, number> = {};
+  // WBS-063: per course, which kinds of weekly items there are and whether they count as opened (counts only).
+  const perCourse: Record<string, Record<string, number>> = {};
+  const videoSamples: Record<string, string[]> = {};
   const lx = async (path: string) => {
     const response = await lms.fetch(`${KHU_CANVAS_BASE_URL}/learningx/api/v1/${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
     outcomes.push(`lx ${path.replace(/\d{3,}/g, "#")} ${response.status}`);
@@ -75,7 +78,8 @@ export async function runLmsStatusProbe(out: string, deps: StatusProbeDeps): Pro
       return [];
     }
   };
-  for (const { sourceCourseId } of await deps.courses()) {
+  for (const { sourceCourseId, title } of await deps.courses()) {
+    const counts: Record<string, number> = (perCourse[`${sourceCourseId} ${title ?? ""}`.trim()] ??= {});
     const modules = token ? await lx(`courses/${sourceCourseId}/modules?include_detail=true`) : undefined;
     let attendanceSamples = 0;
     for (const module of Array.isArray(modules) ? modules : []) {
@@ -86,6 +90,13 @@ export async function runLmsStatusProbe(out: string, deps: StatusProbeDeps): Pro
         const detail = (item.content_data as { item_content_data?: { content_type?: unknown } } | undefined)?.item_content_data;
         const kind = `${String(item.content_type)}/${String(detail?.content_type ?? "-")}`;
         itemTypes[kind] = (itemTypes[kind] ?? 0) + 1;
+        const data = item.content_data as { opened?: unknown; item_content_data?: { content_id?: unknown } } | undefined;
+        const cid = detail ? (data?.item_content_data?.content_id === undefined ? "none" : typeof data.item_content_data.content_id === "string" ? (/^[\w-]{1,64}$/.test(data.item_content_data.content_id) ? "id" : "other-string") : typeof data.item_content_data.content_id) : "-";
+        const key = `${kind} opened=${String(data?.opened)} cid=${cid}`;
+        counts[key] = (counts[key] ?? 0) + 1;
+        const vkind = String(detail?.content_type ?? "");
+        const vid = data?.item_content_data?.content_id;
+        if (["movie", "zoom"].includes(vkind) && data?.opened === true && typeof vid === "string" && /^[\w-]{1,64}$/.test(vid) && (videoSamples[vkind] ??= []).length < 3) videoSamples[vkind]!.push(vid);
         if (item.content_type === "attendance_item" && attendanceSamples < 4) {
           attendanceSamples += 1;
           walk(shapes.lxAttendanceItem!, await lx(`courses/${sourceCourseId}/attendance_items/${String(item.content_id)}`), "", 0);
@@ -97,6 +108,21 @@ export async function runLmsStatusProbe(out: string, deps: StatusProbeDeps): Pro
     for (const m of await canvasList(`/api/v1/courses/${sourceCourseId}/modules?include[]=items&per_page=100`)) walk(shapes.canvasModule!, m, "", 0);
   }
   report.itemTypes = itemTypes;
+  report.perCourse = perCourse;
+  // WBS-063: whether Commons offers a downloadable original for each video-like kind (status, presence, extension only).
+  const commonsMeta: Record<string, string[]> = {};
+  for (const [kind, ids] of Object.entries(videoSamples)) {
+    for (const id of ids) {
+      const response = await lms.fetch(`https://commons.khu.ac.kr/CommonsCore2/v2/contents/${id}`, { redirect: "manual", headers: { Accept: "application/json" } }).catch(() => undefined);
+      let note = `status ${response?.status ?? "error"}`;
+      if (response?.ok) {
+        const meta = ((await response.json().catch(() => ({}))) as { result?: { download_url?: unknown; extension?: unknown } }).result;
+        note += ` download_url=${typeof meta?.download_url === "string" ? "yes" : "no"} extension=${String(meta?.extension ?? "-").slice(0, 8)}`;
+      }
+      (commonsMeta[kind] ??= []).push(note);
+    }
+  }
+  report.commonsMeta = commonsMeta;
   report.shapes = Object.fromEntries(Object.entries(shapes).map(([k, v]) => [k, plain(v)]));
   report.outcomes = outcomes;
   writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`);

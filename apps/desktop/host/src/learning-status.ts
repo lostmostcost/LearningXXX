@@ -23,7 +23,30 @@ export function utc(v: unknown): string | null {
   return Number.isNaN(t) ? null : new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-const KIND_OF_CONTENT: Record<string, LearningItem["kind"]> = { movie: "video", video: "video", mp4: "video", pdf: "material", zoom: "live", file: "file" };
+/**
+ * Weekly-learning content kinds. "zoom" is a recorded Zoom class kept in
+ * Commons like any other lecture video — same MP4 original, duration and
+ * watched time (WBS-063: the 데이터베이스 course's lectures are all "zoom").
+ */
+export const VIDEO_CONTENT_TYPES: ReadonlySet<string> = new Set(["movie", "video", "mp4", "zoom"]);
+const KIND_OF_CONTENT: Record<string, LearningItem["kind"]> = { movie: "video", video: "video", mp4: "video", zoom: "video", pdf: "material", file: "file" };
+
+/** Lecture videos the LMS has opened, by Commons id, with their week (module title). */
+export function lectureVideos(modules: unknown[]): { sourceId: string; title: string; week?: string }[] {
+  const videos: { sourceId: string; title: string; week?: string }[] = [];
+  for (const module of modules) {
+    const week = String(obj(module).title ?? "").trim().slice(0, 200);
+    for (const raw of Array.isArray(obj(module).module_items) ? (obj(module).module_items as unknown[]) : []) {
+      const item = obj(raw);
+      const data = obj(item.content_data);
+      const content = obj(data.item_content_data);
+      const id = content.content_id;
+      if (data.opened !== true || typeof id !== "string" || !/^[\w-]{1,64}$/.test(id) || !VIDEO_CONTENT_TYPES.has(String(content.content_type).toLowerCase())) continue;
+      videos.push({ sourceId: id, title: String(item.title ?? "온라인 강의").slice(0, 200) || "온라인 강의", ...(week ? { week } : {}) });
+    }
+  }
+  return videos;
+}
 const ATTENDANCE = new Set(["attendance", "none", "absent"]);
 const PERIOD = new Set(["open", "not_open", "late_after"]);
 

@@ -1885,11 +1885,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "데이터베이스 00분반 등에서 빠지던 동영상 강의가 주차 학습 목록에 나온다. 실측은 형태만 기록한다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "fix/WBS-063-missing-videos",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8158b7cefbbb9dad726f?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Measured with --lms-status-probe (counts/types only): 데이터베이스 00분반 lectures are LearningX 'zoom' items (44 opened, 25 not) stored in Commons with an MP4 download_url, so the movie-only filter dropped them. lectureVideos() moved from main.ts into learning-status.ts with a shared VIDEO_CONTENT_TYPES; zoom is also 'video' in learning status (watched time, badges). Real app: media.videos lists 44 videos over 9 weeks for 데이터베이스 00분반 (matches the owner's archive), others unchanged (논리회로 22, Hospitality 1). pnpm -r run check passes."
+      ]
     },
     {
       "id": "WBS-064",

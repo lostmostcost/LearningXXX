@@ -43,6 +43,8 @@ export interface TranscriptPanelProps {
   onAddMentions?: ((assetId: string, candidates: MentionCandidate[]) => Promise<number>) | undefined;
   /** WBS-071: the preferred language, and a saved translation / a new one of a version. */
   language?: PreferredLanguage | undefined;
+  /** WBS-073: for queued transcriptions, how many run before it and what is running now. */
+  waiting?: Record<string, { ahead: number; runningTitle?: string | undefined; runningProgress?: number | undefined }> | undefined;
   loadTranslation?: ((assetId: string, transcriptId: string, language: PreferredLanguage) => Promise<string[] | undefined>) | undefined;
   onTranslate?: ((assetId: string, transcriptId: string, language: PreferredLanguage) => Promise<{ texts: string[]; untranslated: number }>) | undefined;
 }
@@ -204,7 +206,9 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     <ul className="transcription-jobs" aria-label="전사 작업">{(latest ? [latest] : []).map((job) => {
       const view = jobView(job);
       const act = (work: (() => Promise<void>) | undefined, failed: string) => async () => { try { await work?.(); } catch { setNotice(failed); } };
-      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 처음부터 다시 전사" : view.label}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
+      const wait = job.status === "queued" ? props.waiting?.[job.id] : undefined;
+      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 처음부터 다시 전사" : view.label}
+        {wait && !props.paused ? <small className="queue-wait"> · 앞에 {wait.ahead}개{wait.runningTitle ? ` · 지금 "${wait.runningTitle}" 전사 중${wait.runningProgress !== undefined ? ` ${Math.round(wait.runningProgress * 100)}%` : ""}` : ""} (위 "작업"에서 순서를 볼 수 있습니다)</small> : null}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
         {job.status === "running" && props.onPause ? <button className="icon-button" title="전사 일시 정지" aria-label="전사 일시 정지" onClick={act(props.onPause, "전사를 일시 정지하지 못했습니다.")}><Icon name="pause" /></button> : null}
         {props.paused && job.status === "queued" && props.onResume ? <button className="icon-button" title="전사 재개" aria-label="전사 재개" onClick={act(props.onResume, "전사를 재개하지 못했습니다.")}><Icon name="play" /></button> : null}
         {(job.status === "running" || job.status === "queued") && props.onCancel ? <button className="icon-button" title="이 전사 중지" aria-label="이 전사 중지" onClick={act(() => props.onCancel!(job.id), "전사를 중지하지 못했습니다.")}><Icon name="stop" /></button> : null}

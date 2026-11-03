@@ -63,6 +63,7 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
     {data ? <TranscriptPanel courseId={courseId} assets={data.assets} recordings={data.recordings} jobs={data.jobs} transcripts={data.transcripts} loadOriginal={loadOriginal} importedDocs={data.importedDocs}
       onSaveCorrection={async (assetId, basedOnTranscriptId, texts) => { const r = await invoke("media.saveCorrection", { courseId, assetId, basedOnTranscriptId, texts }); if (!r.ok) throw new Error(r.error.message); await refresh(); return r.data.transcriptId; }}
       language={language}
+      waiting={data.waiting}
       loadTranslation={async (assetId, transcriptId, lang) => { const r = await invoke("media.translation", { courseId, assetId, transcriptId, language: lang }); if (!r.ok) throw new Error(r.error.message); return r.data.texts; }}
       onTranslate={async (assetId, transcriptId, lang) => { const r = await invoke("media.translate", { courseId, assetId, transcriptId, language: lang }); if (!r.ok) throw new Error(r.error.message); return r.data; }}
       onFindMentions={async (assetId, transcriptId) => { const r = await invoke("media.findMentions", { courseId, assetId, transcriptId }); if (!r.ok) throw new Error(r.error.message); return r.data.candidates; }}

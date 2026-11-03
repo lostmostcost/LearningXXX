@@ -275,7 +275,9 @@ export const IpcChannels = {
   },
   "media.list": {
     request: z.object({ courseId: Id }),
-    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), importedDocs: z.record(Id, z.array(ImportedDocKind)).optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
+    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), importedDocs: z.record(Id, z.array(ImportedDocKind)).optional(),
+      /** WBS-073: for each queued transcription, how many run before it and what is running now. */
+      waiting: z.record(Id, z.object({ ahead: z.number().int().nonnegative(), runningTitle: z.string().max(300).optional(), runningProgress: z.number().min(0).max(1).optional() })).optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
   },
   /** Online lectures the account may download; `week` is the LMS module (주차) title, shown as given. */
   "media.videos": { request: z.object({ courseId: Id }), response: z.object({ videos: z.array(z.object({ sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200), week: z.string().min(1).max(200).optional() })) }) },
@@ -321,6 +323,24 @@ export const IpcChannels = {
   "media.translation": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id, language: PreferredLanguage }), response: z.object({ texts: z.array(z.string()).optional() }) },
   /** WBS-071: on request, Claude Code translates a version sentence by sentence; saved for next time. */
   "media.translate": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id, language: PreferredLanguage }), response: z.object({ texts: z.array(z.string()), untranslated: z.number().int().nonnegative() }) },
+  /** WBS-073: everything running or waiting on this Mac (transcriptions in run order, downloads, Claude Code, import). */
+  "media.queue": {
+    request: z.object({}),
+    response: z.object({
+      transcriptionPaused: z.boolean(),
+      items: z.array(z.object({
+        kind: z.enum(["transcription", "download", "claude", "import"]),
+        id: z.string().min(1).max(100),
+        courseId: Id.optional(),
+        courseTitle: z.string().max(200).optional(),
+        title: z.string().max(400),
+        status: z.enum(["running", "queued"]),
+        progress: z.number().min(0).max(1).optional(),
+        /** Queued transcriptions: how many run before it. */
+        ahead: z.number().int().nonnegative().optional(),
+      })),
+    }),
+  },
   "media.importedDoc": { request: z.object({ courseId: Id, assetId: Id, doc: ImportedDocKind }), response: z.object({ text: z.string() }) },
   /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
   "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },

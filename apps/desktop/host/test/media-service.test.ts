@@ -162,3 +162,26 @@ test("WBS-065: recordings are filed only under a week of their own course, and n
   await assert.rejects(handlers["recording.assign"]!({ recordingId: started.recording.id, weekId: week }), /현재 계정/);
   await media.stop();
 });
+
+test("WBS-073: the queue lists the running and waiting transcriptions in run order; a waiting one says what is ahead", async () => {
+  const s = await setup();
+  const bytes2 = Buffer.from("second synthetic original"), hash2 = createHash("sha256").update(bytes2).digest("hex");
+  const second = MediaAsset.parse({ ...s.asset, id: randomUUID(), title: "둘째 녹음", source: { type: "recording", recordingId: randomUUID() }, bytes: bytes2.length, sha256: hash2, storageKey: `media/originals/${hash2}.wav` });
+  await writeFile(join(s.root, second.storageKey), bytes2);
+  const media = s.make([s.asset, second]);
+  await media.recover(); await tick();
+  assert.equal(s.calls(), 1, "one at a time");
+  const queue = await media.queue();
+  assert.deepEqual(queue.items.map((i) => [i.kind, i.title, i.status, i.ahead ?? null, i.courseTitle ?? null]), [
+    ["transcription", "합성 녹음", "running", null, "합성 과목"],
+    ["transcription", "둘째 녹음", "queued", 1, "합성 과목"],
+  ]);
+  const listing = await media.list(s.course.id);
+  const waitingJob = listing.jobs.find((j) => j.status === "queued")!;
+  assert.deepEqual(listing.waiting?.[waitingJob.id], { ahead: 1, runningTitle: "합성 과목 합성 녹음" });
+  s.finish(); await tick();
+  assert.deepEqual((await media.queue()).items.map((i) => [i.title, i.status]), [["둘째 녹음", "running"]]);
+  s.switchAccount();
+  assert.deepEqual((await media.queue()).items, [], "another account sees none of these");
+  await media.stop();
+});

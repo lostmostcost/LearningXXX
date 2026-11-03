@@ -72,6 +72,7 @@ const CHANNELS = new Set([
   "media.saveCorrection",
   "media.makeReadable",
   "media.findMentions",
+  "media.queue",
   "media.translation",
   "media.translate",
   "app.preferences",

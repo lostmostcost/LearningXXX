@@ -5,7 +5,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { PdfTranslationService, SYSTEM_FONTS, buildTranslatedPdf, pdfLines, stripTextObjects, systemFonts } from "../src/pdf-translate.ts";
+import { PdfTranslationService, SYSTEM_FONTS, buildTranslatedPdf, colorAt, pdfLines, stripTextObjects, systemFonts, textStarts } from "../src/pdf-translate.ts";
 
 const COURSE = "11111111-1111-4111-8111-111111111111";
 const ASSET = "22222222-2222-4222-8222-222222222222";
@@ -181,5 +181,33 @@ describe("PdfTranslationService", () => {
       t.setAccount(undefined);
       await assert.rejects(t.service.get(COURSE, ASSET, "ko"), /계정/);
     } finally { await t.done(); }
+  });
+});
+
+describe("WBS-096 colours", () => {
+  it("reads each line's colour and draws the translation in it", async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([400, 300]);
+    page.drawRectangle({ x: 0, y: 0, width: 400, height: 300, color: rgb(0.1, 0.1, 0.2) });
+    page.drawText("Red title", { x: 20, y: 250, size: 18, font, color: rgb(1, 0, 0) });
+    page.drawText("White body on dark", { x: 20, y: 200, size: 12, font, color: rgb(1, 1, 1) });
+    const original = await doc.save();
+    const lines = await pdfLines(original, new Set([1]));
+    assert.deepEqual(lines[0]!.map((l) => [l.text, l.color]), [["Red title", [1, 0, 0]], ["White body on dark", [1, 1, 1]]]);
+    assert.equal((await pdfLines(original))[0]![0]!.color, undefined, "no colours unless asked");
+    const built = await buildTranslatedPdf({ original, lines, translations: new Map([[1, ["RT", "WB"]]]), fonts: [StandardFonts.Helvetica] });
+    const after = await pdfLines(built.bytes, new Set([1]));
+    assert.deepEqual(after[0]!.map((l) => [l.text, l.color]), [["RT", [1, 0, 0]], ["WB", [1, 1, 1]]]);
+  });
+
+  it("follows text matrices, moves, leading and saved states", () => {
+    const OPS = { save: 1, restore: 2, transform: 3, setFillRGBColor: 4, beginText: 5, setTextMatrix: 6, moveText: 7, showText: 8, setLeading: 9, nextLine: 10 } as Record<string, number>;
+    const starts = textStarts(OPS, [1, 3, 4, 5, 6, 8, 7, 8, 9, 10, 8, 2, 5, 6, 8], [
+      null, [1, 0, 0, 1, 100, 0], ["#ff0000"], null, [{ 0: 10, 1: 0, 2: 0, 3: 10, 4: 5, 5: 200 }], null, [0, -2], null, [3], null, null, null, null, [[1, 0, 0, 1, 7, 7]], null,
+    ]);
+    assert.deepEqual(starts.map((s) => [s.x, s.y, s.color]), [[105, 200, [1, 0, 0]], [105, 180, [1, 0, 0]], [105, 150, [1, 0, 0]], [7, 7, [0, 0, 0]]]);
+    assert.deepEqual(colorAt(starts, { x: 106, y: 181, size: 10 }), [1, 0, 0]);
+    assert.equal(colorAt(starts, { x: 300, y: 181, size: 10 }), undefined);
   });
 });

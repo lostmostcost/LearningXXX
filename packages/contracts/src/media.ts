@@ -217,3 +217,29 @@ export const ImportItem = z.object({
   status: z.enum(["new", "imported", "no_course"]),
 });
 export type ImportItem = z.infer<typeof ImportItem>;
+
+/**
+ * WBS-070: an assignment/exam announcement heard in a lecture, which the user
+ * confirmed from the candidates Claude Code proposed. `startMs` and `quote`
+ * are the evidence: the transcript at that time, taken from the transcript
+ * itself (not from the model's answer).
+ */
+export const MentionKind = z.enum(["assignment", "exam", "other"]);
+export const MentionCandidate = z.object({
+  kind: MentionKind,
+  title: z.string().trim().min(1).max(200),
+  detail: z.string().max(2000),
+  /** The due date as said in the lecture, kept as text (it is often relative: "다음 주 화요일"). */
+  due: z.string().max(200).optional(),
+  transcriptId: Id,
+  startMs: z.number().int().nonnegative(),
+  quote: z.string().max(1000),
+});
+export type MentionCandidate = z.infer<typeof MentionCandidate>;
+export const LectureMention = MentionCandidate.extend({
+  id: Id,
+  courseId: Id,
+  assetId: Id,
+  confirmedAt: UtcTimestamp,
+});
+export type LectureMention = z.infer<typeof LectureMention>;

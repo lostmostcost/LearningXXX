@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Course, IpcResponse, MediaAsset } from "@learningxxx/contracts";
+import type { Course, IpcResponse, LectureMention, MediaAsset } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } from "./layout.ts";
@@ -17,6 +17,7 @@ import type { RecordingState } from "./recorder.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { RecordingFile } from "./RecordingPlace.tsx";
+import { MentionList } from "./Mentions.tsx";
 import { unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
@@ -141,6 +142,15 @@ export function App() {
     void reloadLearning(false);
   }), [reloadLearning]);
   const upNext = nextUnwatched(learning.status, now);
+  // WBS-070: confirmed lecture announcements, read whenever the 과제 section is shown.
+  const [mentions, setMentions] = useState<LectureMention[]>([]);
+  const mentionCourse = library?.course.id;
+  useEffect(() => {
+    if (!mentionCourse || section !== 'tasks' || home || !(IN_APP || FIXTURE_MODE)) return;
+    let alive = true;
+    void invoke("media.mentions", { courseId: mentionCourse }).then((r) => { if (alive) setMentions(r.ok ? r.data.mentions : []); });
+    return () => { alive = false; };
+  }, [mentionCourse, section, home]);
   // WBS-059: the quiz's own LMS page in a visible window; the user takes it there.
   const openQuiz = useCallback(async (item: { moduleItemId?: string | undefined; quiz?: { quizId?: string | undefined } | undefined }) => {
     const courseId = library?.course.id;
@@ -313,6 +323,9 @@ export function App() {
         {panel("library", "과목과 자료", library ? (
           <>
             {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
+              {section==='tasks'?<MentionList mentions={mentions.filter(m=>m.courseId===library.course.id)} sourceTitle={(id)=>lectures.media?.assets.find(a=>a.id===id)?.title??'녹음'}
+                onOpen={(m)=>{setMediaAssetId(m.assetId);setRightTab('transcripts');setView('chat');}}
+                onRemove={(m)=>void invoke("media.removeMention",{courseId:m.courseId,mentionId:m.id}).then((r)=>{if(r.ok)setMentions(x=>x.filter(y=>y.id!==m.id));})}/>:null}
               {section==='tasks'&&quizRows(learning.status,now,formatSeoul).length?<section className="quiz-list" aria-label="퀴즈"><h2>퀴즈</h2>{quizRows(learning.status,now,formatSeoul).map(q=><div className="quiz-row" key={q.item.moduleItemId??q.item.sourceRef??q.item.title}><strong>{q.item.title}</strong><small>{q.status}</small>{q.blocked?<small className="meta">{q.blocked}</small>:<button onClick={()=>void openQuiz(q.item)}>응시 창 열기</button>}</div>)}{watchNotice?<p className="meta" role="status">{watchNotice}</p>:null}</section>:null}</>:null}
           </>
         ) : (

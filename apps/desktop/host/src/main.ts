@@ -34,7 +34,7 @@ import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { LegacyImporter, importStore } from "./legacy-import.ts";
-import { createReadableRunner } from "./readable-note.ts";
+import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions } from "./readable-note.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -205,6 +205,7 @@ app.whenReady().then(async () => {
     trash: (path) => shell.trashItem(path),
   });
   const startCli = createCliRunner();
+  const claudeText = createClaudeTextRunner(startCli, join(dataRoot, "readable-runs"));
   const dockerPath = locateDocker();
   const modifier = new AppModifier({
     root: join(dataRoot, "app-modifier"),
@@ -260,6 +261,8 @@ app.whenReady().then(async () => {
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
     // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
     readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),
+    // WBS-070: the same restricted runner; the answer is checked against the transcript.
+    mentions: async ({ title, text, transcript, signal }) => parseMentions(await claudeText({ prompt: mentionsPrompt(title, text), what: "과제·시험 안내 찾기", signal }), transcript),
     openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
     videos: async (course) => {
       await credentials.ensureSignedIn();

@@ -56,7 +56,7 @@ test("a readable note is made from the chosen version and kept as a document; on
   const version = (await s.media.list(s.course.id)).transcripts[0]!;
   const making = s.media.makeReadable(s.course.id, s.asset.id, version.id);
   await tick();
-  await assert.rejects(s.media.makeReadable(s.course.id, s.asset.id, version.id), /만드는 중/);
+  await assert.rejects(s.media.makeReadable(s.course.id, s.asset.id, version.id), /이미 진행 중/);
   release("## 정리\n[00:00] 첫 문장");
   assert.deepEqual(await making, { doc: "readable_app" });
   assert.match(asked[0]!, /^\[00:00\] /);
@@ -83,4 +83,34 @@ test("the readable runner uses an independent CLI session in an empty folder, re
   assert.deepEqual(await readdir(root), [], "the run folder is removed");
   const failing = createReadableRunner(async () => ({ ok: true, events: (async function* () { yield ev(0, "run.failed", { error: { code: "AUTH_REQUIRED", message: "로그인 필요", retryable: false } }); })() }), root);
   await assert.rejects(failing({ title: "x", text: "y", signal: new AbortController().signal }), /로그인 필요/);
+});
+
+test("WBS-070: candidates are parsed from the answer; the evidence time and quote come from the transcript", async () => {
+  const { parseMentions } = await import("../src/readable-note.ts");
+  const transcript = { id: "11111111-1111-4111-8111-0000000000aa", segments: [{ startMs: 0, endMs: 60_000, text: "오늘은 3장" }, { startMs: 60_000, endMs: 125_000, text: "과제는 다음 주 화요일까지 제출" }, { startMs: 3_600_000, endMs: 3_610_000, text: "중간고사는 4장까지" }] };
+  const answer = `여기 있습니다:\n[{"kind":"assignment","title":"과제 1","detail":"보고서 제출","due":"다음 주 화요일","at":"01:30"},{"kind":"exam","title":"중간고사","detail":"범위 4장","at":"1:00:02"},{"kind":"party","title":"x","at":"00:10"},{"kind":"other","title":"","at":"00:10"},{"kind":"other","title":"먼 곳","at":"300:00"}]`;
+  const out = parseMentions(answer, transcript);
+  assert.deepEqual(out.map((c) => [c.title, c.startMs, c.quote, c.due ?? null]), [
+    ["과제 1", 60_000, "과제는 다음 주 화요일까지 제출", "다음 주 화요일"],
+    ["중간고사", 3_600_000, "중간고사는 4장까지", null],
+  ]);
+  assert.deepEqual(parseMentions("없습니다", transcript), []);
+  assert.deepEqual(parseMentions("[]", transcript), []);
+});
+
+test("WBS-070: confirmed candidates are kept once, checked against the transcript, and can be removed", async () => {
+  const s = await setup();
+  const version = (await s.media.list(s.course.id)).transcripts[0]!;
+  const seg = version.segments[0]!;
+  const candidate = { kind: "exam" as const, title: "중간고사", detail: "범위", transcriptId: version.id, startMs: seg.startMs, quote: "모델이 쓴 문장" };
+  const { mentions } = await s.media.addMentions(s.course.id, s.asset.id, [candidate, candidate]);
+  assert.equal(mentions.length, 1, "the same one twice is kept once");
+  assert.equal(mentions[0]!.quote, seg.text, "the quote is the transcript's own text");
+  assert.equal((await s.media.addMentions(s.course.id, s.asset.id, [candidate])).mentions.length, 0);
+  await assert.rejects(s.media.addMentions(s.course.id, s.asset.id, [{ ...candidate, startMs: seg.startMs + 7 }]), /근거 시각/);
+  assert.equal((await s.media.mentions(s.course.id)).mentions.length, 1);
+  await s.media.removeMention(s.course.id, mentions[0]!.id);
+  assert.equal((await s.media.mentions(s.course.id)).mentions.length, 0);
+  await assert.rejects(s.media.removeMention(s.course.id, mentions[0]!.id), /찾지 못했습니다/);
+  await s.media.stop();
 });

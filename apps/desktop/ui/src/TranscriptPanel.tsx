@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IMPORTED_ENGINE, MANUAL_ENGINE, type ImportedDocKind, type MediaAsset, type Recording, type Transcript, type TranscriptionJob } from "@learningxxx/contracts";
+import { MentionCandidates } from "./Mentions.tsx";
+import { IMPORTED_ENGINE, MANUAL_ENGINE, type ImportedDocKind, type MentionCandidate, type MediaAsset, type Recording, type Transcript, type TranscriptionJob } from "@learningxxx/contracts";
 import { Icon } from "./StudyUI.tsx";
 import { excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
 
@@ -37,6 +38,9 @@ export interface TranscriptPanelProps {
   onSaveCorrection?: ((assetId: string, basedOnTranscriptId: string, texts: string[]) => Promise<string>) | undefined;
   /** WBS-069: ask Claude Code for a readable note of a version (kept as the "앱 정리본" document). */
   onMakeReadable?: ((assetId: string, transcriptId: string) => Promise<void>) | undefined;
+  /** WBS-070: ask Claude Code for assignment/exam announcements in a version, and add the confirmed ones. */
+  onFindMentions?: ((assetId: string, transcriptId: string) => Promise<MentionCandidate[]>) | undefined;
+  onAddMentions?: ((assetId: string, candidates: MentionCandidate[]) => Promise<number>) | undefined;
 }
 
 const DOC_LABEL: Record<ImportedDocKind, string> = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)", readable_app: "앱 정리본(Claude)" };
@@ -94,6 +98,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
   /** WBS-069: edited texts while correcting this version (undefined when not editing). */
   const [editing, setEditing] = useState<string[]>();
   const [making, setMaking] = useState(false);
+  const [candidates, setCandidates] = useState<MentionCandidate[]>();
   const player = useRef<HTMLMediaElement | null>(null);
   const endAt = useRef<number | undefined>(undefined);
 
@@ -129,6 +134,14 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     catch (error) { setNotice(error instanceof Error && error.message ? error.message : "정리본을 만들지 못했습니다."); }
     finally { setMaking(false); }
   };
+  const findMentions = async () => {
+    if (!version || !props.onFindMentions || making) return;
+    setMaking(true); setCandidates(undefined); setNotice("Claude Code로 과제·시험 안내를 찾는 중입니다. 몇 분 걸릴 수 있습니다…");
+    try { setCandidates(await props.onFindMentions(asset.id, version.id)); setNotice(undefined); }
+    catch (error) { setNotice(error instanceof Error && error.message ? error.message : "찾지 못했습니다."); }
+    finally { setMaking(false); }
+  };
+  const playAt = (startMs: number) => { const i = version?.segments.findIndex((s) => s.startMs === startMs) ?? -1; if (i >= 0) void play(i); };
   const changeVersion = (id: string) => { player.current?.pause(); endAt.current = undefined; setVersionId(id); setSelected([]); setPreview(undefined); setNotice(undefined); };
   const play = async (index: number) => {
     const media = player.current, segment = version?.segments[index];
@@ -185,7 +198,10 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
         {props.onSaveCorrection ? (editing
           ? <><button disabled={busy} onClick={() => void saveEdits()}>새 판으로 저장</button><button disabled={busy} onClick={() => setEditing(undefined)}>고치기 취소</button></>
           : <button disabled={busy} onClick={() => { setEditing(version.segments.map((s) => s.text)); setSelected([]); setPreview(undefined); }}>고치기</button>) : null}
-        {props.onMakeReadable && !editing ? <button disabled={making} title="Claude Code(구독)로 읽기 쉬운 정리본 만들기" onClick={() => void makeReadable()}>{making ? "정리본 만드는 중…" : "정리본 만들기"}</button> : null}<button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
+        {props.onMakeReadable && !editing ? <button disabled={making} title="Claude Code(구독)로 읽기 쉬운 정리본 만들기" onClick={() => void makeReadable()}>{making ? "Claude Code 작업 중…" : "정리본 만들기"}</button> : null}
+        {props.onFindMentions && !editing ? <button disabled={making} title="Claude Code(구독)로 이 판에서 과제·시험 안내 후보 찾기" onClick={() => void findMentions()}>과제·시험 안내 찾기</button> : null}<button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
+      {candidates && props.onAddMentions ? <MentionCandidates key={version.id} candidates={candidates} onPlay={playAt} onClose={() => setCandidates(undefined)}
+        onAdd={async (chosen) => { try { const n = await props.onAddMentions!(asset.id, chosen); setCandidates(undefined); setNotice(n ? `${n}개를 과제 탭 "강의에서 언급됨"에 추가했습니다.` : "이미 추가된 항목입니다."); } catch (error) { setNotice(error instanceof Error ? error.message : "추가하지 못했습니다."); } }} /> : null}
       <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy || editing !== undefined} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{versionLabel(v)} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
 
       {editing ? <ol className="segment-list editing">{version.segments.map((segment, index) => <li key={`edit:${version.id}:${index}`}>

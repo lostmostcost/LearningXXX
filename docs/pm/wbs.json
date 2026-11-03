@@ -2102,11 +2102,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "교정·정리된 전사본을 바탕으로 요청 시 과제·시험 안내 후보를 보여 주고 확인한 것만 근거 시각과 함께 과제 탭에 추가한다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-070-transcript-notices",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b09adbff611a111e90?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed contracts (MentionCandidate, LectureMention, media.findMentions/addMentions/mentions/removeMention), Claude text runner refactor (readable note unchanged), mentions prompt, parseMentions (JSON extraction, kind/title validation, time snapped to the transcript segment, quote from the transcript, far times dropped), MediaService find (one Claude request at a time, account check) / add (evidence re-checked against the transcript, duplicates kept once) / list / remove, UI candidate review, tasks-section list with source and removal. Found and fixed: transcript toolbar buttons wrapped letter by letter at narrow widths. Checks: host tests (parse, add/duplicate/evidence mismatch/remove, readable regression), pnpm -r run check. Fixture preview: find → candidate → add → shown in 과제 under 강의에서 언급됨. A real Claude Code run was not made by the agent."
+      ]
     },
     {
       "id": "WBS-071",

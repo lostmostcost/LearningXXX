@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { ImportItem, ImportedDocKind, LectureSourceId, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportItem, ImportedDocKind, LectureMention, LectureSourceId, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -308,6 +308,12 @@ export const IpcChannels = {
    * "readable_app" document of that original. One at a time.
    */
   "media.makeReadable": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id }), response: z.object({ doc: z.literal("readable_app") }) },
+  /** WBS-070: on request, Claude Code proposes assignment/exam announcements from a transcript version; nothing is saved. */
+  "media.findMentions": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id }), response: z.object({ candidates: z.array(MentionCandidate) }) },
+  /** WBS-070: the candidates the user confirmed go to the 과제 tab as "강의에서 언급됨". */
+  "media.addMentions": { request: z.object({ courseId: Id, assetId: Id, candidates: z.array(MentionCandidate).min(1).max(50) }), response: z.object({ mentions: z.array(LectureMention) }) },
+  "media.mentions": { request: z.object({ courseId: Id }), response: z.object({ mentions: z.array(LectureMention) }) },
+  "media.removeMention": { request: z.object({ courseId: Id, mentionId: Id }), response: z.object({}) },
   "media.importedDoc": { request: z.object({ courseId: Id, assetId: Id, doc: ImportedDocKind }), response: z.object({ text: z.string() }) },
   /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
   "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },

@@ -45,6 +45,7 @@ export function installFakeHost(courseTitle: string): void {
   let fakeRec: { id: string; courseId: string; bytes: number } | undefined;
   const fakeCorrections: (typeof SAMPLE_TRANSCRIPT)[] = [];
   let fakeReadable = false;
+  const fakeMentions: Record<string, unknown>[] = [];
   // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
   let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
   const forCourse = (courseId: unknown) => fakeRecordings.filter((r) => r.courseId === String(courseId) || r.id === SAMPLE_RECORDINGS[0]!.id).map((r) => ({ ...r, courseId: String(courseId) }));
@@ -107,6 +108,11 @@ export function installFakeHost(courseTitle: string): void {
     "media.importStatus": () => ok({ running: false, done: 0, total: 0 }),
     // WBS-069: corrections and a readable note, in memory.
     "media.saveCorrection": (p) => { const base = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((t) => t.id === p.basedOnTranscriptId)!; const id = crypto.randomUUID(); fakeCorrections.push({ ...base, id, kind: "corrected", engine: { name: "manual", version: "user" }, basedOnTranscriptId: base.id, createdAt: now(), segments: base.segments.map((seg, i) => ({ ...seg, text: (p.texts as string[])[i] ?? seg.text })) }); return ok({ transcriptId: id }); },
+    // WBS-070: synthetic candidates from the sample transcript; confirmed ones kept in memory.
+    "media.findMentions": async (p) => { await new Promise((r) => setTimeout(r, 500)); const t = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((x) => x.id === p.transcriptId)!; const seg = t.segments[0]!; return ok({ candidates: [{ kind: "assignment", title: "진리표 과제", detail: "다수결 회로 진리표를 PDF로 제출", due: "다음 주 화요일", transcriptId: t.id, startMs: seg.startMs, quote: seg.text }] }); },
+    "media.addMentions": (p) => { const added = (p.candidates as Record<string, unknown>[]).map((c) => ({ ...c, id: crypto.randomUUID(), courseId: String(p.courseId), assetId: String(p.assetId), confirmedAt: now() })); fakeMentions.push(...added); return ok({ mentions: added }); },
+    "media.mentions": (p) => ok({ mentions: fakeMentions.filter((m) => m.courseId === String(p.courseId)) }),
+    "media.removeMention": (p) => { const i = fakeMentions.findIndex((m) => m.id === p.mentionId); if (i >= 0) fakeMentions.splice(i, 1); return ok({}); },
     "media.makeReadable": async () => { await new Promise((r) => setTimeout(r, 700)); fakeReadable = true; return ok({ doc: "readable_app" }); },
     "media.importedDoc": (p) => ok({ text: `# 합성 ${String(p.doc)}\n\n합성 UI 예제 문서입니다.` }),
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),

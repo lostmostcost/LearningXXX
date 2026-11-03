@@ -5,6 +5,7 @@ import { join, relative, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { childEnv, locateCli, probeCli } from '@learningxxx/cli-adapter';
 import { ConversationState, type IpcResponse, type Session } from '@learningxxx/contracts';
+import type { CourseBinding } from './course-workspace.ts';
 
 export type ChatState = IpcResponse<'chat.state'>;
 export type ChatMessage = ChatState['messages'][number];
@@ -15,11 +16,12 @@ class Inputs {
   close() { this.ended = true; this.wake?.(); }
   async *stream() { while (!this.ended) { const item = this.items.shift(); if (item) yield item; else await new Promise<void>(resolve => { this.wake = resolve; }); } }
 }
-interface Entry { state: ChatState; q: Query; input: Inputs; cwd: string; current?: ChatMessage | undefined; partial: string; replies: Map<string, (answer: PermissionResult) => void>; task: Promise<void>; closed: boolean; updating: boolean }
+interface Entry { state: ChatState; q: Query; input: Inputs; cwd: string; course?: CourseBinding | undefined; current?: ChatMessage | undefined; partial: string; replies: Map<string, (answer: PermissionResult) => void>; task: Promise<void>; closed: boolean; updating: boolean }
 export interface ConversationOptions {
   root: string; getSession: (id: string) => Session; rename: (id: string, title: string) => void;
   nativeActive: (id: string) => boolean; env?: NodeJS.ProcessEnv;
   prepare?: () => Promise<string>; createQuery?: typeof query;
+  prepareCourse?: (id: string, cwd: string) => Promise<CourseBinding | undefined>;
 }
 const fail: (message: string) => never = (message) => { throw Object.assign(new Error(message), { appError: { code: 'INVALID_REQUEST', message, retryable: false } }); };
 export class ConversationService {
@@ -54,6 +56,7 @@ export class ConversationService {
     mkdirSync(this.#o.root, { recursive: true }); const root = realpathSync(this.#o.root), cwd = join(root, id);
     mkdirSync(cwd, { recursive: true }); const inside = relative(root, realpathSync(cwd));
     if (inside.startsWith('..') || isAbsolute(inside)) fail('대화 폴더 경계를 벗어났습니다.');
+    const course = await this.#o.prepareCourse?.(id, cwd);
     let stored: Partial<ChatState> = {}, map: { sessionId?: string; transcriptPath?: string } = {};
     if (existsSync(join(cwd, '.chat-ui.json'))) {
       try { stored = ConversationState.parse(JSON.parse(readFileSync(join(cwd, '.chat-ui.json'), 'utf8'))); }
@@ -81,7 +84,8 @@ export class ConversationService {
     const input = new Inputs(); let entry: Entry;
     const options: Options = {
       cwd, pathToClaudeCodeExecutable: executable, permissionMode: 'default', settingSources: ['user', 'project', 'local'], enableFileCheckpointing: true, extraArgs: { 'replay-user-messages': null },
-      systemPrompt: { type: 'preset', preset: 'claude_code' }, includePartialMessages: true,
+      systemPrompt: { type: 'preset', preset: 'claude_code', ...(course ? { append: course.startupBrief ?? course.brief } : {}) }, includePartialMessages: true,
+      ...(course ? { additionalDirectories: [course.readDirectory] } : {}),
       env: childEnv(this.#o.env ?? process.env), ...(resume ? { resume } : {}), ...(state.model ? { model: state.model } : {}),
       ...(state.effort !== 'default' ? { effort: state.effort as 'low' } : {}),
       canUseTool: async (tool, toolInput, request) => new Promise<PermissionResult>(resolve => {
@@ -90,13 +94,13 @@ export class ConversationService {
         const abort = () => done({ behavior: 'deny', message: '요청이 취소됐습니다.' });
         entry.replies.set(permissionId, done); state.permissions.push({ id: permissionId, tool, input: toolInput }); request.signal.addEventListener('abort', abort, { once: true });
       }),
-      hooks: { SessionStart: [{ hooks: [async info => {
+      hooks: { UserPromptSubmit: [{ hooks: [async () => entry.course ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: entry.course.brief } } : {}] }], SessionStart: [{ hooks: [async info => {
         if (info.hook_event_name === 'SessionStart') { state.sessionId = info.session_id; this.#atomic(join(cwd, '.learningxxx-session.json'), { sessionId: info.session_id, transcriptPath: info.transcript_path }); }
         return {};
       }] }] },
     };
     const q = (this.#o.createQuery ?? query)({ prompt: input.stream(), options });
-    entry = { state, q, input, cwd, partial: '', replies: new Map(), task: Promise.resolve(), closed: false, updating: false };
+    entry = { state, q, input, cwd, course, partial: '', replies: new Map(), task: Promise.resolve(), closed: false, updating: false };
     this.#entries.set(id, entry);
     entry.task = this.#consume(id, entry);
     try {
@@ -149,10 +153,15 @@ export class ConversationService {
     if (e.state.busy || e.updating) fail('진행 중인 작업이 끝난 뒤 보내세요.');
     const command = /^\/([\w:-]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
     if (command && !e.state.commands.some(c => c.name.replace(/^\//, '') === command[1] || c.name === command[1])) fail('이 명령은 채팅 연결에서 제공되지 않습니다. 명령 메뉴 또는 고급 도구에서 사용하세요.');
-    e.state.error = ''; e.state.busy = true; e.current = undefined; e.partial = '';
-    this.#message(e, 'user', text).id = requestId; this.#save(e);
-    e.input.push({ type: 'user', uuid: requestId as NonNullable<SDKUserMessage["uuid"]>, session_id: e.state.sessionId, parent_tool_use_id: null, message: { role: 'user', content: text } });
-    return this.state(id);
+    e.updating = true;
+    try {
+      e.course = await this.#o.prepareCourse?.(id, e.cwd);
+      if (e.closed || !e.state.connected || this.#stopped || this.#o.nativeActive(id)) fail('연결 상태가 바뀌었습니다. 다시 연결하세요.');
+      e.state.error = ''; e.state.busy = true; e.current = undefined; e.partial = '';
+      this.#message(e, 'user', text).id = requestId; this.#save(e);
+      e.input.push({ type: 'user', uuid: requestId as NonNullable<SDKUserMessage["uuid"]>, session_id: e.state.sessionId, parent_tool_use_id: null, message: { role: 'user', content: text } });
+      return this.state(id);
+    } finally { e.updating = false; }
   }
   async configure(id: string, change: { model?: string | undefined; effort?: string | undefined; mode?: string | undefined }) {
     const e = this.#entry(id); if (!e.state.connected) fail('대화를 다시 연결하세요.');

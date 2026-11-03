@@ -1,7 +1,7 @@
 # SPEC-003 · macOS 화면·자료·자유 채팅
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204
-Snapshot: 2026-11-03 · v0.4.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.4.1 · Notion is authoritative; refresh after approved changes.
 
 ## 화면 원칙
 REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. CR-047(2026-11-03 사용자 직접 승인): 시작 화면은 실제 수집 과목·과제 일정·개인 할 일 대시보드다. 과목 선택 후 PDF·채팅 중심 화면으로 전환한다. 초기 이미지 시안은 참고이며 최신 회의의 자유 채팅 결정을 따른다.
@@ -47,3 +47,9 @@ PDF 선택 문장은 명시 복사 후 CLI 입력창에 붙여넣는다. 파일/
 /model·/effort·/plan·/mode·/permissions는 실제 엔진 제어, /compact·지원 스킬은 CLI 실행이다. /context·/cost·/usage·/skills·/mcp는 엔진 조회다. /clear는 기존 기록 보존 후 새 앱 세션, /resume는 앱 대화 목록, /rename는 앱 제목과 생성된 CLI 이력 제목을 변경한다. /copy·/export·/status·/help·/stop는 앱 동작이다. /rewind는 최근 사용자 요청 시점의 파일 체크포인트 미리보기·확인 후 복구이며 대화 문맥은 유지한다. /memory·/diff·/add-dir·/theme 등은 실제 제공 여부에 따라 고급 터미널로 안내한다.
 첨부·캡처는 준비→사용자 확인→입력 칩→명시 전송이다. PDF 선택은 명시적으로 초안에 넣는다. 비동기 응답은 시작한 세션에 연결하며 탭·세션 전환으로 초안과 작업을 중단하지 않는다. 모델·강도·모드는 입력 하단에 표시한다. 고급 도구로 바꿀 때 SDK 연결을 종료하고, 돌아올 때 PTY를 종료한 뒤 같은 CLI 대화를 재개한다. 과거 structured/native 기록의 마이그레이션 UI는 만들지 않는다.
 CR: https://app.notion.com/p/40dbd7ec20cd814aaefff0ff176ee897 · WBS-051.
+
+
+## CR-052 · 과목 세션의 기본 자료 조회
+과목 세션의 ‘4주차 강의 요약’은 고정된 courseId의 현재 목록에서 실제 주차 label을 확인하고 해당 PDF 텍스트를 읽어 요약한다. 본문 전체를 매 턴 넣지 않고 과목/목록 위치와 최신 수집 버전을 전달한다. 파일명·페이지를 근거로 제시하며 미수집/손상 자료는 수집·첨부 안내로 처리한다. 강의계획만으로 실제 자료 요약을 대신하지 않는다.
+화면에서 다른 과목을 탐색해도 대화 소속은 바뀌지 않는다. 일반 세션에는 자동 연결하지 않는다. 자료 수집 후 다음 채팅 전송/터미널 제출에서 목록을 갱신하며 재개·문맥 압축·고급 터미널에서도 연결을 유지한다. 명시 첨부·선택·캡처는 계속 사용할 수 있다. 요약과 수집을 요청 없이 실행하지 않는다.
+CR: https://app.notion.com/p/40dbd7ec20cd81fd998de3d67036be2a · WBS-052.

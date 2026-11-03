@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Snapshot: 2026-11-03 · v0.3.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.3.1 · Notion is authoritative; refresh after approved changes.
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.
@@ -50,3 +50,10 @@ PTY는 host가 고른 공식 실행 파일만 실행하고 renderer는 path/args
 모델·강도는 엔진이 제공하는 값만 선택하고 실제 제어 API로 변경한다. 일반·계획·편집 자동 승인과 해당 모델/엔진이 허용하는 자동 모드를 제공한다. 기본 일반 모드이며 앱이 bypassPermissions/dontAsk를 선택하지 않는다. 권한·질문은 세션별 명시 카드로 응답하고 취소/종료 시 거부한다. SDK와 PTY를 동일 세션에서 동시에 실행하지 않는다. 고급 화면 전환은 현재 연결을 종료한 뒤 같은 CLI 세션 ID로 재개하며 원본 이력을 읽어 표시를 맞춘다.
 전송 UUID는 불명확한 응답 후 같은 내용 재시도에도 유지해 중복 실행을 막는다. 취소는 SDK에 아직 전달하지 않은 입력과 엔진 대기 입력도 중단하고 확인할 수 없으면 연결을 종료한다. 자동 재전송하지 않는다. 파일 복구는 엔진 체크포인트 미리보기와 명시 확인 후 실행한다. 새 파일은 삭제될 수 있으며 Bash·외부 변경·대화 문맥은 복구하지 않는다. 일반 파일 도구에 과거 host trash-only 보장을 표시하지 않는다. 사용량 조회는 공식 SDK의 실험 API를 분리해 사용하며 실패를 미조회로 표시한다.
 CR: https://app.notion.com/p/40dbd7ec20cd814aaefff0ff176ee897 · WBS-051. 실제 SDK 구독 사용 근거: https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan (확인 2026-11-03).
+
+
+## CR-052 · 세션 과목의 수집 자료 연결
+과목 세션 사용을 해당 courseId의 수집 자료 기본 조회 선택으로 처리한다. 현재 LMS 계정과 과목을 검사하고 검증한 읽기 전용 사본을 세션별 버전 폴더에 준비한다. 작업 폴더의 course 링크는 INDEX.md·catalog.json·materials를 제공하며 outputs는 결과물 폴더다. 전체 본문을 주입하거나 인증·storageKey·서명 URL·관리 DB를 노출하지 않는다. 일반 세션에는 연결하지 않는다. 구독 로그인과 일반 Claude 환경/격리 보장 없음은 유지한다.
+SDK 시작에 고정 과목 안내를 추가하고 전송 전 사본 갱신 및 UserPromptSubmit에서 최신 버전 문맥을 전달한다. PTY는 시작 안내와 제출 전 갱신, 실제 UserPromptSubmit 훅으로 같은 연결을 사용한다. 명령을 재해석하거나 키 입력을 주입하지 않는다. 비동기 갱신 중 입력을 순서대로 전달한다. 계정 변경·미수집·손상·폴더 경계 변경은 전송 전에 중단/안내한다. 기존 사용자 course/outputs는 덮어쓰지 않는다.
+갱신은 새 사본을 만든 뒤 링크를 원자 교체하며 이전 사본은 진행 중 참조를 위해 보존한다. 자동 정리(GC)는 이번 범위 밖이다. 수집/요약은 요청 시에만 실행하고 수집된 로컬 자료는 오프라인으로 읽는다.
+CR: https://app.notion.com/p/40dbd7ec20cd81fd998de3d67036be2a · WBS-052.

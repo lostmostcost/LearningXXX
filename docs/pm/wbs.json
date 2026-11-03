@@ -1518,6 +1518,43 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81c39746c128e774d031",
       "scope_note": "CR-051 사용자 직접 승인: 채팅 기본·고급 PTY, 공식 SDK/설치 CLI 구독 연결, 실제 모델·강도·모드·명령. ui/host/cli/shared 선점 내 수정. SPEC-002 v0.3.0·SPEC-003 v0.4.0. 단계별 실제 diff 리뷰·수정 및 합성/실제 구독 검증 근거는 Notion WBS와 PR에 기록."
+    },
+    {
+      "id": "WBS-052",
+      "title": "과목 세션 자료 폴더·기본 문맥 복구",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-051"
+      ],
+      "areas": [
+        "host",
+        "cli",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "packages/cli-adapter/",
+        "packages/contracts/",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-002.md",
+        "docs/specs/SPEC-003.md"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-009"
+      ],
+      "acceptance": "과목 ID에 고정된 읽기 전용 course 뷰·목록과 outputs를 연결해 4주차 질문에 자료를 읽고 답하며, 갱신·재개·PTY·계정 경계를 보존한다. 일반 세션에는 자동 연결하지 않는다.",
+      "status": "Review",
+      "branch": "fix/WBS-052-course-workspace",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8139ae71c0b54f2e6a10",
+      "scope_note": "CR-052 사용자 승인: 세션 과목에 고정된 조회용 사본/목록과 기본 문맥을 SDK·PTY에 연결. 기존 로그인/일반 환경 유지. host/cli/shared claim 내 변경. 파생 사본의 이전 버전은 진행 중 참조를 위해 보존."
     }
   ],
   "qaPolicy": {

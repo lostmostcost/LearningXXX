@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, relative, isAbsolute } from 'node:path';
 import { childEnv, locateCli, probeCli } from '@learningxxx/cli-adapter';
 import type { Session } from '@learningxxx/contracts';
+import type { CourseBinding } from './course-workspace.ts';
 
 type Disposable = { dispose(): void };
 export interface Pty {
@@ -12,10 +13,12 @@ export interface Pty {
   onExit(callback: (event: { exitCode: number }) => void): Disposable;
 }
 export type SpawnPty = (file: string, args: string[], options: { cwd: string; env: Record<string, string>; cols: number; rows: number; name: string }) => Promise<Pty>;
-interface Entry { id: string; session: string; pty: Pty; chunks: { seq: number; data: string }[]; seq: number; bytes: number; clippedSeq: number; state: 'running' | 'exited'; exitCode?: number; closing: boolean; subscriptions: Disposable[] }
+interface Entry { id: string; session: string; pty: Pty; chunks: { seq: number; data: string }[]; seq: number; bytes: number; clippedSeq: number; state: 'running' | 'exited'; exitCode?: number; closing: boolean; writing: Promise<void>; subscriptions: Disposable[] }
 export interface TerminalOptions {
   canOpen?: (id: string) => boolean;
   hookPath?: string;
+  courseHookPath?: string;
+  prepareCourse?: (id: string, cwd: string) => Promise<CourseBinding | undefined>;
   root: string; getSession: (id: string) => Session; env?: NodeJS.ProcessEnv;
   prepare?: () => Promise<{ path: string; env: Record<string, string> }>;
   spawn?: SpawnPty; stopGroup?: (pty: Pty) => void;
@@ -55,6 +58,8 @@ export class NativeTerminalService {
     mkdirSync(cwd, { recursive: true });
     const real = realpathSync(cwd), inside = relative(root, real);
     if (inside.startsWith('..') || isAbsolute(inside)) fail('세션 폴더 경계를 벗어났습니다.');
+    const course = await this.#options.prepareCourse?.(appSessionId, real);
+    if (this.#closing || (this.#options.canOpen && !this.#options.canOpen(appSessionId))) fail('대화 연결 상태가 바뀌었습니다. 다시 연결하세요.');
     const marker = join(real, '.learningxxx-started');
     let saved: { sessionId?: unknown; transcriptPath?: unknown } = {};
     const sessionFile = join(real, '.learningxxx-session.json');
@@ -63,10 +68,12 @@ export class NativeTerminalService {
     const resumable = mapped && typeof saved.transcriptPath === 'string' && saved.transcriptPath.endsWith(`/${saved.sessionId}.jsonl`) && existsSync(saved.transcriptPath);
     const args = resumable ? ['--resume', saved.sessionId as string] : mapped ? [] : existsSync(marker) ? ['--continue'] : [];
     args.push('--permission-mode', 'default');
+    if (course) args.push('--append-system-prompt', course.startupBrief ?? course.brief, '--add-dir', course.readDirectory);
     if (this.#options.hookPath) {
       const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
       const command = `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} ${quote(this.#options.hookPath)} ${quote(sessionFile)}`;
-      args.push('--settings', JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command, timeout: 5 }] }] } }));
+      const courseCommand = course && this.#options.courseHookPath ? `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} ${quote(this.#options.courseHookPath)} ${quote(join(real, 'course', 'BOOTSTRAP.md'))}` : undefined;
+      args.push('--settings', JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command, timeout: 5 }] }], ...(courseCommand ? { UserPromptSubmit: [{ hooks: [{ type: 'command', command: courseCommand, timeout: 5 }] }] } : {}) } }));
     }
     if (this.#options.getSession(appSessionId).archivedAt || this.#options.getSession(appSessionId).status === 'running') fail('기존 채팅이 실행 중입니다.');
     const spawn = this.#options.spawn ?? (async (file, args, options) => (await import('node-pty')).spawn(file, args, options));
@@ -78,7 +85,7 @@ export class NativeTerminalService {
     if (this.#entries.size >= 16) {
       for (const [key, old] of this.#entries) if (old.state === 'exited') { this.#entries.delete(key); this.#sessions.delete(old.session); if (this.#entries.size < 16) break; }
     }
-    const entry: Entry = { id: randomUUID(), session: appSessionId, pty, chunks: [], seq: 0, bytes: 0, clippedSeq: 0, state: 'running', closing: false, subscriptions: [] };
+    const entry: Entry = { id: randomUUID(), session: appSessionId, pty, chunks: [], seq: 0, bytes: 0, clippedSeq: 0, state: 'running', closing: false, writing: Promise.resolve(), subscriptions: [] };
     if (this.#sessions.has(appSessionId)) this.#entries.delete(this.#sessions.get(appSessionId)!);
     this.#entries.set(entry.id, entry); this.#sessions.set(appSessionId, entry.id);
     entry.subscriptions.push(pty.onData(data => {
@@ -105,7 +112,18 @@ export class NativeTerminalService {
     const e = this.#entry(terminalId), first = e.chunks[0]?.seq ?? e.seq + 1;
     return { chunks: e.chunks.filter(c => c.seq > after), state: e.state, gap: after < first - 1 || after < e.clippedSeq, ...(e.exitCode !== undefined ? { exitCode: e.exitCode } : {}) };
   }
-  write({ terminalId, data }: { terminalId: string; data: string }) { const e = this.#entry(terminalId); if (e.state !== 'running' || e.closing) fail('종료된 터미널입니다. 다시 연결하세요.'); e.pty.write(data); return {}; }
+  async write({ terminalId, data }: { terminalId: string; data: string }) {
+    const e = this.#entry(terminalId);
+    const work = e.writing.then(async () => {
+      if (e.state !== 'running' || e.closing) fail('종료된 터미널입니다. 다시 연결하세요.');
+      // Refresh only on input submission/paste, never inspect or inject terminal commands.
+      if (/[\r\n]/.test(data)) await this.#options.prepareCourse?.(e.session, join(realpathSync(this.#options.root), e.session));
+      if (e.state !== 'running' || e.closing) fail('종료된 터미널입니다. 다시 연결하세요.');
+      e.pty.write(data);
+    });
+    e.writing = work.catch(() => undefined);
+    await work; return {};
+  }
   resize({ terminalId, cols, rows }: { terminalId: string; cols: number; rows: number }) { const e = this.#entry(terminalId); if (e.state === 'running') e.pty.resize(cols, rows); return {}; }
   #stop(pty: Pty) {
     if (this.#options.stopGroup) return this.#options.stopGroup(pty);

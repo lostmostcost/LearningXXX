@@ -58,3 +58,13 @@
 - **WBS-057**은 "공식 플레이어 시청 + 출석 자동 추적"(다음 미시청 강의 열기, 시청 후 출석 상태 다시 읽기, 마감 알림)으로 확장.
 - **WBS-058**에 자동 제출 규칙(등록·확인·예약 실행·파일 변경 감지·결과 알림) 추가, 예상 +1일.
 - **WBS-059 퀴즈 상태·응시 열기** 추가(0.5~1일): 읽기 전용 상태 + 공식 창 열기 + 알림.
+
+## 6. 실측 후 확정 설계 (WBS-054, 2026-11-03 · 근거: spikes/lms-status/README.md)
+
+| 작업 | 확정 방식 |
+|---|---|
+| WBS-055 상태 읽기 | 수집 때 이미 받는 LearningX 모듈 응답에서 `completed`·`attendance_status`·`lecture_period_status`·`unlock_at/due_at/lock_at` 저장, 동영상은 `attendance_items/:id`의 `progress`(초)/`duration`. Canvas `assignments?include[]=submission`(제출 상태·지각·누락·허용 형식·시도), `quizzes`(기간·시도·잠금 브라우저 필요). 실패한 과목은 "확인 불가"로 표시 |
+| WBS-056 열람 기록 | 앱 뷰어에서 LearningX PDF를 열면, 같은 로그인 세션의 보이지 않는 창으로 LMS 항목 페이지(`/courses/:cid/modules/items/:itemId`)를 열어 LMS 뷰어가 스스로 `progress/forceSubmit`을 보내게 함. 응답 200 확인 후 창 닫고 상태 재조회. 60초 안에 없으면 "열람 기록 실패, 다시 시도" 표시. 요청 위조 없음 |
+| WBS-057 공식 플레이어 시청 | 강의 행 "LMS에서 시청" → 같은 항목 페이지를 **보이는 앱 창**으로 열기(공식 Commons 플레이어가 누적 시청 시간 보고). 창이 열려 있는 동안 `attendance_items`로 진도·출석 표시, 닫으면 재조회. "다음 미시청 강의"·출석 마감 알림. 숨김 재생·음소거 자동 재생·진도 보고 위조 없음 |
+| WBS-058 과제 제출 | Canvas 파일 제출(제출 흐름은 연습 과제로 실측 후 확정). 수동: 확인 창. 자동: 사용자 규칙 |
+| WBS-059 퀴즈 | 상태·기간·응시 열기(보이는 앱 창). `require_lockdown_browser`면 "전용 브라우저 필요" |

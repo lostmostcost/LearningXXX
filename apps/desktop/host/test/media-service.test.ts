@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { Course, MediaAsset } from "@learningxxx/contracts";
 import type { Engine, EngineOutput } from "@learningxxx/transcriber";
-import { MediaService, type MediaServiceOptions } from "../src/media-service.ts";
+import { AUTO_CORRECTION_ENGINE, MediaService, type MediaServiceOptions } from "../src/media-service.ts";
 import { RecordingService } from "../src/recording-service.ts";
 import { createHandlers } from "../src/handlers.ts";
 
@@ -29,7 +29,7 @@ async function setup() {
     videos: async () => [{ sourceId: "synthetic", title: "합성 영상" }], openOriginal: async (path) => { opened.push(path); },
     video: () => ({ fetch: (async () => new Response("denied", { status: 403 })) as typeof fetch, resolveSource: async () => ({ url: "https://test.invalid/video", referer: "https://test.invalid/view" }), allowedOrigins: ["https://test.invalid"] }), ...extra,
   });
-  return { root, asset, course, bytes, make, calls: () => calls, finish: () => release!(output), opened, switchAccount: () => { account = "acct_synthetic02"; } };
+  return { root, asset, course, bytes, make, calls: () => calls, finish: () => release!(output), finishWith: (o: EngineOutput) => release!(o), opened, switchAccount: () => { account = "acct_synthetic02"; } };
 }
 
 test("confirmed original automatically enqueues once; startup recovers a missing job and existing output", async () => {
@@ -213,4 +213,26 @@ test("WBS-087: only a transcribed original can be deleted; its transcript stays 
   assert.equal(s.calls(), 1, "never sent to transcription again after a restart");
   assert.equal((await restarted.list(s.course.id)).transcripts.length, 1);
   await restarted.stop();
+});
+
+test("WBS-083: automatic correction makes a new corrected version with the same times; the original version stays", async () => {
+  const s = await setup();
+  const seen: string[][] = [];
+  const media = s.make(undefined, { correct: async ({ lines }) => { seen.push(lines); return lines.map((l) => l.replace("합성", "교정된")); } });
+  await media.recover(); await tick();
+  s.finishWith({ language: "Korean", text: "합성 전사입니다. 둘째 문장.", words: [{ text: "합성", start: 0, end: 0.5 }, { text: "전사입니다.", start: 0.5, end: 1.2 }, { text: "둘째", start: 3, end: 3.4 }, { text: "문장.", start: 3.4, end: 4 }] });
+  await until(async () => (await media.list(s.course.id)).transcripts.length === 1);
+  const base = (await media.list(s.course.id)).transcripts[0]!;
+  assert.ok(base.segments.length >= 1);
+  const out = await media.autoCorrect(s.course.id, s.asset.id, base.id, new AbortController().signal);
+  assert.equal(out.changed, 1);
+  assert.deepEqual(seen.flat(), base.segments.map((x) => x.text));
+  const versions = (await media.list(s.course.id)).transcripts;
+  const corrected = versions.find((t) => t.id === out.transcriptId)!;
+  assert.equal(corrected.kind, "corrected");
+  assert.equal(corrected.engine.name, AUTO_CORRECTION_ENGINE);
+  assert.match(corrected.segments[0]!.text, /^교정된 /);
+  assert.deepEqual(corrected.segments.map((x) => [x.startMs, x.endMs]), base.segments.map((x) => [x.startMs, x.endMs]));
+  assert.ok(versions.some((t) => t.id === base.id), "the engine's version is kept");
+  await media.stop();
 });

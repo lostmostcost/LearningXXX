@@ -42,7 +42,9 @@ import { EXTERNAL_TYPES, ExternalMaterials } from "./external-materials.ts";
 import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
 import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
-import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
+import { correctionPrompt, createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
+import { AutomationService } from "./automation.ts";
+import { StudyNotes } from "./study-notes.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -125,6 +127,10 @@ app.whenReady().then(async () => {
       }
     },
   });
+  // WBS-071/083: preferred language and automation settings.
+  const preferences = new Preferences(join(dataRoot, "preferences.json"));
+  // WBS-083: the automatic steps; created once everything they use exists.
+  let automation: AutomationService | undefined;
   // WBS-088: the student's own files, added to the served course material (declared before the library uses it).
   let externals: ExternalMaterials | undefined;
   const library = new LibraryService({
@@ -136,6 +142,7 @@ app.whenReady().then(async () => {
     learningx: createLearningXClient,
     onProgress: (syncRun) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "collection.progress", syncRun });
+      if (syncRun.courseId && (syncRun.status === "succeeded" || syncRun.status === "partial")) automation?.changed(syncRun.courseId);
     },
     // One login window at a time; the user signs in there and runs collection again.
     openLogin: () => {
@@ -303,6 +310,9 @@ app.whenReady().then(async () => {
     // WBS-071: one batch of sentences per request.
     translate: async ({ language, lines, signal }) => parseTranslation(await claudeText({ prompt: translatePrompt(language, lines), what: "번역", signal }), lines.length),
     mentions: async ({ title, text, transcript, signal }) => parseMentions(await claudeText({ prompt: mentionsPrompt(title, text), what: "과제·시험 안내 찾기", signal }), transcript),
+    // WBS-083: automatic correction, and the hook that starts the automatic steps.
+    correct: async ({ title, context, lines, signal }) => parseTranslation(await claudeText({ prompt: correctionPrompt(title, context, lines), what: "자동 교정", signal }), lines.length),
+    onTranscribed: (input) => automation?.transcribed(input),
     openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
     videos: async (course) => {
       await credentials.ensureSignedIn();
@@ -376,7 +386,65 @@ app.whenReady().then(async () => {
     notes: (courseId) => notesFor(courseId), summary: (courseId) => knowledge.markdown(courseId),
     write: ({ prompt, signal }) => claudeText({ prompt, what: '메모 정리', signal }),
   });
-  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: async (courseId) => [...await notesFor(courseId), ...await memos.notes(courseId)], knowledge: (courseId) => knowledge.markdown(courseId) });
+  // WBS-083: review/preview notes per week, and the automation runner.
+  const study = new StudyNotes({
+    root: join(dataRoot, 'study-notes'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    notes: async (courseId) => [...await notesFor(courseId), ...await memos.notes(courseId)], summary: (courseId) => knowledge.markdown(courseId),
+    pdfText: async (courseId, weekId) => {
+      const out: { title: string; text: string }[] = [];
+      for (const item of (await library.manifest(courseId))?.items.filter((i) => i.resource.weekId === weekId) ?? []) {
+        for (const asset of item.assets.filter((a) => a.mediaType === 'application/pdf')) {
+          if (out.length >= 3) return out;
+          const pages = await library.asset({ courseId, assetId: asset.id }).then((a) => pdfPageTexts(a.bytes)).catch(() => undefined);
+          if (pages?.some((p) => p.trim())) out.push({ title: asset.originalName, text: pages.slice(0, 15).join('\n').slice(0, 10_000) });
+        }
+      }
+      return out;
+    },
+    write: ({ prompt, signal }) => claudeText({ prompt, what: '복습·예습 노트', signal }),
+  });
+  const weekByLabel = async (courseId: string, label: string | undefined) => label ? (await library.manifest(courseId))?.weeks.find((w) => w.label === label)?.id : undefined;
+  automation = new AutomationService({
+    settings: () => preferences.get().automation,
+    correct: ({ courseId, assetId, transcriptId, signal }) => media.autoCorrect(courseId, assetId, transcriptId, signal),
+    readable: ({ courseId, assetId, transcriptId }) => media.makeReadable(courseId, assetId, transcriptId),
+    mentions: async ({ courseId, assetId, transcriptId }) => {
+      const { candidates } = await media.findMentions(courseId, assetId, transcriptId);
+      return candidates.length ? (await media.addMentions(courseId, assetId, candidates)).mentions.length : 0;
+    },
+    courseMd: (courseId) => knowledge.make(courseId),
+    review: ({ courseId, weekId, signal }) => study.make(courseId, weekId, 'review', signal),
+    weekOf: async (courseId, assetId) => {
+      const listed = await media.list(courseId);
+      const asset = listed.assets.find((a) => a.id === assetId);
+      if (asset?.source.type === 'recording') { const id = asset.source.recordingId; return listed.recordings.find((r) => r.id === id)?.weekId; }
+      if (asset?.source.type === 'lms_video') { const ref = `commons:${asset.source.sourceId}`; return weekByLabel(courseId, (await learning.status(courseId).catch(() => undefined))?.items.find((i) => i.sourceRef === ref)?.weekLabel); }
+      return undefined;
+    },
+    preview: {
+      courses: () => library.courses(),
+      meetings: async (courseId) => (await knowledge.get(courseId)).meetings,
+      // The latest week whose LMS items are open now.
+      currentWeek: async (courseId) => {
+        const status = await learning.status(courseId).catch(() => undefined), manifest = await library.manifest(courseId);
+        const open = new Set((status?.items ?? []).filter((i) => i.period !== 'not_open' && (!i.unlockAt || Date.parse(i.unlockAt) <= Date.now())).map((i) => i.weekLabel));
+        return manifest?.weeks.filter((w) => open.has(w.label)).toSorted((a, b) => b.order - a.order)[0]?.id;
+      },
+      has: (courseId, weekId) => study.has(courseId, weekId, 'preview'),
+      make: ({ courseId, weekId, signal }) => study.make(courseId, weekId, 'preview', signal),
+    },
+  });
+  if (!preferences.get().automation.transcribe) await media.pauseTranscription().catch(() => undefined);
+  // Only a change of this setting pauses or resumes; a pause the student made by hand otherwise stays.
+  let transcribeSetting = preferences.get().automation.transcribe;
+  preferences.onChange((value) => {
+    if (value.automation.transcribe === transcribeSetting) return;
+    transcribeSetting = value.automation.transcribe;
+    void (transcribeSetting ? media.resumeTranscription() : media.pauseTranscription()).catch(() => undefined);
+  });
+  const previewTimer = setInterval(() => { void automation?.tick().catch(() => undefined); }, 10 * 60_000);
+  setTimeout(() => { void automation?.tick().catch(() => undefined); }, 60_000).unref();
+  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: async (courseId) => [...await notesFor(courseId), ...await memos.notes(courseId), ...await study.weekNotes(courseId)], knowledge: (courseId) => knowledge.markdown(courseId) });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
   conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
@@ -384,6 +452,7 @@ app.whenReady().then(async () => {
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
+    clearInterval(previewTimer); automation?.stop();
     void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
@@ -423,7 +492,6 @@ app.whenReady().then(async () => {
   }
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
-  const preferences = new Preferences(join(dataRoot, "preferences.json"));
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
     // WBS-080: opens the macOS Settings pane for a permission the app needs; fixed addresses only.
     "app.openSettings": async ({ pane }) => { await shell.openExternal(PRIVACY_PANES[pane]); return {}; },
@@ -435,6 +503,10 @@ app.whenReady().then(async () => {
     "materials.choose": () => externals!.choose(),
     "materials.add": (request) => externals!.add(request),
     "materials.change": (request) => externals!.change(request),
+    // WBS-083: automatic steps and study notes.
+    "automation.status": async () => automation!.status(),
+    "study.list": async ({ courseId }) => ({ notes: await study.list(courseId) }),
+    "study.make": ({ courseId, weekId, kind }) => study.make(courseId, weekId, kind),
     // WBS-086: memos per course week.
     "memo.get": ({ courseId, weekId }) => memos.get(courseId, weekId),
     "memo.save": ({ courseId, weekId, text, base }) => memos.save(courseId, weekId, text, base),

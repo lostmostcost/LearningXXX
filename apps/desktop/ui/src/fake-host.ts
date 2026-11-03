@@ -107,7 +107,7 @@ export function installFakeHost(courseTitle: string): void {
     "media.mentions": (p) => ok({ mentions: fakeMentions.filter((m) => m.courseId === String(p.courseId)) }),
     "media.removeMention": (p) => { const i = fakeMentions.findIndex((m) => m.id === p.mentionId); if (i >= 0) fakeMentions.splice(i, 1); return ok({}); },
     // WBS-071: preferences and translations in memory (the fixture prefers English so the toggle shows).
-    "app.preferences": () => ok({ language: fakeLanguage }),
+    "app.preferences": () => ok({ language: fakeLanguage, automation: { transcribe: true, correct: false, readable: false, mentions: false, courseMd: false, review: false, preview: false } }),
     "app.setPreferences": (p) => { fakeLanguage = String(p.language); return ok({ language: fakeLanguage }); },
     "media.translation": (p) => ok(fakeTranslations.has(`${String(p.transcriptId)}.${String(p.language)}`) ? { texts: fakeTranslations.get(`${String(p.transcriptId)}.${String(p.language)}`) } : {}),
     "media.translate": async (p) => { await new Promise((r) => setTimeout(r, 500)); const t = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((x) => x.id === p.transcriptId)!; const texts = t.segments.map((seg) => `[${String(p.language)}] ${seg.text}`); fakeTranslations.set(`${t.id}.${String(p.language)}`, texts); return ok({ texts, untranslated: 0 }); },

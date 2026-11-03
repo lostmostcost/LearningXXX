@@ -140,3 +140,19 @@ export function parseTranslation(answer: string, count: number): (string | undef
     return typeof value === "string" && value.trim() ? value.trim().slice(0, 5000) : undefined;
   });
 }
+
+/** WBS-083: numbered transcript sentences in, the same numbers with misheard words fixed out (parsed like a translation). */
+export function correctionPrompt(title: string, context: string, lines: readonly string[]): string {
+  return [
+    `다음은 대학 강의 "${title}"을 음성 인식으로 받아 적은 문장들입니다. 잘못 알아들은 단어(특히 전문 용어·영어 용어·고유 이름)와 띄어쓰기만 바로잡아 주세요.`,
+    "말한 내용을 바꾸거나 요약하거나 덧붙이지 않습니다. 확실하지 않으면 원래 문장 그대로 둡니다. 아래 과목 자료 이름은 용어를 맞추는 참고용입니다.",
+    "",
+    'JSON 객체 하나만 출력합니다(앞뒤 설명·코드 블록 없이): {"1": "고친 문장", "2": "고친 문장", ...}. 번호는 아래와 같게, 모든 번호를 넣습니다.',
+    "",
+    "## 과목 자료 이름",
+    context.slice(0, 4000) || "(없음)",
+    "",
+    "## 문장",
+    ...lines.map((line, i) => `${i + 1}\t${line.replace(/\s+/g, " ").trim()}`),
+  ].join("\n");
+}

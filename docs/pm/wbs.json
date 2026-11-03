@@ -772,7 +772,9 @@
       ],
       "paths": [
         "tests/acceptance/",
-        "docs/qa/"
+        "docs/qa/",
+        "apps/desktop/host/src/main.ts",
+        "docs/pm/"
       ],
       "spec": "QA-001",
       "requirements": [
@@ -780,10 +782,11 @@
         "REQ-008"
       ],
       "acceptance": "중단·재시도·원본 손실 방지 및 합의한 전사 품질을 담당 개발자의 Mac과 표본에서 직접 확인한다. 상대방의 별도 QA는 필수가 아니다. 사람에게 작동 구조를 설명하고 사용감 기록을 받는다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-028-b-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81c180eac578f864f9b5?pvs=204",
-      "qa_mode": "developer_self_test"
+      "qa_mode": "developer_self_test",
+      "scope_note": "2026-11-03 자가 테스트 준비 중 발견한 결함(엔진이 이미 준비된 채 시작하면 ENGINE_UNAVAILABLE 실패를 재시도하지 않음)을 main.ts 한 곳에서 수정. 자율 진행 위임에 따른 영역 밖 예외."
     },
     {
       "id": "WBS-029",

@@ -228,6 +228,12 @@ app.whenReady().then(async () => {
   await recordings.recover().catch(() => undefined);
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
+  // Jobs that failed only because the engine was missing run again once it is
+  // ready, also when it was prepared in an earlier run (onReady fires only
+  // right after preparing in this one).
+  void stt.status(true).then(async (s) => {
+    if (s.state === "ready" && library.accountKey()) await media.retryUnavailable();
+  }).catch(() => undefined);
   let conversations: ConversationService;
   const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id) });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);

@@ -54,6 +54,7 @@ const CHANNELS = new Set([
   "recording.chunk",
   "recording.stop",
   "recording.list",
+  "recording.assign",
   "media.asset",
   "media.list",
   "media.videos",

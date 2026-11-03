@@ -142,3 +142,23 @@ test("retry of an obsolete engine job uses the current configuration and retains
   const current = s.make([], { engine }); await current.recover(); await tick(); await current.retry(s.course.id, oldId); await tick();
   const result = await current.list(s.course.id); assert.equal(calls, 1); assert.equal(result.jobs.length, 2); assert.equal(result.transcripts.length, 2); await current.stop();
 });
+
+test("WBS-065: recordings are filed only under a week of their own course, and not across accounts", async () => {
+  const s = await setup(), recorder = new RecordingService({ dataRoot: s.root, micPermission: async () => "granted", freeBytes: () => 1024 ** 3, encode: async () => { throw new Error("WAV"); } });
+  const media = s.make([], { originals: () => recorder.originals(), recordings: (courseId) => recorder.list({ courseId }).recordings });
+  const week = "33333333-3333-4333-8333-000000000001";
+  const library = { manifest: async (courseId: string) => (courseId === s.course.id ? { weeks: [{ id: week }] } : undefined) };
+  type Args = Parameters<typeof createHandlers>;
+  const handlers = createHandlers({} as Args[0], library as unknown as Args[1], {} as Args[2], undefined, undefined, undefined, recorder, media);
+  const invalid = (e: unknown) => (e as { appError?: { code: string } }).appError?.code === "INVALID_REQUEST";
+  await assert.rejects(handlers["recording.start"]!({ courseId: s.course.id, weekId: "33333333-3333-4333-8333-000000000099" }), invalid);
+  assert.equal(recorder.activeId, undefined, "an unknown week starts nothing");
+  const started = await handlers["recording.start"]!({ courseId: s.course.id, weekId: week, lectureSourceId: "lec-1" });
+  assert.equal(started.recording.weekId, week);
+  await handlers["recording.stop"]!({ recordingId: started.recording.id });
+  await assert.rejects(handlers["recording.assign"]!({ recordingId: started.recording.id, weekId: "33333333-3333-4333-8333-000000000099" }), invalid);
+  assert.equal((await handlers["recording.assign"]!({ recordingId: started.recording.id, weekId: week })).recording.lectureSourceId, undefined);
+  s.switchAccount();
+  await assert.rejects(handlers["recording.assign"]!({ recordingId: started.recording.id, weekId: week }), /현재 계정/);
+  await media.stop();
+});

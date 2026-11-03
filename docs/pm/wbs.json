@@ -1945,11 +1945,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "녹음 시작 때 주차·강의를 정하고 주차 학습의 강의 아래 표시. 과목 통합 목록 제거, 기존 녹음은 날짜 추정 후 사용자 확인으로 이동.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-065-recording-week",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81a09e63d3569012a7e9?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed contracts (Recording.weekId/lectureSourceId, recording.start fields, recording.assign), RecordingService.assign and #confirm, handler week check and account boundary, UI week estimation, RecordingPanel picker/unfiled list/move, TranscriptPanel selection, week-menu rows. Found and fixed: (1) #confirm wrote back the recording read before the async encode, so a move made while saving was lost — now re-read after encoding (test added); (2) RecordingPanel's stop callback would change identity with the new parent callbacks, and the course-change cleanup stops the recording on a new identity — callbacks now read through a ref; (3) recordings whose week the LMS no longer lists showed nowhere — now listed as unfiled. Checks: pnpm -r run check all pass (contracts 58, ui 115, host 204), new tests for week estimation, filing, move during encode, unknown week and other-account rejection. Synthetic UI check (?fixture=mic, generated tone): default week from date, choose 1주차 + lecture → recording shown under that lecture in the week menu → stop → older recording's suggested week confirmed → it appears under 2주차 → click opens the transcripts tab with its place and move picker. Real app with real recordings not tried by the agent."
+      ]
     },
     {
       "id": "WBS-066",

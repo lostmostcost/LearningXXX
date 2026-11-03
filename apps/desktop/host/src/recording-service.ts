@@ -154,7 +154,7 @@ export class RecordingService {
     return this.#state.assets.filter((a) => a.role === "original");
   }
 
-  async start({ courseId, title }: IpcRequest<"recording.start">): Promise<Recording> {
+  async start({ courseId, title, weekId, lectureSourceId }: IpcRequest<"recording.start">): Promise<Recording> {
     if (this.#active || this.#stopping) fail("RUN_ALREADY_ACTIVE", "이미 녹음 중입니다. 지금 녹음을 먼저 멈추세요.");
     if ((await this.#o.micPermission()) !== "granted") {
       fail("MIC_PERMISSION_DENIED", "마이크 권한이 없습니다. 시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 이 앱을 켠 뒤 다시 시작하세요.");
@@ -169,7 +169,20 @@ export class RecordingService {
     const fd = openSync(join(this.#dir(id), "audio.pcm"), "a");
     this.#active = { id, fd, nextSeq: 0, bytes: 0 };
     const label = new Date(this.#now().getTime() + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
-    return this.#put({ schemaVersion: SCHEMA_VERSION, id, courseId, title: title ?? `${label} 녹음`, startedAt, status: "recording" });
+    return this.#put({
+      schemaVersion: SCHEMA_VERSION, id, courseId, title: title ?? `${label} 녹음`, startedAt, status: "recording",
+      ...(weekId ? { weekId } : {}), ...(lectureSourceId ? { lectureSourceId } : {}),
+    });
+  }
+
+  /**
+   * WBS-065: files a recording under a week (and lecture), also while it is
+   * being recorded. Only these two fields change; the original is untouched.
+   * The caller checks that the week belongs to the recording's course.
+   */
+  assign({ recordingId, weekId, lectureSourceId }: IpcRequest<"recording.assign">): Recording {
+    const { lectureSourceId: _previous, ...recording } = this.#recording(recordingId);
+    return this.#put({ ...recording, weekId, ...(lectureSourceId ? { lectureSourceId } : {}) });
   }
 
   /** Appends and flushes one chunk. A repeated chunk (same seq) is acknowledged without writing twice. */
@@ -281,7 +294,8 @@ export class RecordingService {
       createdAt: this.#stamp(),
     });
     this.#state.assets.push(asset);
-    const done = this.#put({ ...recording, status, durationMs, originalAssetId: asset.id });
+    // Read again: the user may have filed it under a week while it was being encoded.
+    const done = this.#put({ ...this.#recording(id), status, durationMs, originalAssetId: asset.id });
     // The original is safely stored; the working copy is no longer needed.
     rmSync(this.#dir(id), { recursive: true, force: true });
     try {

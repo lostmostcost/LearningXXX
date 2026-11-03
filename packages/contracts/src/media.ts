@@ -10,13 +10,20 @@ import { ErrorCode } from "./errors.ts";
 
 /** A lecture recorded on this Mac. Chunks are kept so a forced quit leaves a recoverable part. */
 export const RecordingStatus = z.enum(["recording", "finalized", "recovered_partial", "failed"]);
+/** An LMS online lecture's own id (as in `media.videos`), kept opaque. */
+export const LectureSourceId = z.string().regex(/^[\w-]{1,64}$/);
 export const Recording = z
   .object({
     schemaVersion: SchemaVersion,
     id: Id,
     courseId: Id,
-    /** Optional week the user filed it under. */
+    /**
+     * WBS-065: the manifest week the user filed it under. Absent only for
+     * recordings made before weeks were chosen; the user confirms one later.
+     */
     weekId: Id.optional(),
+    /** WBS-065: the week's online lecture it belongs to, if the user picked one. */
+    lectureSourceId: LectureSourceId.optional(),
     title: z.string().min(1).max(200),
     startedAt: UtcTimestamp,
     /** Known once stopped (or recovered); absent while recording. */
@@ -29,6 +36,7 @@ export const Recording = z
     errorCode: ErrorCode.optional(),
   })
   .superRefine((r, ctx) => {
+    if (r.lectureSourceId !== undefined && r.weekId === undefined) ctx.addIssue({ code: "custom", message: "a lecture is chosen within a week" });
     const done = r.status === "finalized" || r.status === "recovered_partial";
     if (done !== (r.originalAssetId !== undefined)) {
       ctx.addIssue({ code: "custom", message: "originalAssetId is required exactly for finalized or recovered recordings" });

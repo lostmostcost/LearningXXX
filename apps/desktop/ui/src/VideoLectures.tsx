@@ -65,6 +65,9 @@ export function useVideoLectures(courseId: string | undefined, active: boolean) 
   };
   return {
     rows: videos ? videoRows(videos, media) : [],
+    /** This Mac's originals, recordings and jobs for the course (WBS-065: recordings under their week). */
+    media,
+    refresh,
     loaded: videos !== undefined,
     loading,
     notice,

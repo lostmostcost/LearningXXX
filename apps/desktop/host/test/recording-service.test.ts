@@ -142,3 +142,36 @@ test("the compressed original is readable by the transcription decoder (macOS)",
   execFileSync("/usr/bin/afconvert", ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", join(dir, "a.m4a"), join(dir, "back.wav")]);
   assert.ok(existsSync(join(dir, "back.wav")));
 });
+
+const WEEK_A = "22222222-2222-4222-8222-00000000000a";
+const WEEK_B = "22222222-2222-4222-8222-00000000000b";
+
+test("WBS-065: a recording keeps the week and lecture chosen at start, and can be filed again", async () => {
+  const { service, make } = setup();
+  const r = await service.start({ courseId: COURSE, weekId: WEEK_A, lectureSourceId: "lec-1" });
+  assert.equal(r.weekId, WEEK_A);
+  assert.equal(r.lectureSourceId, "lec-1");
+  await service.chunk({ recordingId: r.id, seq: 0, pcm: pcm(100) });
+  const { recording } = await service.stop({ recordingId: r.id });
+  assert.deepEqual([recording.weekId, recording.lectureSourceId], [WEEK_A, "lec-1"]);
+  const moved = service.assign({ recordingId: r.id, weekId: WEEK_B });
+  assert.equal(moved.weekId, WEEK_B);
+  assert.equal(moved.lectureSourceId, undefined, "moving to a week without a lecture drops the old lecture");
+  assert.equal(moved.originalAssetId, recording.originalAssetId, "the original is untouched");
+  assert.equal(make().list({ courseId: COURSE }).recordings[0]!.weekId, WEEK_B, "stored on disk");
+  assert.equal(await code(Promise.resolve().then(() => service.assign({ recordingId: WEEK_A, weekId: WEEK_B }))), "NOT_FOUND");
+});
+
+test("WBS-065: filing a recording while its original is being encoded is not lost", async () => {
+  let release!: () => void;
+  const encoding = new Promise<void>((resolve) => (release = resolve));
+  const { service } = setup({ encode: async (wav, out) => { await encoding; copyFileSync(wav, out); } });
+  const r = await service.start({ courseId: COURSE });
+  await service.chunk({ recordingId: r.id, seq: 0, pcm: pcm(100) });
+  const stopping = service.stop({ recordingId: r.id });
+  service.assign({ recordingId: r.id, weekId: WEEK_A, lectureSourceId: "lec-2" });
+  release();
+  const { recording } = await stopping;
+  assert.equal(recording.status, "finalized");
+  assert.deepEqual([recording.weekId, recording.lectureSourceId], [WEEK_A, "lec-2"]);
+});

@@ -130,6 +130,7 @@ describe("producer → consumer round trip", () => {
       "recording.start": { courseId: sid },
       "recording.chunk": { recordingId: sid, seq: 0, pcm: new Uint8Array(4) },
       "recording.stop": { recordingId: sid },
+      "recording.assign": { recordingId: sid, weekId: sid, lectureSourceId: "synthetic" },
       "recording.list": { courseId: sid },
       "media.asset": { assetId: sid },
       "media.list": { courseId: sid },

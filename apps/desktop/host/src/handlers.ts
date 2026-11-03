@@ -21,6 +21,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
   const terminal = () => { if (!terminals) throw new Error('Terminal service unavailable'); return terminals; };
   const chat = () => { if (!conversations) throw new Error('Conversation service unavailable'); return conversations; };
   const runtime = () => { if (!stt) throw new Error("STT runtime unavailable"); return stt; };
+  /** WBS-065: a recording is filed only under a week of its own course's collected manifest. */
+  const checkWeek = async (courseId: string, weekId: string | undefined) => {
+    if (weekId === undefined || (await library.manifest(courseId))?.weeks.some((w) => w.id === weekId)) return;
+    throw Object.assign(new Error("unknown week"), { appError: { code: "INVALID_REQUEST", message: "이 과목에 없는 주차입니다. 자료를 다시 수집한 뒤 주차를 골라 주세요.", retryable: false } });
+  };
   return {
     "stt.status": ({ refresh }) => runtime().status(refresh),
     "stt.prepare": () => runtime().prepare(),
@@ -108,7 +113,12 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "files.sessionChanges": async (request) => files.sessionChanges(request),
     "files.restore": (request) => files.restore(request),
     "files.trash": (request) => files.trash(request),
-    "recording.start": async (request) => { await media?.authorize(request.courseId); return { recording: await recorder().start(request) }; },
+    "recording.start": async (request) => { await media?.authorize(request.courseId); await checkWeek(request.courseId, request.weekId); return { recording: await recorder().start(request) }; },
+    "recording.assign": async (request) => {
+      const courseId = recorder().courseOf(request.recordingId);
+      await media?.authorize(courseId); await checkWeek(courseId, request.weekId);
+      return { recording: recorder().assign(request) };
+    },
     "recording.chunk": async (request) => {
       try { await media?.authorize(recorder().courseOf(request.recordingId)); }
       catch (error) { await recorder().stopActive("RECORDING_INTERRUPTED"); throw error; }

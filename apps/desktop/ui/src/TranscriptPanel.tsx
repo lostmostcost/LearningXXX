@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaAsset, Recording, Transcript, TranscriptionJob } from "@learningxxx/contracts";
 import { Icon } from "./StudyUI.tsx";
 import { excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
@@ -23,16 +23,22 @@ export interface TranscriptPanelProps {
   onPause?: (() => Promise<void>) | undefined;
   onResume?: (() => Promise<void>) | undefined;
   onCancel?: ((jobId: string) => Promise<void>) | undefined;
+  /**
+   * WBS-065: the original chosen under a week of the materials menu (or the
+   * recording just saved). There is no course-wide list to pick from here.
+   */
+  selectedAssetId?: string | undefined;
+  /** Where the chosen original sits ("3주차 · 1차시") and, for recordings, a way to move it. */
+  place?: ((asset: MediaAsset) => ReactNode) | undefined;
 }
 
 export function TranscriptPanel(props: TranscriptPanelProps) {
-  const [selectedId, setSelectedId] = useState<string>();
   const assets = props.assets.filter((a) => a.courseId === props.courseId && a.role === "original");
-  const asset = assets.find((a) => a.id === selectedId) ?? assets[0];
+  const asset = assets.find((a) => a.id === props.selectedAssetId);
   return <section className="media-library" aria-label="녹음과 전사">
-    <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3><span>{assets.length}</span></div>
-    {assets.length ? <label className="source-picker"><Icon name="file" /><select aria-label="강의 원본 선택" value={asset?.id ?? ""} onChange={e => setSelectedId(e.target.value)}>{assets.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}</select></label> : null}
-    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>녹음하거나 온라인 강의를 가져오면 여기에 표시됩니다.</small></div>}
+    <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3>{asset ? <span className="media-title" title={asset.title}>{asset.title}</span> : null}</div>
+    {asset && props.place ? <div className="media-place">{props.place(asset)}</div> : null}
+    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "주차 학습에서 녹음이나 강의를 고르세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음과 받은 동영상 강의는 위쪽 주차 메뉴의 각 주차·강의 아래에 있습니다." : "녹음하거나 온라인 강의를 가져오면 주차 학습의 해당 주차 아래에 표시됩니다."}</small></div>}
     {props.recordings.filter(r => r.courseId === props.courseId && !r.originalAssetId && r.status !== "recording").map(r => <p className="notice-box" key={r.id}>{r.title} · {r.status === "failed" ? "녹음을 저장하지 못했습니다" : "원본을 복구하고 있습니다"}</p>)}
   </section>;
 

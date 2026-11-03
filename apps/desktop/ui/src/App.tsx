@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Course, IpcResponse, MediaAsset } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
@@ -16,6 +16,8 @@ import { claimLaunchSync } from "./launch-sync.ts";
 import type { RecordingState } from "./recorder.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
+import { RecordingFile } from "./RecordingPlace.tsx";
+import { unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
 import { openPdfInBrowser } from "./pdf-browser.ts";
@@ -79,7 +81,13 @@ export function App() {
   const snapshotPage = useCallback(() => snapshot.current?.() ?? Promise.resolve(undefined), []);
   const [modifying, setModifying] = useState(false);
   // Asked from the LMS the first time the week menu opens for a course (IN_APP only: the fixture has no LMS).
-  const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray);
+  // Also when the recording tools are open: the recording picker lists the week's lectures (WBS-065).
+  const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray||(!home&&rightTab!=='chat'));
+  /** WBS-065: the recording or lecture whose original and transcript the right panel shows. */
+  const [mediaAssetId, setMediaAssetId] = useState<string>();
+  const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setRightTab('transcripts');setView('chat');setTray(false);setTrayDismissed(true);};
+  const { refresh: refreshMedia } = lectures;
+  const recordingsChanged = useCallback(() => void refreshMedia(), [refreshMedia]);
   // The course list closes when the user clicks anywhere else or presses Escape (not on hover-out).
   useEffect(()=>{
     if(!drawer)return;
@@ -111,6 +119,7 @@ export function App() {
     if (shownPdf && canRecordView(selectedItem, new Date())) void recordView(selectedItem.moduleItemId);
   }, [shownPdf, selectedItem, recordView]);
   const panels = visiblePanels(narrow, view);
+  const weekList = useMemo(() => library?.weeks.map((w) => w.week) ?? [], [library]);
 
   const refresh = useCallback(async () => {
     const epoch=courseEpoch.current;
@@ -129,7 +138,7 @@ export function App() {
     setLibrary(undefined);
     const epoch=++courseEpoch.current;
     courseRef.current = courseId;
-    setSelectionRequest(undefined);setShownPage(undefined);setLocation(undefined);snapshot.current=undefined;setWeekIndex(0);
+    setSelectionRequest(undefined);setShownPage(undefined);setLocation(undefined);snapshot.current=undefined;setWeekIndex(0);setMediaAssetId(undefined);
     setSelected(undefined);
     setActiveSessionId(undefined);
     const next=FIXTURE_MODE?buildLibrary(FIXTURE_MANIFEST):(await loadLocalLibrary(courseId)).library;
@@ -245,7 +254,20 @@ export function App() {
         <div className={`week-tray ${tray?'is-open':''} ${trayDismissed?'is-dismissed':''}`} onMouseLeave={() => setTray(false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTray(false); }}>
           <button className="week-handle" onMouseEnter={() => { setTrayDismissed(false); setTray(true); }} onFocus={() => { setTrayDismissed(false); setTray(true); }} aria-expanded={tray} onClick={()=>{setTrayDismissed(false);setTray(true);}} onKeyDown={(event)=>{if(event.key==="Escape"){setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}}>{library?.weeks[weekIndex]?.week.label??'학습 자료'} <span>⌄</span></button>
           <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button><div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={(event)=>{selectEntry(e);setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}<Badges item={itemForResource(learning.status,e.resource)}/></button>)}
-            {rowsForWeek(lectures.rows, weekIndex===-1?undefined:library?.weeks[weekIndex]?.week.label, library?.weeks.map(w=>w.week.label)??[]).map(row=><VideoFile key={row.sourceId} row={row} lms={<Badges item={learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`)}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setTray(false);setTrayDismissed(true);}} />)}</div>
+            {(()=>{
+              // WBS-065: a week's recordings sit under the lecture they were filed with, the rest under the week.
+              const week=weekIndex===-1?undefined:library?.weeks[weekIndex]?.week;
+              const videos=rowsForWeek(lectures.rows, week?.label, library?.weeks.map(w=>w.week.label)??[]);
+              const recs=week?weekRecordings(lectures.media, week.id):[];
+              const rec=(r:RecordingRow,nested?:boolean)=><RecordingFile key={r.recording.id} row={r} nested={nested} selected={r.asset!==undefined&&r.asset.id===mediaAssetId} onOpen={openRecording}/>;
+              const unfiled=week||!library?[]:unfiledRecordings(lectures.media?.recordings??[], library.weeks.map(w=>w.week), learning.status);
+              return <>
+                {videos.map(row=><div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`)}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
+                  {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>)}
+                {recs.filter(r=>!videos.some(v=>v.sourceId===r.recording.lectureSourceId)).map(r=>rec(r))}
+                {unfiled.length?<button className="recording-file unfiled" onClick={()=>{setRightTab('recording');setView('chat');setTray(false);setTrayDismissed(true);}}><Icon name="mic"/><span><span className="video-title">주차를 확인할 녹음 {unfiled.length}개</span><small>녹음 탭에서 추정 주차를 확인하고 옮기세요</small></span></button>:null}
+              </>;
+            })()}</div>
           {lectures.loading?<p className="meta">동영상 강의 목록을 학교 서버에서 확인하는 중…</p>:null}
           {lectures.notice?<p className="meta" role="status">동영상 강의: {lectures.notice} <button className="link-button" onClick={()=>void lectures.reload()}>다시 확인</button></p>:null}</div>
         </div>
@@ -279,7 +301,8 @@ export function App() {
             {window.host ? <RichChatPanel selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
           <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat"}>
-            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
+            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState}
+              weeks={weekList} lectures={lectures.rows} status={learning.status} selectedAssetId={mediaAssetId} onSelectAsset={setMediaAssetId} onChanged={recordingsChanged} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
           </div>
         </>)}
       </main>

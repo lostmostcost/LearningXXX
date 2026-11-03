@@ -16,15 +16,19 @@ export interface VideoRow {
 
 const TRANSCRIPT = { queued: "전사 대기", running: "전사 중", succeeded: "전사 완료", failed: "전사 실패", cancelled: "전사 취소" } as const;
 
+/** "전사 중 42%" for an original; shared by lectures and recordings (WBS-065). */
+export function transcriptLabel(jobs: Media["jobs"], assetId: string): string {
+  const job = jobs.find((j) => j.sourceAssetId === assetId);
+  return job ? TRANSCRIPT[job.status] + (job.status === "running" && job.progress !== undefined ? ` ${Math.round(job.progress * 100)}%` : "") : "전사 대기";
+}
+
 /** Each LMS lecture with what this Mac has of it: the original, a running download, or a failure. */
 export function videoRows(videos: Videos, media: Media | undefined): VideoRow[] {
   return videos.map((video) => {
     const base = { sourceId: video.sourceId, title: video.title, week: video.week ?? "주차 없음" };
     const asset = media?.assets.find((a) => a.source.type === "lms_video" && a.source.sourceId === video.sourceId);
     if (asset) {
-      const job = media?.jobs.find((j) => j.sourceAssetId === asset.id);
-      const transcript = job ? TRANSCRIPT[job.status] + (job.status === "running" && job.progress !== undefined ? ` ${Math.round(job.progress * 100)}%` : "") : "전사 대기";
-      return { ...base, state: "downloaded", status: `받음 · ${transcript}`, asset };
+      return { ...base, state: "downloaded", status: `받음 · ${transcriptLabel(media!.jobs, asset.id)}`, asset };
     }
     const downloads = media?.downloads.filter((d) => d.sourceId === video.sourceId) ?? [];
     const active = downloads.find((d) => d.status === "queued" || d.status === "running");

@@ -1857,7 +1857,7 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "앱을 켤 때 로그인 확인 후 수집 1회와 학습 상태 새로고침. 수집 중이면 건너뛰고 실패해도 앱 사용을 막지 않는다.",
-      "status": "Backlog",
+      "status": "Review",
       "branch": "feat/WBS-062-sync-on-launch",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd817bb1dcf7dfbd55d64a?pvs=204",

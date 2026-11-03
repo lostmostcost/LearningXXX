@@ -175,3 +175,27 @@ test("the sign-in in an LMS page's window stops at a refused password before pos
   assert.equal(loads[1], "post");
   assert.equal(await pageSchoolLogin(noCallbackDeps, { ...page, webSignedIn: async () => false }, "id", "pw"), "failed");
 });
+
+test("sign-ins never overlap: callers at the same time share one sign-in (WBS-062 false refusal)", async () => {
+  const s = store();
+  let running = 0, most = 0, signedIn = false;
+  const logins: string[] = [];
+  const svc = new CredentialService({
+    store: s.store,
+    login: async (id) => {
+      running += 1; most = Math.max(most, running); logins.push(id);
+      await new Promise((r) => setTimeout(r, 20));
+      running -= 1; signedIn = true;
+      return "signed_in";
+    },
+    signedIn: async () => signedIn,
+    checkCanvasToken: async () => "ok",
+  });
+  await svc.saveSchool({ schoolId: "id", password: "pw" });
+  signedIn = false; // the session lapsed
+  await Promise.all([svc.ensureSignedIn(), svc.ensureSignedIn(), svc.ensureSignedIn(), svc.signInAgain()]);
+  assert.equal(most, 1, "never two at once");
+  // Save-time check, then the explicit sign-in again; the three waiting callers find the session renewed and skip.
+  assert.equal(logins.length, 2);
+  assert.equal(svc.status().schoolRejected, false);
+});

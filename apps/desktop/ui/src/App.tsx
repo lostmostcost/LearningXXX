@@ -12,6 +12,7 @@ import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx"
 import { canRecordView, itemForResource } from "./learning.ts";
 import { viewTarget } from "./document.ts";
 import { buildDetail, buildLabel } from "./build-label.ts";
+import { claimLaunchSync } from "./launch-sync.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
@@ -150,6 +151,10 @@ export function App() {
       setStatus(result.error.message);
     }
   }, []);
+  // WBS-062: collect once when the app starts; sign-in and errors show as for the button.
+  useEffect(() => {
+    if (IN_APP && !FIXTURE_MODE && claimLaunchSync(window.sessionStorage)) void collect();
+  }, [collect]);
 
   const loadAsset = useCallback(
     async (assetId: string) => {

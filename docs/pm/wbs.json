@@ -2272,11 +2272,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "채팅의 고급 터미널 진입과 터미널 IPC·서비스가 없어지고 채팅은 그대로 동작한다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-076-remove-terminal",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b8adb7d7fe1bd04096?pvs=204",
-      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준.",
+      "review_evidence": [
+        "Removed: advanced-terminal toggle and view in the chat panel, NativeTerminal/NativeChatPanel/terminal-input (+test), host NativeTerminalService and its hook scripts (+test), terminal.open/read/write/resize/close and chat.back from contracts, preload, handlers, fixture host; run.start no longer asks the terminal service. Kept: terminal.stage (chat attachments) and chat.detach (new conversation). Merge with WBS-078 resolved (main.ts imports). Checks: pnpm -r run check all pass (chat tests unchanged and passing). node-pty/@xterm dependencies left in package.json to avoid a root lockfile change."
+      ]
     },
     {
       "id": "WBS-077",

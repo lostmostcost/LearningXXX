@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { IpcResponse, PreparedAttachment, Session } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
 import { MarkdownAnswer } from './MarkdownAnswer.tsx';
-import { NativeTerminal } from './NativeTerminal.tsx';
 import { Icon } from './StudyUI.tsx';
 import type { SelectionRequest } from './selection.ts';
 import { INTENT_LABEL } from './selection.ts';
@@ -28,7 +27,6 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   const [rewind, setRewind] = useState<{ sessionId: string; item: Rewind }>();
   const [showArchived, setShowArchived] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false), [commandIndex, setCommandIndex] = useState(0), [commandsHidden, setCommandsHidden] = useState(false);
-  const [advanced, setAdvanced] = useState<Set<string>>(new Set());
   const [locked, setLocked] = useState<Set<string>>(new Set()), [creating, setCreating] = useState(false);
   const requests = useRef(new Map<string, { key: string; requestId: string }>());
   const [createError, setCreateError] = useState('');
@@ -40,7 +38,6 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   const active = sessions.find(s => s.appSessionId === activeId && !s.archivedAt);
   const state = snapshot && snapshot.id === activeId ? snapshot.state : undefined;
   const draft = activeId ? drafts[activeId] ?? emptyDraft() : emptyDraft();
-  const isAdvanced = !!activeId && advanced.has(activeId);
   const busy = !!activeId && locked.has(activeId);
   const note = activeId ? notes[activeId] : undefined;
   const items = commandItems(state?.commands ?? []);
@@ -65,7 +62,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   useEffect(() => {
     let alive = true, timer: ReturnType<typeof setTimeout>;
     nearBottom.current = true;
-    if (!active || isAdvanced) return;
+    if (!active) return;
     const id = active.appSessionId;
     const poll = async (open: boolean) => {
       try {
@@ -76,7 +73,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       } catch { if (alive) tell(id, '연결이 끊겼습니다', '다시 연결을 눌러주세요. 보낸 작업은 자동 재전송하지 않습니다.'); }
     };
     void poll(true); return () => { alive = false; clearTimeout(timer); };
-  }, [active?.appSessionId, isAdvanced]);
+  }, [active?.appSessionId]);
   useEffect(() => { if (nearBottom.current && list.current) list.current.scrollTop = list.current.scrollHeight; }, [state?.messages, state?.permissions, note]);
   useEffect(() => { setCommandIndex(0); setCommandsHidden(false); }, [draft.text, activeId]);
   useEffect(() => { if (!menuOpen) return; const close = (e: PointerEvent) => { if (!menu.current?.contains(e.target as Node)) setMenuOpen(false); }; const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); }; document.addEventListener('pointerdown', close); document.addEventListener('keydown', esc); return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc); }; }, [menuOpen]);
@@ -177,17 +174,10 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
     <div className="session-toolbar"><div className="session-menu" ref={menu}>
       <button className="session-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span>{active?.title ?? '대화 선택'}</span><Icon name="chevron" /></button>
       {menuOpen ? <div className="session-dropdown" role="menu"><button aria-pressed={showArchived} title="보관한 대화 포함" aria-label="보관한 대화 포함" onClick={() => setShowArchived(!showArchived)}><Icon name="archive" />보관한 대화</button>{sessions.filter(s => (!s.archivedAt || showArchived) && (s.mode === 'independent' || s.courseId === courseId)).map(s => <button key={s.appSessionId} role="menuitem" aria-current={s.appSessionId === activeId} onClick={async () => { if (s.archivedAt) { const r = await invoke('session.archive', { appSessionId: s.appSessionId, archived: false }); if (!r.ok) return tell(s.appSessionId, '보관 해제 실패', r.error.message); await reload(); } onActiveId(s.appSessionId); setMenuOpen(false); }}><Icon name={s.mode === 'course' ? 'book' : 'chat'} /><span>{s.title}{s.archivedAt ? " · 보관됨" : ""}</span></button>)}{!sessions.length ? <p>새 대화를 시작하세요.</p> : null}</div> : null}
-    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title={isAdvanced ? '터미널 종료 후 채팅으로' : '고급 터미널'} aria-label={isAdvanced ? '터미널 종료 후 채팅으로' : '고급 터미널'} disabled={busy || !!state?.busy} onClick={() => {
-      const id = active.appSessionId; void action(id, async () => {
-        const r = await invoke(isAdvanced ? 'chat.back' : 'chat.detach', { appSessionId: id });
-        if (!r.ok) return tell(id, '화면 전환 실패', r.error.message);
-        setAdvanced(old => { const next = new Set(old); if (isAdvanced) next.delete(id); else next.add(id); return next; });
-        if (isAdvanced && 'messages' in r.data) accept(id, r.data as State);
-      });
-    }}><Icon name={isAdvanced ? 'chat' : 'code'} /></button> : null}{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy || isAdvanced} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>
+    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>
 
     {createError ? <p className="chat-error" role="alert">{createError}</p> : null}
-    {isAdvanced && activeId ? <><div className="chat-environment">고급 도구 · 터미널을 종료하면 같은 대화로 돌아옵니다.</div><NativeTerminal key={activeId} appSessionId={activeId} />{note ? <p role="alert">{note.text}</p> : null}</> : <>
+    {<>
       <div className="conversation-scroll" ref={list} onScroll={() => { if (list.current) nearBottom.current = list.current.scrollHeight - list.current.scrollTop - list.current.clientHeight < 80; }} role="log" aria-label="대화 기록">
         {!state?.messages.length ? <div className="chat-welcome"><span className="claude-spark">✳</span><h3>함께 생각해볼까요?</h3><p>자료에 관해 묻거나, / 로 도구를 찾아보세요.</p>{!active ? <button onClick={() => void create()} disabled={creating}>대화 시작</button> : null}</div> : null}
         {state?.messages.map(m => <article key={m.id} className={`conversation-message ${m.role}`}><div className="message-author">{m.role === 'user' ? '나' : m.role === 'assistant' ? 'Claude' : 'Claude Code'}</div>{m.text ? <MarkdownAnswer text={m.text} /> : null}{m.tools.map(t => <details className="tool-card" key={t.id}><summary><Icon name="code" /><span>{t.name}</span><Icon name="chevron" /></summary><pre>{t.input}</pre></details>)}</article>)}

@@ -26,7 +26,10 @@ export function transcriptLabel(jobs: Media["jobs"], assetId: string): string {
 export function videoRows(videos: Videos, media: Media | undefined): VideoRow[] {
   return videos.map((video) => {
     const base = { sourceId: video.sourceId, title: video.title, week: video.week ?? "주차 없음" };
-    const asset = media?.assets.find((a) => a.source.type === "lms_video" && a.source.sourceId === video.sourceId);
+    // WBS-095: an original deleted in 저장공간 does not count as downloaded; the lecture can be fetched again.
+    const removed = new Set(media?.removed ?? []);
+    const mine = media?.assets.filter((a) => a.source.type === "lms_video" && a.source.sourceId === video.sourceId) ?? [];
+    const asset = mine.find((a) => !removed.has(a.id));
     if (asset) {
       return { ...base, state: "downloaded", status: `받음 · ${transcriptLabel(media!.jobs, asset.id)}`, asset };
     }
@@ -37,6 +40,7 @@ export function videoRows(videos: Videos, media: Media | undefined): VideoRow[] 
       const amount = received !== undefined && total ? ` ${Math.floor((received / total) * 100)}%` : "";
       return { ...base, state: "downloading", status: `받는 중${amount}`, downloadId: active.id };
     }
+    if (mine.length) return { ...base, state: "available", status: "원본 지움 · 전사 보존 · 다시 받기" };
     const last = downloads.at(-1);
     if (last?.status === "failed") return { ...base, state: "failed", status: "받기 실패 · 다시 받을 수 있음" };
     return { ...base, state: "available", status: "아직 받지 않음" };

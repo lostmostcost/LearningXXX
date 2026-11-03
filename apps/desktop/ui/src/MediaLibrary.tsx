@@ -60,7 +60,7 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
     </div>
     {data?.transcriptionPaused ? <p role="status" className="notice-box">전사가 일시 정지되어 있습니다. <button className="link-button" onClick={() => void action(async () => { const r = await invoke("media.resumeTranscription", {}); if (!r.ok) throw new Error(r.error.message); await refresh(); })}>재개</button></p> : null}
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
-    {data ? <TranscriptPanel courseId={courseId} assets={data.assets} recordings={data.recordings} jobs={data.jobs} transcripts={data.transcripts} loadOriginal={loadOriginal} importedDocs={data.importedDocs}
+    {data ? <TranscriptPanel courseId={courseId} assets={data.assets} recordings={data.recordings} jobs={data.jobs} transcripts={data.transcripts} loadOriginal={loadOriginal} importedDocs={data.importedDocs} removed={data.removed}
       onSaveCorrection={async (assetId, basedOnTranscriptId, texts) => { const r = await invoke("media.saveCorrection", { courseId, assetId, basedOnTranscriptId, texts }); if (!r.ok) throw new Error(r.error.message); await refresh(); return r.data.transcriptId; }}
       language={language}
       waiting={data.waiting}

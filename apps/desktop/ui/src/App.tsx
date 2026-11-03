@@ -6,10 +6,10 @@ import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } 
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
-import { buildLibrary, type Entry, type Library } from "./library.ts";
+import { buildLibrary, formatSeoul, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
-import { canRecordView, canWatch, itemForResource, nextUnwatched } from "./learning.ts";
+import { canRecordView, canWatch, itemForResource, nextUnwatched, quizRows } from "./learning.ts";
 import { viewTarget } from "./document.ts";
 import { buildDetail, buildLabel } from "./build-label.ts";
 import { claimLaunchSync } from "./launch-sync.ts";
@@ -141,6 +141,13 @@ export function App() {
     void reloadLearning(false);
   }), [reloadLearning]);
   const upNext = nextUnwatched(learning.status, now);
+  // WBS-059: the quiz's own LMS page in a visible window; the user takes it there.
+  const openQuiz = useCallback(async (item: { moduleItemId?: string | undefined; quiz?: { quizId?: string | undefined } | undefined }) => {
+    const courseId = library?.course.id;
+    if (!courseId) return;
+    const result = await invoke("learning.openQuiz", { courseId, ...(item.moduleItemId ? { moduleItemId: item.moduleItemId } : {}), ...(item.quiz?.quizId ? { quizId: item.quiz.quizId } : {}) });
+    setWatchNotice(result.ok ? "LMS 퀴즈 창을 열었습니다. 응시는 그 창에서 직접 합니다. 창을 닫으면 상태를 다시 읽습니다." : result.error.message);
+  }, [library?.course.id]);
   const target = selected ? viewTarget(selected) : undefined;
   const shownPdf = !playing && target?.kind === "pdf" && shownPage?.assetId === target.asset.id;
   useEffect(() => {
@@ -305,7 +312,8 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
+            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
+              {section==='tasks'&&quizRows(learning.status,now,formatSeoul).length?<section className="quiz-list" aria-label="퀴즈"><h2>퀴즈</h2>{quizRows(learning.status,now,formatSeoul).map(q=><div className="quiz-row" key={q.item.moduleItemId??q.item.sourceRef??q.item.title}><strong>{q.item.title}</strong><small>{q.status}</small>{q.blocked?<small className="meta">{q.blocked}</small>:<button onClick={()=>void openQuiz(q.item)}>응시 창 열기</button>}</div>)}{watchNotice?<p className="meta" role="status">{watchNotice}</p>:null}</section>:null}</>:null}
           </>
         ) : (
           <>

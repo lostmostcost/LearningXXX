@@ -1781,11 +1781,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "퀴즈 상태 표시, 공식 응시 창 열기, 마감 알림을 제공한다. 대리 응시는 하지 않는다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-059-quiz-status",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81e98699f67208d15e39?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지.",
+      "review_evidence": [
+        "Reviewed contract (quiz.quizId, learning.openQuiz with moduleItemId or quizId), quizInfo id mapping, LearningStatusService.openQuiz (current account/course, quiz items only, lockdown refused, module item page or Canvas quiz page, status re-read on close), openLmsWatchWindow target union and path building, UI quiz list (state, period, attempts, blocked reasons) and open button. Checks: host learning-status tests (13) incl. quiz open/lockdown/lecture/unknown, UI learning tests (quizRows), pnpm -r run check. Real quiz page not opened by the agent (owner's LMS)."
+      ]
     },
     {
       "id": "WBS-060",

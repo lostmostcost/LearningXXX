@@ -56,6 +56,8 @@ export const LearningItem = z.object({
     .optional(),
   quiz: z
     .object({
+      /** WBS-059: Canvas quiz id, to open the quiz page when the weekly page does not list it. */
+      quizId: z.string().regex(/^\d{1,20}$/).optional(),
       /** Needs the school's lockdown browser; cannot be taken in an app window. */
       lockdownBrowser: z.boolean(),
       allowedAttempts: z.number().int().nullable(),

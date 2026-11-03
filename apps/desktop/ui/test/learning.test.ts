@@ -72,3 +72,20 @@ test("WBS-057: the next lecture to watch is the earliest-due open one not attend
   assert.equal(canWatch(status.items[1]), true);
   assert.equal(canWatch(status.items[5]), false);
 });
+
+test("WBS-059: quizzes list their state, period and why one cannot open here", async () => {
+  const { quizRows } = await import("../src/learning.ts");
+  const q = { kind: "quiz" as const, completed: null, attendance: null, usesAttendance: false, period: null, unlockAt: null, lockAt: null, dueAt: null };
+  const status = { schemaVersion: 1 as const, courseId: "11111111-1111-4111-8111-000000000001", fetchedAt: "2026-11-03T00:00:00Z", errors: [], items: [
+    { ...q, title: "잠금", dueAt: "2026-11-05T00:00:00Z", quiz: { quizId: "5", lockdownBrowser: true, allowedAttempts: 1, questionCount: 10 } },
+    { ...q, title: "연습", dueAt: "2026-11-04T00:00:00Z", quiz: { quizId: "6", lockdownBrowser: false, allowedAttempts: -1, questionCount: null },
+      submission: { state: "graded" as const, submittedAt: null, late: false, missing: false, attempt: 1, types: ["online_quiz"], allowedExtensions: [], allowedAttempts: -1 } },
+    { ...q, title: "예정", unlockAt: "2026-12-01T00:00:00Z", quiz: { lockdownBrowser: false, allowedAttempts: null, questionCount: null } },
+  ] };
+  const rows = quizRows(status, new Date("2026-11-03T00:00:00Z"), (u) => u.slice(5, 10));
+  assert.deepEqual(rows.map((r) => [r.item.title, r.status, r.blocked ?? null]), [
+    ["연습", "응시함 · 채점됨 · 마감 11-04 · 응시 횟수 제한 없음", null],
+    ["잠금", "미응시 · 마감 11-05 · 응시 1회 · 10문항", "학교 전용 브라우저(LockDown Browser)가 필요합니다"],
+    ["예정", "미응시 · 12-01부터", "LMS에서 직접 여세요"],
+  ]);
+});

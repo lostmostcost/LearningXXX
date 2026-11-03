@@ -261,10 +261,13 @@ let watching: { window: BrowserWindow; closed: Promise<void> } | undefined;
  * refused. Resolves when the user closes the window.
  */
 export function openLmsWatchWindow(
-  { sourceCourseId, moduleItemId, title }: { sourceCourseId: string; moduleItemId: string; title: string },
+  target: { sourceCourseId: string; title: string } & ({ moduleItemId: string } | { quizId: string }),
   signInAgain: (contents: Electron.WebContents) => Promise<boolean>,
 ): Promise<void> {
-  const page = `${KHU_CANVAS_BASE_URL}/courses/${encodeURIComponent(sourceCourseId)}/modules/items/${encodeURIComponent(moduleItemId)}`;
+  const { sourceCourseId, title } = target;
+  // WBS-059: a quiz the weekly page does not list opens at its Canvas quiz page.
+  const path = "moduleItemId" in target ? `modules/items/${encodeURIComponent(target.moduleItemId)}` : `quizzes/${encodeURIComponent(target.quizId)}`;
+  const page = `${KHU_CANVAS_BASE_URL}/courses/${encodeURIComponent(sourceCourseId)}/${path}`;
   if (watching && !watching.window.isDestroyed()) {
     watching.window.setTitle(`LMS에서 시청 · ${title}`);
     void watching.window.loadURL(page).catch(() => undefined);

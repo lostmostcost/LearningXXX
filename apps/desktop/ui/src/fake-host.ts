@@ -41,6 +41,20 @@ export function installFakeHost(courseTitle: string): void {
   };
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
   const fakeViewed = new Set<string>();
+  let fakeRec: { id: string; courseId: string; bytes: number } | undefined;
+  // `?fixture=mic` (WBS-064 checks): recording works with a generated tone in place of the
+  // microphone, so the recording screen can be tried without opening a real one.
+  const SYNTHETIC_MIC = new URLSearchParams(location.search).get("fixture") === "mic";
+  if (SYNTHETIC_MIC && navigator.mediaDevices) {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const context = new AudioContext();
+      const tone = context.createOscillator();
+      const out = context.createMediaStreamDestination();
+      tone.connect(out);
+      tone.start();
+      return out.stream;
+    };
+  }
   let fixtureEngine = new URLSearchParams(window.location.search).has('engineMissing') ? 'missing' : 'ready';
   let fixtureJob = new URLSearchParams(window.location.search).has('engineMissing') ? { ...SAMPLE_JOBS[3]!, errorCode: 'ENGINE_UNAVAILABLE' } : SAMPLE_JOBS[2]!;
   const engineStatus = () => ({ state: fixtureEngine, message: fixtureEngine === 'installing' ? '음성 모델 준비 중 · 합성 예시' : fixtureEngine === 'ready' ? '이 Mac에서 자동 전사할 준비가 됐습니다.' : '전사 엔진 또는 음성 모델 준비가 필요합니다.' });
@@ -48,8 +62,6 @@ export function installFakeHost(courseTitle: string): void {
     'stt.status': () => ok(engineStatus()),
     'stt.prepare': () => { fixtureEngine = 'installing'; setTimeout(() => { if (fixtureEngine === 'installing') { fixtureEngine = 'ready'; fixtureJob = SAMPLE_JOBS[2]!; } }, 1800); return ok(engineStatus()); },
     'stt.cancel': () => { fixtureEngine = 'missing'; return ok(engineStatus()); },
-    'recording.list': () => ok({ recordings: [], assets: [] }),
-    'recording.start': () => fail('INVALID_REQUEST', '합성 UI 예제에서는 마이크를 사용하지 않습니다.'),
     'media.videos': () => ok({ videos: [{ sourceId: 'synthetic01', title: '합성 1차시 강의', week: '1주차' }, { sourceId: 'synthetic02', title: '합성 2차시 강의', week: '1주차' }] }),
     'media.pauseTranscription': () => ok({ paused: true }),
     'media.resumeTranscription': () => ok({ paused: false }),
@@ -75,6 +87,11 @@ export function installFakeHost(courseTitle: string): void {
     "terminal.close": p => { terminalOutput.get(String(p.terminalId))!.closed = true; return ok({}); },
     "terminal.stage": () => ok({ text: '합성 첨부 경로 예제' }),
     "session.list": () => ok({ sessions: [...sessions] }),
+    // WBS-064: synthetic recording so the recording screen can be checked without a microphone or host.
+    "recording.start": (p) => { if (!SYNTHETIC_MIC) return fail('INVALID_REQUEST', '합성 UI 예제에서는 마이크를 사용하지 않습니다.'); fakeRec = { id: crypto.randomUUID(), courseId: String(p.courseId), bytes: 0 }; return ok({ recording: { schemaVersion: 1, id: fakeRec.id, courseId: fakeRec.courseId, title: "합성 녹음", startedAt: now(), status: "recording" } }); },
+    "recording.chunk": (p) => { if (fakeRec) fakeRec.bytes += (p.pcm as Uint8Array).byteLength; return ok({ savedMs: Math.floor((fakeRec?.bytes ?? 0) / 32) }); },
+    "recording.stop": () => { const r = fakeRec; fakeRec = undefined; return ok({ recording: { schemaVersion: 1, id: r?.id ?? crypto.randomUUID(), courseId: r?.courseId ?? FIXTURE_MANIFEST.course.id, title: "합성 녹음", startedAt: now(), status: "failed", errorCode: "RECORDING_INTERRUPTED" } }); },
+    "recording.list": () => ok({ recordings: [], assets: [] }),
     "app.build": () => ok({ dev: true, branch: "fixture", commit: "0000000", dirty: false, folder: "fixture" }),
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {

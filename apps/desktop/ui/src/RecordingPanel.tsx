@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, onHostPush } from "./host-api.ts";
 import { MediaLibrary } from "./MediaLibrary.tsx";
 import { Icon } from "./StudyUI.tsx";
-import { ChunkBuffer, SAMPLE_RATE, clock, toPcm16 } from "./recorder.ts";
+import { ChunkBuffer, SAMPLE_RATE, clock, recordedMs, toPcm16, type RecordingState } from "./recorder.ts";
 // Its own file under the CSP's script-src 'self' (a small asset would otherwise be inlined as data:).
 import workletUrl from "./pcm-worklet.js?url&no-inline";
 
@@ -16,6 +16,9 @@ interface Capture {
   sending: Promise<void>;
   startedAt: number;
   stopping?: boolean;
+  /** WBS-064: while paused, captured sound is dropped, so the original continues without the gap. */
+  pausedAt?: number | undefined;
+  pausedTotalMs: number;
 }
 
 /**
@@ -23,8 +26,9 @@ interface Capture {
  * captures and forwards PCM; the host checks permission and disk, flushes
  * every chunk and confirms the original when recording stops.
  */
-export function RecordingPanel({ courseId, view = "recording" }: { courseId: string; view?: "recording" | "transcripts" }) {
+export function RecordingPanel({ courseId, view = "recording", onState }: { courseId: string; view?: "recording" | "transcripts"; onState?: (state: RecordingState) => void }) {
   const [active, setActive] = useState<string>();
+  const [paused, setPaused] = useState(false);
   const [savedMs, setSavedMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [notice, setNotice] = useState<string>();
@@ -45,6 +49,7 @@ export function RecordingPanel({ courseId, view = "recording" }: { courseId: str
     c?.stream.getTracks().forEach((t) => t.stop());
     void c?.context.close().catch(() => undefined);
     setActive(undefined);
+    setPaused(false);
   };
 
   const stop = useCallback(async (reason: "user" | "device_lost" = "user") => {
@@ -101,9 +106,9 @@ export function RecordingPanel({ courseId, view = "recording" }: { courseId: str
         await context.audioWorklet.addModule(workletUrl);
         if (current !== generation.current) throw new Error("Course changed");
         const node = new AudioWorkletNode(context, "pcm-forward");
-        const c: Capture = { recordingId, stream, context, buffer: new ChunkBuffer(), seq: 0, sending: Promise.resolve(), startedAt: Date.now() };
+        const c: Capture = { recordingId, stream, context, buffer: new ChunkBuffer(), seq: 0, sending: Promise.resolve(), startedAt: Date.now(), pausedTotalMs: 0 };
         node.port.onmessage = (event: MessageEvent<Float32Array>) => {
-          if (capture.current !== c || c.stopping) return;
+          if (capture.current !== c || c.stopping || c.pausedAt !== undefined) return;
           const full = c.buffer.push(toPcm16(event.data));
           if (full) c.sending = c.sending.then(() => send(c, full));
         };
@@ -127,6 +132,26 @@ export function RecordingPanel({ courseId, view = "recording" }: { courseId: str
     finally { starting.current = false; setBusy(false); }
   };
 
+  /** Pause keeps the microphone and the recording open; what was buffered is sent now so a crash keeps it. */
+  const togglePause = () => {
+    const c = capture.current;
+    if (!c || c.stopping) return;
+    if (c.pausedAt === undefined) {
+      c.pausedAt = Date.now();
+      const part = c.buffer.take();
+      if (part) c.sending = c.sending.then(() => send(c, part));
+      setPaused(true);
+    } else {
+      c.pausedTotalMs += Date.now() - c.pausedAt;
+      c.pausedAt = undefined;
+      setPaused(false);
+    }
+    setElapsedMs(recordedMs(c.startedAt, Date.now(), c.pausedTotalMs, c.pausedAt));
+  };
+
+  useEffect(() => { onState?.(active ? (paused ? "paused" : "recording") : "idle"); }, [active, paused, onState]);
+  useEffect(() => () => onState?.("idle"), [onState]);
+
   useEffect(() => {
     void reload();
     return onHostPush((push) => {
@@ -139,7 +164,7 @@ export function RecordingPanel({ courseId, view = "recording" }: { courseId: str
 
   useEffect(() => {
     if (!active) return;
-    const timer = setInterval(() => setElapsedMs(Date.now() - (capture.current?.startedAt ?? Date.now())), 500);
+    const timer = setInterval(() => { const c = capture.current; if (c) setElapsedMs(recordedMs(c.startedAt, Date.now(), c.pausedTotalMs, c.pausedAt)); }, 500);
     return () => clearInterval(timer);
   }, [active]);
 
@@ -148,11 +173,14 @@ export function RecordingPanel({ courseId, view = "recording" }: { courseId: str
 
   return <section className="recordings" aria-label="녹음과 전사">
     <div className="recording-capture" hidden={view !== "recording"}>
-      <div className={active ? "capture-symbol active" : "capture-symbol"}><Icon name="mic" /></div>
-      <h3>{active ? "강의를 녹음하고 있어요" : "강의 녹음"}</h3>
+      <div className={active ? (paused ? "capture-symbol paused" : "capture-symbol active") : "capture-symbol"}><Icon name="mic" /></div>
+      <h3>{active ? (paused ? "녹음을 잠시 멈췄어요" : "강의를 녹음하고 있어요") : "강의 녹음"}</h3>
       <p className="capture-clock" role="status">{clock(elapsedMs)}</p>
-      <p className="subtle">{active ? `저장됨 ${clock(savedMs)}` : "녹음이 끝나면 자동으로 전사합니다"}</p>
-      <button className="capture-action" aria-label={active ? "녹음 멈추기" : "녹음 시작"} title={active ? "녹음 멈추기" : "녹음 시작"} disabled={busy} onClick={() => active ? void stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>
+      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) : "녹음이 끝나면 자동으로 전사합니다"}</p>
+      <div className="capture-actions">
+        {active ? <button className="capture-action secondary" aria-label={paused ? "녹음 이어서 하기" : "녹음 일시정지"} title={paused ? "녹음 이어서 하기" : "녹음 일시정지"} disabled={busy} onClick={togglePause}><Icon name={paused ? "play" : "pause"} /></button> : null}
+        <button className="capture-action" aria-label={active ? "녹음 끝내고 저장" : "녹음 시작"} title={active ? "녹음 끝내고 저장" : "녹음 시작"} disabled={busy} onClick={() => active ? void stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>
+      </div>
     </div>
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     <MediaLibrary key={courseId} courseId={courseId} view={view} />

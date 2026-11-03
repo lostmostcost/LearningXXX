@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Course } from "@learningxxx/contracts";
-import { LearningStatusService, mapLearningX, mergeCanvas, utc, watchedSeconds, type LearningSources } from "../src/learning-status.ts";
+import { LearningStatusService, mapLearningX, mergeCanvas, utc, watchedSeconds, type LearningSources, type LearningStatusOptions } from "../src/learning-status.ts";
 
 /** Synthetic LearningX modules shaped like the WBS-054 measurement. */
 const MODULES = [
@@ -69,7 +69,7 @@ test("dates that are missing or unreadable stay null", () => {
   assert.equal(utc("not a date"), null);
 });
 
-function service(sources: Partial<LearningSources>, at = "2026-11-03T00:00:00Z") {
+function service(sources: Partial<LearningSources>, at = "2026-11-03T00:00:00Z", openItemPage?: LearningStatusOptions["openItemPage"]) {
   const root = mkdtempSync(join(tmpdir(), "wbs055-"));
   const course: Course = { id: "11111111-1111-4111-8111-000000000001", accountKey: "acct_synthetic01", termId: "1", sourceCourseId: "95899", title: "합성" };
   let now = new Date(at);
@@ -81,7 +81,7 @@ function service(sources: Partial<LearningSources>, at = "2026-11-03T00:00:00Z")
     quizzes: async () => { throw new Error("quizzes off"); },
     ...sources,
   };
-  const s = new LearningStatusService({ root, sources: full, ensureSignedIn: async () => {}, courses: async () => [course], accountKey: () => course.accountKey, now: () => now });
+  const s = new LearningStatusService({ root, sources: full, ensureSignedIn: async () => {}, courses: async () => [course], accountKey: () => course.accountKey, now: () => now, ...(openItemPage ? { openItemPage } : {}) });
   return { s, course, calls, advance: (ms: number) => { now = new Date(now.getTime() + ms); } };
 }
 
@@ -108,4 +108,39 @@ test("when the LMS cannot be read at all, the last good status stays with the er
   const after = (await s.status(course.id, true))!;
   assert.ok(after.items.length > 0);
   assert.equal(after.errors[0]!.code, "AUTH_REQUIRED");
+});
+
+test("a view record opens only an open, unfinished LMS material and reads the status again", async () => {
+  const opened: string[] = [];
+  let viewed = false;
+  const modules = async () => viewed ? [{ ...MODULES[0]!, module_items: MODULES[0]!.module_items.map((i) => i.module_item_id === 502 ? { ...i, completed: true } : i) }] : MODULES;
+  const { s, course, calls } = service({ modules: async () => { calls.modules += 1; return modules(); } }, undefined, async (page) => { opened.push(`${page.sourceCourseId}/${page.moduleItemId}`); viewed = true; return true; });
+  const after = (await s.recordView(course.id, "502"))!;
+  assert.deepEqual(opened, ["95899/502"]);
+  assert.equal(after.items.find((i) => i.moduleItemId === "502")!.completed, true, "status is read again after the record");
+  await s.recordView(course.id, "502");
+  assert.equal(opened.length, 1, "a completed material is not opened again");
+  const code = (e: unknown) => (e as { appError: { code: string } }).appError.code;
+  await assert.rejects(s.recordView(course.id, "501"), (e) => code(e) === "SCOPE_VIOLATION", "videos need real watching (WBS-057)");
+  await assert.rejects(s.recordView(course.id, "503"), (e) => code(e) === "SCOPE_VIOLATION", "assignments are not views");
+  await assert.rejects(s.recordView(course.id, "999"), (e) => code(e) === "SCOPE_VIOLATION");
+  await assert.rejects(s.recordView("22222222-2222-4222-8222-000000000002", "502"), (e) => code(e) === "NOT_FOUND");
+  assert.equal(opened.length, 1);
+});
+
+test("a view the LMS did not record fails retryably; the same item is opened once at a time", async () => {
+  let release!: (ok: boolean) => void;
+  let opens = 0;
+  const { s, course } = service({}, undefined, () => { opens += 1; return new Promise<boolean>((r) => { release = r; }); });
+  const a = s.recordView(course.id, "502");
+  const b = s.recordView(course.id, "502");
+  await new Promise((r) => setTimeout(r, 10));
+  release(false);
+  for (const p of [a, b]) await assert.rejects(p, (e) => (e as { appError: { code: string; retryable: boolean } }).appError.retryable === true);
+  assert.equal(opens, 1);
+});
+
+test("without a page opener view records are not offered", async () => {
+  const { s, course } = service({});
+  await assert.rejects(s.recordView(course.id, "502"), (e) => (e as { appError: { code: string } }).appError.code === "NOT_FOUND");
 });

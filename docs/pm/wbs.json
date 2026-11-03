@@ -1685,7 +1685,7 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "앱에서 실제로 연 자료만 같은 LMS 세션의 항목 페이지를 열어 LMS 뷰어가 열람 완료를 보내게 하고, 열지 않은 자료는 기록하지 않는다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-056-view-record",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81f394b2e86cae965252?pvs=204",

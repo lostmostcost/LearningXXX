@@ -61,6 +61,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
       const status = await learning?.status(courseId, refresh ?? false);
       return status ? { status } : {};
     },
+    "learning.recordView": async ({ courseId, moduleItemId }) => {
+      if (!learning) throw Object.assign(new Error("unavailable"), { appError: { code: "NOT_FOUND", message: "열람 기록을 쓸 수 없습니다.", retryable: false } });
+      const status = await learning.recordView(courseId, moduleItemId);
+      return status ? { status } : {};
+    },
     "library.manifest": async ({ courseId }) => {
       const manifest = await library.manifest(courseId);
       return manifest ? { manifest } : {};

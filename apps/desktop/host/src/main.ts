@@ -21,7 +21,7 @@ import { runLmsProbe } from "./lms-probe.ts";
 import { runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources } from "./lms-session.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage } from "./lms-session.ts";
 import { schoolLogin } from "./school-login.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
@@ -299,6 +299,7 @@ app.whenReady().then(async () => {
     ensureSignedIn: () => credentials.ensureSignedIn(),
     courses: () => library.courses(),
     accountKey: () => library.accountKey(),
+    openItemPage: (page) => openLmsItemPage(page),
   });
   // WBS-055 check: reads every course's learning status once and writes counts (no titles) to a file.
   const learningDump = process.argv.find((arg) => arg.startsWith("--learning-status-dump="))?.split("=")[1];

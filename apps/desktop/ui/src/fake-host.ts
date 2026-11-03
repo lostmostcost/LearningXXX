@@ -40,6 +40,7 @@ export function installFakeHost(courseTitle: string): void {
     chat.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: '강의 자료를 함께 살펴볼게요.\n\n**조합 논리회로**는 현재 입력에 따라 출력이 결정되는 회로예요.\n\n- **AND**: 두 입력이 모두 1일 때\n- **OR**: 하나라도 1일 때\n- **NOT**: 입력을 반전\n\n| A | B | AND |\n|---|---|---|\n| 0 | 1 | 0 |\n| 1 | 1 | 1 |\n\n```verilog\nassign y = a & b;\n```\n\n다음으로 진리표를 같이 작성해볼까요?\n\n*합성 UI 예제 · 실제 Claude 응답이 아닙니다.*', tools: [{ id: 'fixture-tool', name: 'Read · synthetic.pdf', input: '{"file_path":"/tmp/synthetic.pdf"}' }] });
   };
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
+  const fakeViewed = new Set<string>();
   let fixtureEngine = new URLSearchParams(window.location.search).has('engineMissing') ? 'missing' : 'ready';
   let fixtureJob = new URLSearchParams(window.location.search).has('engineMissing') ? { ...SAMPLE_JOBS[3]!, errorCode: 'ENGINE_UNAVAILABLE' } : SAMPLE_JOBS[2]!;
   const engineStatus = () => ({ state: fixtureEngine, message: fixtureEngine === 'installing' ? '음성 모델 준비 중 · 합성 예시' : fixtureEngine === 'ready' ? '이 Mac에서 자동 전사할 준비가 됐습니다.' : '전사 엔진 또는 음성 모델 준비가 필요합니다.' });
@@ -80,11 +81,18 @@ export function installFakeHost(courseTitle: string): void {
       items: FIXTURE_MANIFEST.items.filter((i) => i.resource.kind !== "notice" && i.resource.source !== "manual").map((i, n) => ({
         kind: i.resource.kind === "assignment" ? "assignment" : "material", title: i.resource.title,
         sourceRef: i.resource.kind === "assignment" ? `assignment:${i.resource.sourceId}` : i.resource.sourceId,
-        completed: i.resource.kind === "assignment" ? null : n % 2 === 0, attendance: null, usesAttendance: false, period: "open",
+        moduleItemId: String(1000 + n),
+        completed: i.resource.kind === "assignment" ? null : n % 2 === 1 || fakeViewed.has(String(1000 + n)), attendance: null, usesAttendance: false, period: "open",
         unlockAt: null, dueAt: i.assignment?.dueAt ?? null, lockAt: null,
         ...(i.resource.kind === "assignment" ? { submission: { state: n % 3 === 0 ? "submitted" : "unsubmitted", submittedAt: null, late: false, missing: false, attempt: null, types: ["online_upload"], allowedExtensions: ["pdf"], allowedAttempts: -1 } } : {}),
       })),
     } }),
+    // WBS-056: the synthetic LMS "records" the view after a short wait.
+    "learning.recordView": async (p) => {
+      await new Promise((r) => setTimeout(r, 600));
+      fakeViewed.add(String(p.moduleItemId));
+      return handlers["learning.status"]!({ courseId: p.courseId });
+    },
     "session.transcript": () => ok({ turns: [] }),
     "session.create": (p) => {
       const id = crypto.randomUUID();

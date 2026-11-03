@@ -11,7 +11,7 @@ const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined;
     </a>
   ) : null;
 
-export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoader; open?: PdfOpener; now: Date;
+export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoader; open?: PdfOpener; now: Date; lms?: React.ReactNode;
   onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined; location?: PageLocation | undefined;
   onPage?: ((assetId: string, page: number) => void) | undefined;
   onSnapshot?: ((snapshot: PageSnapshot | undefined) => void) | undefined }) {
@@ -31,6 +31,7 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
     <>
       <div className="viewer-head">
         <h2>{resource.title}</h2>
+        {props.lms ? <span className="viewer-lms">{props.lms}</span> : null}
         <OpenSource url={url} />
       </div>
       <p className="meta">

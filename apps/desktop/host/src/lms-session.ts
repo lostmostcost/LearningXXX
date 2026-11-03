@@ -144,3 +144,53 @@ export function createLearningSources(canvasToken: () => string | undefined): im
     quizzes: (id) => canvas().getList(`/api/v1/courses/${encodeURIComponent(id)}/quizzes?per_page=100`),
   };
 }
+
+const VIEW_RECORD_TIMEOUT_MS = 60_000;
+const KHU_HOST = /(^|\.)khu\.ac\.kr$/;
+
+/**
+ * CR-054 / WBS-056: the LMS item page in a window the user does not see, in
+ * the sign-in session, so the LMS's own document viewer reports the view
+ * (`…/progress/forceSubmit`) exactly as when the page is opened by hand. The
+ * app sends no LMS request itself. Resolves true when that report succeeded,
+ * false on time out, a failed page load or a page outside the school.
+ * Muted and limited to school pages; pop-ups are refused.
+ */
+export function openLmsItemPage({ sourceCourseId, moduleItemId }: { sourceCourseId: string; moduleItemId: string }, timeoutMs = VIEW_RECORD_TIMEOUT_MS): Promise<boolean> {
+  const lms = session.fromPartition(LMS_PARTITION);
+  const window = new BrowserWindow({
+    show: false,
+    width: 1280,
+    height: 900,
+    webPreferences: { partition: LMS_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  });
+  const contents = window.webContents;
+  contents.setAudioMuted(true);
+  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+  const report = new RegExp(`^/learningx/api/v1/courses/${sourceCourseId.replace(/\W/g, "")}/sections/\\d+/components/[^/]+/progress/forceSubmit$`);
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      lms.webRequest.onCompleted(null);
+      if (!window.isDestroyed()) window.destroy();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    lms.webRequest.onCompleted({ urls: [`${KHU_CANVAS_BASE_URL}/learningx/api/v1/courses/*`] }, (details) => {
+      if (details.webContentsId !== contents.id || details.method !== "POST") return;
+      if (report.test(new URL(details.url).pathname)) finish(details.statusCode >= 200 && details.statusCode < 300);
+    });
+    const schoolOnly = (event: { preventDefault: () => void }, url: string) => {
+      const target = new URL(url);
+      if (target.protocol !== "https:" || !KHU_HOST.test(target.hostname)) { event.preventDefault(); finish(false); }
+    };
+    contents.on("will-navigate", (event, url) => schoolOnly(event, url));
+    contents.on("will-redirect", (event, url) => schoolOnly(event, url));
+    contents.on("did-fail-load", (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) finish(false); });
+    window.on("closed", () => finish(false));
+    void window.loadURL(`${KHU_CANVAS_BASE_URL}/courses/${encodeURIComponent(sourceCourseId)}/modules/items/${encodeURIComponent(moduleItemId)}`).catch(() => undefined); // aborted loads are judged by did-fail-load
+  });
+}

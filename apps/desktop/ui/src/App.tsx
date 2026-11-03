@@ -12,7 +12,8 @@ import { Badges, useLearningStatus } from "./LearningBadges.tsx";
 import { itemForResource } from "./learning.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
-import { VideoLectures, VideoViewer } from "./VideoLectures.tsx";
+import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
+import { rowsForWeek } from "./video-lectures.ts";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
@@ -73,6 +74,16 @@ export function App() {
   const onSnapshot = useCallback((s: PageSnapshot | undefined) => { snapshot.current = s; }, []);
   const snapshotPage = useCallback(() => snapshot.current?.() ?? Promise.resolve(undefined), []);
   const [modifying, setModifying] = useState(false);
+  // Asked from the LMS the first time the week menu opens for a course (IN_APP only: the fixture has no LMS).
+  const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray);
+  // The course list closes when the user clicks anywhere else or presses Escape (not on hover-out).
+  useEffect(()=>{
+    if(!drawer)return;
+    const outside=(event:MouseEvent)=>{const target=event.target as Element|null;if(!target?.closest('.course-drawer, .drawer-toggle'))setDrawer(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setDrawer(false);};
+    document.addEventListener('mousedown',outside);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('mousedown',outside);document.removeEventListener('keydown',escape);};
+  },[drawer]);
   const selectEntry=(entry:Entry)=>{setPlaying(undefined);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
@@ -179,7 +190,7 @@ export function App() {
 
   return (
     <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}else{setDrawer(true);}}}}><Icon name={id!}/></button>)}<button title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/></button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark">Learning<span>XXX</span></strong>
@@ -207,14 +218,14 @@ export function App() {
       <main className={`panels mode-${section}`} hidden={home}>
         <div className={`week-tray ${tray?'is-open':''} ${trayDismissed?'is-dismissed':''}`} onMouseLeave={() => setTray(false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTray(false); }}>
           <button className="week-handle" onMouseEnter={() => { setTrayDismissed(false); setTray(true); }} onFocus={() => { setTrayDismissed(false); setTray(true); }} aria-expanded={tray} onClick={()=>{setTrayDismissed(false);setTray(true);}} onKeyDown={(event)=>{if(event.key==="Escape"){setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}}>{library?.weeks[weekIndex]?.week.label??'학습 자료'} <span>⌄</span></button>
-          <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button><div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={(event)=>{selectEntry(e);setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}<Badges item={itemForResource(learning.status,e.resource)}/></button>)}</div></div>
+          <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button><div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={(event)=>{selectEntry(e);setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}<Badges item={itemForResource(learning.status,e.resource)}/></button>)}
+            {rowsForWeek(lectures.rows, weekIndex===-1?undefined:library?.weeks[weekIndex]?.week.label, library?.weeks.map(w=>w.week.label)??[]).map(row=><VideoFile key={row.sourceId} row={row} lms={<Badges item={learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`)}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setTray(false);setTrayDismissed(true);}} />)}</div>
+          {lectures.loading?<p className="meta">동영상 강의 목록을 학교 서버에서 확인하는 중…</p>:null}
+          {lectures.notice?<p className="meta" role="status">동영상 강의: {lectures.notice} <button className="link-button" onClick={()=>void lectures.reload()}>다시 확인</button></p>:null}</div>
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<>
-              <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />
-              {IN_APP || FIXTURE_MODE ? <VideoLectures key={library.course.id} courseId={library.course.id} playing={playing?.id} onPlay={(asset)=>{setPlaying(asset);if(narrow)setView("materials");}} /> : null}
-            </>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
+            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
           </>
         ) : (
           <>

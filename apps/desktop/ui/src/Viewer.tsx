@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { Asset } from "@learningxxx/contracts";
 import { SUPPORTED_MEDIA_TYPES } from "./document.ts";
 import { RichText } from "./RichText.tsx";
+import { AssignmentSubmit } from "./AssignmentSubmit.tsx";
 
 /** https links only; the host hands them to the default browser and never navigates the app window. */
 const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined; label?: string }) =>
@@ -71,8 +72,9 @@ function AssignmentDetail({ entry, now }: { entry: Entry; now: Date }) {
     <div className="assignment">
       <p className={`due ${due.status}`}>{due.text}</p>
       {due.note ? <p className="meta">{due.note}</p> : null}
-      <p>제출은 LMS에서 합니다. 이 앱은 과제를 제출하지 않습니다.</p>
-      <OpenSource url={submit?.startsWith("https://") ? submit : undefined} label="제출 페이지 열기" />
+      <OpenSource url={submit?.startsWith("https://") ? submit : undefined} label="LMS 제출 페이지 열기" />
+      {/* WBS-058: submitting from the app, always after the student confirms. */}
+      {window.host && entry.resource.source === "lms" ? <AssignmentSubmit courseId={entry.resource.courseId} resourceId={entry.resource.id} /> : <p>제출은 LMS에서 합니다.</p>}
     </div>
   );
 }

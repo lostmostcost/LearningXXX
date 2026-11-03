@@ -196,6 +196,15 @@ export const IpcChannels = {
   "timetable.get": { request: z.object({}), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
   /** `meetings: null` drops the student's times and uses course.md again. */
   "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  /** WBS-058: picks a file for a collected LMS assignment and reads the assignment again; nothing is sent. */
+  "submit.choose": { request: z.object({ courseId: Id, resourceId: Id }), response: z.object({ planId: Id.optional(), fileName: z.string().optional(), bytes: z.number().int().nonnegative().optional(), problem: z.string().optional(),
+    assignment: z.object({ name: z.string(), dueAt: z.string().nullable(), lockAt: z.string().nullable(), extensions: z.array(z.string()), attempt: z.number().int().nullable(), allowedAttempts: z.number().int().nullable(), submittedAt: z.string().nullable(), files: z.array(z.string()) }).optional() }) },
+  /** The student confirmed: submit the chosen file now. */
+  "submit.confirm": { request: z.object({ planId: Id }), response: z.object({ attempt: z.number().int().nullable(), submittedAt: z.string().nullable(), files: z.array(z.string()) }) },
+  /** The student confirmed a rule: submit the chosen file this many minutes before the deadline if still not submitted. */
+  "submit.schedule": { request: z.object({ planId: Id, minutesBefore: z.number().int().min(1).max(10080) }), response: z.object({ ruleId: Id, at: z.string() }) },
+  "submit.rules": { request: z.object({}), response: z.object({ rules: z.array(z.object({ id: Id, courseId: Id, resourceId: Id, title: z.string(), fileName: z.string(), at: z.string(), state: z.enum(["waiting", "submitting", "done", "already", "failed", "cancelled"]), message: z.string().optional(), finishedAt: z.string().optional() })) }) },
+  "submit.cancelRule": { request: z.object({ ruleId: Id }), response: z.object({}) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),
@@ -440,6 +449,8 @@ export const HostPush = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("recording.stopped"), recording: Recording, asset: MediaAsset.optional() }),
   /** WBS-057: the LMS watch window closed; the status was read again. */
   z.object({ kind: z.literal("learning.watchClosed"), courseId: Id, moduleItemId: z.string() }),
+  /** WBS-058: a confirmed automatic submission ran (or found the work already submitted, or failed). */
+  z.object({ kind: z.literal("submit.auto"), courseId: Id, title: z.string(), ok: z.boolean(), message: z.string().optional() }),
 ]);
 export type HostPush = z.infer<typeof HostPush>;
 

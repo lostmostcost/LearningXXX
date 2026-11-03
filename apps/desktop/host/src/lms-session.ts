@@ -1,6 +1,6 @@
 import { CanvasClient, KHU_CANVAS_BASE_URL, LearningXClient } from "@learningxxx/collector";
 import { BrowserWindow, net, session } from "electron";
-import { KHU_LOGIN_URL, type SchoolLoginDeps } from "./school-login.ts";
+import { KHU_LOGIN_URL, type SchoolLoginDeps, type SignInPage } from "./school-login.ts";
 import { isAllowedLoginUrl, LOGIN_WEB_PREFERENCES } from "./window-options.ts";
 
 /**
@@ -52,12 +52,13 @@ export function createLearningXClient(): LearningXClient {
 }
 
 /** What the saved-details sign-in needs: this session's fetch, one cookie read, and the LearningX check. */
-export function schoolLoginDeps(): SchoolLoginDeps {
+export function schoolLoginDeps(trace?: (step: string) => void): SchoolLoginDeps {
   const lms = session.fromPartition(LMS_PARTITION);
   return {
     fetch: ((input, init) => lms.fetch(String(input), init)) as typeof globalThis.fetch,
     cookie: async (url, name) => (await lms.cookies.get({ url, name }))[0]?.value,
     signedIn: async () => (await learningxToken()) !== undefined,
+    ...(trace ? { trace } : {}),
   };
 }
 
@@ -143,4 +144,108 @@ export function createLearningSources(canvasToken: () => string | undefined): im
     assignments: (id) => canvas().getList(`/api/v1/courses/${encodeURIComponent(id)}/assignments?include[]=submission&per_page=100`),
     quizzes: (id) => canvas().getList(`/api/v1/courses/${encodeURIComponent(id)}/quizzes?per_page=100`),
   };
+}
+
+/**
+ * WBS-056: an LMS page's own window as the place for the school sign-in
+ * (school-login.ts pageSchoolLogin), so the result page runs as in a browser.
+ * It loads pages, reads the CSRF cookie by name as the request-only sign-in
+ * does, and asks Canvas whether its web pages see a signed-in user; it never
+ * runs scripts in the page or fills its input boxes.
+ */
+export function windowSignInPage(contents: Electron.WebContents): SignInPage {
+  const lms = session.fromPartition(LMS_PARTITION);
+  return {
+    load: async (url, post) => {
+      await contents.loadURL(url, post ? {
+        postData: [{ type: "rawData", bytes: Buffer.from(post.body) }],
+        extraHeaders: "Content-Type: application/x-www-form-urlencoded\n",
+        httpReferrer: post.referrer,
+      } : {}).catch(() => undefined); // judged by the cookies that follow
+    },
+    cookie: async (url, name) => (await lms.cookies.get({ url, name }))[0]?.value,
+    webSignedIn: async (timeoutMs) => {
+      for (const until = Date.now() + timeoutMs; Date.now() < until; await new Promise((r) => setTimeout(r, 1000))) {
+        const self = await lms.fetch(`${KHU_CANVAS_BASE_URL}/api/v1/users/self`, { redirect: "manual", headers: { Accept: "application/json" } }).catch(() => undefined);
+        if (self?.status === 200) return true;
+      }
+      return false;
+    },
+  };
+}
+
+const VIEW_RECORD_TIMEOUT_MS = 60_000;
+export type ItemPageResult = "recorded" | "sign_in" | "failed";
+const isSchoolSignIn = (url: string) => url.startsWith(`${SSO_SIGN_IN_ORIGIN}/xn-sso/login.php`);
+const SSO_SIGN_IN_ORIGIN = "https://e-campus.khu.ac.kr";
+const KHU_HOST = /(^|\.)khu\.ac\.kr$/;
+
+/**
+ * CR-054 / WBS-056: the LMS item page in a window the user does not see, in
+ * the sign-in session, so the LMS's own document viewer reports the view
+ * (`…/progress/forceSubmit`) exactly as when the page is opened by hand. The
+ * app sends no LMS request itself. Resolves "recorded" when that report
+ * succeeded. When the page asks for the school sign-in (the web session ends
+ * when the app quits, the LearningX token does not), the saved details sign in
+ * once in this same window (pageSchoolLogin) and the page is opened again; "sign_in" when there is nothing to sign
+ * in with.
+ * "failed" on time out, a failed page load or a page outside the school.
+ * Muted and limited to school pages; pop-ups are refused.
+ */
+export function openLmsItemPage(
+  { sourceCourseId, moduleItemId }: { sourceCourseId: string; moduleItemId: string },
+  signInAgain: (contents: Electron.WebContents) => Promise<boolean>,
+  timeoutMs = VIEW_RECORD_TIMEOUT_MS,
+): Promise<ItemPageResult> {
+  const lms = session.fromPartition(LMS_PARTITION);
+  const window = new BrowserWindow({
+    show: false,
+    width: 1280,
+    height: 900,
+    webPreferences: { partition: LMS_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  });
+  const contents = window.webContents;
+  contents.setAudioMuted(true);
+  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+  const report = new RegExp(`^/learningx/api/v1/courses/${sourceCourseId.replace(/\W/g, "")}/sections/\\d+/components/[^/]+/progress/forceSubmit$`);
+  const page = `${KHU_CANVAS_BASE_URL}/courses/${encodeURIComponent(sourceCourseId)}/modules/items/${encodeURIComponent(moduleItemId)}`;
+  return new Promise<ItemPageResult>((resolve) => {
+    let settled = false;
+    let signedInAgain = false;
+    const finish = (ok: ItemPageResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      lms.webRequest.onCompleted(null);
+      if (!window.isDestroyed()) window.destroy();
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish("failed"), timeoutMs);
+    lms.webRequest.onCompleted({ urls: [`${KHU_CANVAS_BASE_URL}/learningx/api/v1/courses/*`] }, (details) => {
+      if (details.webContentsId !== contents.id || details.method !== "POST") return;
+      if (report.test(new URL(details.url).pathname)) finish(details.statusCode >= 200 && details.statusCode < 300 ? "recorded" : "failed");
+    });
+    const schoolOnly = (event: { preventDefault: () => void }, url: string) => {
+      const target = new URL(url);
+      if (target.protocol !== "https:" || !KHU_HOST.test(target.hostname)) { event.preventDefault(); finish("failed"); }
+    };
+    // The sign-in page is never filled in here: the saved details sign in through the
+    // same session (school-login.ts), once, and the item page is opened again.
+    // After that the sign-in page normally continues by itself to the LMS (as in
+    // the login window), so it is given until the time limit.
+    contents.on("did-navigate", (_event, url) => {
+      if (!isSchoolSignIn(url) || settled || signedInAgain) return;
+      signedInAgain = true;
+      void signInAgain(contents).then((ok) => {
+        if (settled) return;
+        if (!ok) return finish("sign_in");
+        void contents.loadURL(page).catch(() => undefined);
+      }, () => finish("sign_in"));
+    });
+    contents.on("will-navigate", (event, url) => schoolOnly(event, url));
+    contents.on("will-redirect", (event, url) => schoolOnly(event, url));
+    contents.on("did-fail-load", (_event, code, _description, _url, isMainFrame) => { if (isMainFrame && code !== -3) finish("failed"); });
+    window.on("closed", () => finish("failed"));
+    void window.loadURL(page).catch(() => undefined); // aborted loads are judged by did-fail-load
+  });
 }

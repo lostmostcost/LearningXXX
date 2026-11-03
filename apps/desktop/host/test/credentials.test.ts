@@ -145,3 +145,33 @@ test("SSO replay reports a rejection without retrying, and a changed flow as fai
   assert.equal(wrong.calls.filter((c) => c.method === "POST").length, 1);
   assert.equal(await schoolLogin(sso("no-callback").deps, "id", "pw"), "failed");
 });
+
+test("when LMS pages ask for the sign-in again, the saved details sign in once even with a live token (WBS-056)", async () => {
+  const live = service(["signed_in", "signed_in"], { signedIn: true });
+  await live.svc.saveSchool({ schoolId: "id", password: "pw" });
+  assert.equal(await live.svc.signInAgain(), true);
+  assert.equal(live.logins.length, 2);
+
+  const refused = service(["signed_in", "rejected"]);
+  await refused.svc.saveSchool({ schoolId: "id", password: "pw" });
+  assert.equal(await refused.svc.signInAgain(), false);
+  assert.equal(await refused.svc.signInAgain(), false, "a refused password is not tried again");
+  assert.equal(refused.logins.length, 2);
+
+  assert.equal(await service([]).svc.signInAgain(), false, "nothing saved");
+});
+
+test("the sign-in in an LMS page's window stops at a refused password before posting it again (WBS-056)", async () => {
+  const { pageSchoolLogin } = await import("../src/school-login.ts");
+  const loads: string[] = [];
+  const page = { load: async (url: string, post?: { body: string }) => { loads.push(post ? "post" : url); }, cookie: async () => "csrf", webSignedIn: async () => true };
+  const refusedDeps = { fetch: (async (url: string) => new Response(String(url).includes("gw-cb") ? "로그인 오류" : "")) as unknown as typeof fetch, cookie: async () => "csrf", signedIn: async () => true };
+  assert.equal(await pageSchoolLogin(refusedDeps, page, "id", "pw"), "rejected");
+  assert.deepEqual(loads, [], "the window is not used after a refusal");
+  // Right after another sign-in the result page has no callback: not a refusal, so the window still signs in.
+  const noCallbackDeps = { ...refusedDeps, fetch: (async () => new Response("")) as unknown as typeof fetch };
+  assert.equal(await pageSchoolLogin(noCallbackDeps, page, "id", "pw"), "signed_in");
+  assert.equal(loads.length, 2, "the login page, then the same form posted once");
+  assert.equal(loads[1], "post");
+  assert.equal(await pageSchoolLogin(noCallbackDeps, { ...page, webSignedIn: async () => false }, "id", "pw"), "failed");
+});

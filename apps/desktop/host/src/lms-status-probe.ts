@@ -137,3 +137,15 @@ export async function runLmsWatch(out: string, deps: { ensureSignedIn: () => Pro
   await window.loadURL(`${KHU_CANVAS_BASE_URL}/`).catch(() => undefined);
   await new Promise<void>((resolve) => window.once("closed", () => resolve()));
 }
+
+/**
+ * Diagnostics (WBS-056): which school cookies the sign-in session holds — host,
+ * name and whether it ends with the app, never a value — and whether Canvas
+ * web pages see a signed-in user (`/api/v1/users/self` without a token).
+ */
+export async function lmsSessionReport(): Promise<{ cookies: string[]; canvasWeb: number }> {
+  const lms = session.fromPartition(LMS_PARTITION);
+  const cookies = (await lms.cookies.get({})).filter((c) => /(^|\.)khu\.ac\.kr$/.test((c.domain ?? "").replace(/^\./, ""))).map((c) => `${c.domain} ${c.name} ${c.session ? "session" : "persistent"}`);
+  const self = await lms.fetch(`${KHU_CANVAS_BASE_URL}/api/v1/users/self`, { redirect: "manual", headers: { Accept: "application/json" } }).catch(() => undefined);
+  return { cookies, canvasWeb: self?.status ?? 0 };
+}

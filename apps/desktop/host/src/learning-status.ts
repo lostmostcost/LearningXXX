@@ -6,8 +6,8 @@ import type { Course, ErrorCode } from "@learningxxx/contracts";
 /**
  * CR-054 / WBS-055: learning progress as the LMS itself shows it ("완료",
  * "출석", deadlines, submission state), read only. Field meanings come from
- * the WBS-054 measurement (spikes/lms-status/README.md). Nothing here writes
- * to the LMS.
+ * the WBS-054 measurement (spikes/lms-status/README.md). The only write is
+ * WBS-056's view record, and even that is sent by the LMS's own viewer.
  */
 
 type Json = Record<string, unknown>;
@@ -158,6 +158,17 @@ export interface LearningStatusOptions {
   now?: () => Date;
   /** A cached status younger than this is served without asking the LMS. */
   maxAgeMs?: number;
+  /**
+   * WBS-056: open the LMS item page out of sight in the sign-in session and
+   * resolve "recorded" once the LMS viewer itself has reported the view,
+   * "sign_in" when the LMS wants a school sign-in the app could not do, and
+   * "failed" otherwise. Absent, view records are not offered.
+   */
+  openItemPage?: (page: { sourceCourseId: string; moduleItemId: string }) => Promise<"recorded" | "sign_in" | "failed">;
+}
+
+function fail(code: ErrorCode, message: string, retryable = false): never {
+  throw Object.assign(new Error(message), { appError: AppError.parse({ code, message, retryable }) });
 }
 
 function appError(error: unknown, part: string): AppError {
@@ -169,6 +180,9 @@ function appError(error: unknown, part: string): AppError {
 export class LearningStatusService {
   readonly #o: LearningStatusOptions;
   readonly #inflight = new Map<string, Promise<CourseLearningStatus>>();
+  readonly #views = new Map<string, Promise<CourseLearningStatus | undefined>>();
+  /** One hidden LMS page at a time. */
+  #viewQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: LearningStatusOptions) {
     this.#o = options;
@@ -200,6 +214,45 @@ export class LearningStatusService {
     if (running) return running;
     const work = this.#read(account, course, now).finally(() => this.#inflight.delete(key));
     this.#inflight.set(key, work);
+    return work;
+  }
+
+  /**
+   * CR-054 / WBS-056: the user opened this LMS material in the app, so let the
+   * LMS record the view the way its own viewer does. Only PDF materials
+   * ("material") that are open and not yet complete qualify — never videos,
+   * whose attendance needs real watching (WBS-057). Returns the status read
+   * again afterwards.
+   */
+  async recordView(courseId: string, moduleItemId: string): Promise<CourseLearningStatus | undefined> {
+    const open = this.#o.openItemPage;
+    if (!open) fail("NOT_FOUND", "열람 기록을 쓸 수 없습니다.");
+    const account = this.#o.accountKey();
+    const course = account ? (await this.#o.courses()).find((c) => c.id === courseId && c.accountKey === account) : undefined;
+    if (!account || !course) fail("NOT_FOUND", "과목을 찾을 수 없습니다.");
+    const key = `${account}:${courseId}:${moduleItemId}`;
+    const running = this.#views.get(key);
+    if (running) return running;
+    const work = (async () => {
+      const before = await this.status(courseId);
+      const item = before?.items.find((i) => i.moduleItemId === moduleItemId);
+      if (!item || item.kind !== "material") fail("SCOPE_VIOLATION", "열람 기록은 LMS 강의 자료(PDF)에만 남깁니다.");
+      if (item.completed === true) return before;
+      if (item.completed === null || item.period === "not_open") fail("SCOPE_VIOLATION", "LMS가 아직 열람을 받지 않는 자료입니다.");
+      if (item.lockAt && Date.parse(item.lockAt) <= (this.#o.now ?? (() => new Date()))().getTime()) fail("SCOPE_VIOLATION", "열람 기간이 끝난 자료입니다.");
+      const turn = this.#viewQueue.then(async () => {
+        await this.#o.ensureSignedIn().catch(() => undefined);
+        return open({ sourceCourseId: course.sourceCourseId, moduleItemId });
+      });
+      this.#viewQueue = turn.catch(() => undefined);
+      const result = await turn;
+      if (result === "sign_in") fail("AUTH_REQUIRED", "LMS 페이지가 학교 로그인을 요구합니다. 설정에서 학교 로그인을 다시 한 뒤 시도하세요.");
+      if (result !== "recorded") fail("DOWNLOAD_FAILED", "LMS가 열람을 기록하지 않았습니다. 잠시 후 다시 시도하세요.", true);
+      // The account may have changed while the page was open.
+      if (this.#o.accountKey() !== account) return undefined;
+      return this.status(courseId, true);
+    })().finally(() => this.#views.delete(key));
+    this.#views.set(key, work);
     return work;
   }
 

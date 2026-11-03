@@ -28,6 +28,7 @@ const CHANNELS = new Set([
   "credentials.clear",
   "library.manifest",
   "learning.status",
+  "learning.recordView",
   "library.courses",
   "library.asset",
   "session.create",

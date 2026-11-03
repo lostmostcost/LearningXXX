@@ -156,6 +156,8 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "media.importedDoc": ({ courseId, assetId, doc }) => libraryMedia().importedDoc(courseId, assetId, doc),
     "media.saveCorrection": ({ courseId, assetId, basedOnTranscriptId, texts }) => libraryMedia().saveCorrection(courseId, assetId, basedOnTranscriptId, texts),
     "media.makeReadable": ({ courseId, assetId, transcriptId }) => libraryMedia().makeReadable(courseId, assetId, transcriptId),
+    "media.translation": ({ courseId, assetId, transcriptId, language }) => libraryMedia().translation(courseId, assetId, transcriptId, language),
+    "media.translate": ({ courseId, assetId, transcriptId, language }) => libraryMedia().translate(courseId, assetId, transcriptId, language),
     "media.findMentions": ({ courseId, assetId, transcriptId }) => libraryMedia().findMentions(courseId, assetId, transcriptId),
     "media.addMentions": ({ courseId, assetId, candidates }) => libraryMedia().addMentions(courseId, assetId, candidates),
     "media.mentions": ({ courseId }) => libraryMedia().mentions(courseId),

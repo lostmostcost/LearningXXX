@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CredentialStatus } from "@learningxxx/contracts";
+import { LANGUAGE_NAMES, PreferredLanguage, type CredentialStatus } from "@learningxxx/contracts";
 import { invoke } from "./host-api.ts";
 import { Icon } from "./StudyUI.tsx";
 import { signInSummary } from "./signin.ts";
@@ -71,7 +71,24 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
 
         <p role="status">{message}</p>
         <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
+        <LanguageSetting />
       </dialog>
     </>
   );
+}
+
+/** WBS-071: the language transcripts (and later PDFs) are translated into, kept on this Mac. */
+function LanguageSetting() {
+  const [language, setLanguage] = useState<PreferredLanguage>();
+  const [note, setNote] = useState("");
+  useEffect(() => { void invoke("app.preferences", {}).then((r) => { if (r.ok) setLanguage(r.data.language); }); }, []);
+  return <section className="language-setting">
+    <h3>선호 언어</h3>
+    <p className="meta">전사문 번역(전사 탭의 번역 보기)에 씁니다. 원문은 그대로 남습니다.</p>
+    <select aria-label="선호 언어" value={language ?? ""} disabled={!language} onChange={(e) => {
+      const next = PreferredLanguage.parse(e.target.value);
+      void invoke("app.setPreferences", { language: next }).then((r) => { if (r.ok) { setLanguage(r.data.language); setNote("저장했습니다."); window.dispatchEvent(new Event("learningxxx:preferences")); } else setNote(r.error.message); });
+    }}>{PreferredLanguage.options.map((code) => <option key={code} value={code}>{LANGUAGE_NAMES[code]}</option>)}</select>
+    {note ? <span className="meta"> {note}</span> : null}
+  </section>;
 }

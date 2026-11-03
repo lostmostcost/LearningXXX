@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { ImportItem, ImportedDocKind, LectureMention, LectureSourceId, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportItem, ImportedDocKind, LectureMention, LectureSourceId, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -66,6 +66,9 @@ export const IpcChannels = {
    * CR-061 / WBS-061: the code a development run was built from (branch,
    * commit, WBS task, worktree folder). A packaged app answers `dev: false`.
    */
+  /** WBS-071: this Mac's app preferences. */
+  "app.preferences": { request: z.object({}), response: z.object({ language: PreferredLanguage }) },
+  "app.setPreferences": { request: z.object({ language: PreferredLanguage }), response: z.object({ language: PreferredLanguage }) },
   "app.build": {
     request: z.object({}),
     response: z.object({
@@ -314,6 +317,10 @@ export const IpcChannels = {
   "media.addMentions": { request: z.object({ courseId: Id, assetId: Id, candidates: z.array(MentionCandidate).min(1).max(50) }), response: z.object({ mentions: z.array(LectureMention) }) },
   "media.mentions": { request: z.object({ courseId: Id }), response: z.object({ mentions: z.array(LectureMention) }) },
   "media.removeMention": { request: z.object({ courseId: Id, mentionId: Id }), response: z.object({}) },
+  /** WBS-071: a saved translation of a transcript version, if one was made (texts in segment order). */
+  "media.translation": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id, language: PreferredLanguage }), response: z.object({ texts: z.array(z.string()).optional() }) },
+  /** WBS-071: on request, Claude Code translates a version sentence by sentence; saved for next time. */
+  "media.translate": { request: z.object({ courseId: Id, assetId: Id, transcriptId: Id, language: PreferredLanguage }), response: z.object({ texts: z.array(z.string()), untranslated: z.number().int().nonnegative() }) },
   "media.importedDoc": { request: z.object({ courseId: Id, assetId: Id, doc: ImportedDocKind }), response: z.object({ text: z.string() }) },
   /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
   "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },

@@ -2133,11 +2133,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "설정에서 선호 언어를 고르고 전사문 번역을 토글로 켜고 끈다(끄면 원문).",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-071-translation-language",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd811f97bcfe4da6527774?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed contracts (PreferredLanguage, languageOf, media.translation/translate, app.preferences/setPreferences), Preferences store (defaults, atomic write, unreadable file), translate prompt/parse (numbered lines, missing entries), MediaService translate (batches of 120, blanks kept, missing sentences keep the original and are counted, saved per version and language, one Claude request at a time, account check) and translation read, UI language setting, translation toggle, missing-translation prompt. Found and fixed: the batching test first used a 2-sentence sample; replaced with a 250-sentence version checking 120/120/10 batches. Checks: host tests (translation, preferences), pnpm -r run check. Fixture preview: toggle on → make translation → translated text, off → original. A real Claude Code translation was not run by the agent."
+      ]
     },
     {
       "id": "WBS-072",

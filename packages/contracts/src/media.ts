@@ -243,3 +243,16 @@ export const LectureMention = MentionCandidate.extend({
   confirmedAt: UtcTimestamp,
 });
 export type LectureMention = z.infer<typeof LectureMention>;
+
+/** WBS-071: languages the user can prefer; transcripts and PDFs are translated into it on request. */
+export const PreferredLanguage = z.enum(["ko", "en", "ja", "zh", "es", "fr", "de", "vi"]);
+export type PreferredLanguage = z.infer<typeof PreferredLanguage>;
+export const LANGUAGE_NAMES: Record<PreferredLanguage, string> = { ko: "한국어", en: "English", ja: "日本語", zh: "中文", es: "Español", fr: "Français", de: "Deutsch", vi: "Tiếng Việt" };
+
+/** Engines write the language as a code ("ko") or a name ("Korean"); undefined when not one of ours. */
+export function languageOf(value: string): PreferredLanguage | undefined {
+  const v = value.trim().toLowerCase();
+  const names: Record<string, PreferredLanguage> = { korean: "ko", english: "en", japanese: "ja", chinese: "zh", spanish: "es", french: "fr", german: "de", vietnamese: "vi" };
+  const code = v.split(/[-_]/)[0]!;
+  return PreferredLanguage.safeParse(code).success ? (code as PreferredLanguage) : names[v];
+}

@@ -114,3 +114,45 @@ test("WBS-070: confirmed candidates are kept once, checked against the transcrip
   await assert.rejects(s.media.removeMention(s.course.id, mentions[0]!.id), /찾지 못했습니다/);
   await s.media.stop();
 });
+
+test("WBS-071: a translation keeps every sentence's place; missing ones keep the original and are counted; saved for next time", async () => {
+  const { parseTranslation, translatePrompt, TRANSLATE_BATCH } = await import("../src/readable-note.ts");
+  assert.deepEqual(parseTranslation('ok {"1":"one","3":"three","2":7}', 3), ["one", undefined, "three"]);
+  assert.match(translatePrompt("en", ["가", "나"]), /\n1\t가\n2\t나$/);
+  const batches: number[] = [];
+  const root = await mkdtemp(join(tmpdir(), "wbs071-")); roots.push(root);
+  const s = await setup();
+  // A long synthetic version (250 sentences), attached as an imported transcript of the same original.
+  const long = { schemaVersion: 1 as const, id: randomUUID(), sourceAssetId: s.asset.id, kind: "engine" as const, engine: { name: "imported", version: "x" }, parametersHash: "c".repeat(64), language: "ko", createdAt: "2026-11-03T00:00:00Z",
+    segments: Array.from({ length: 250 }, (_, i) => ({ startMs: i * 1000, endMs: i * 1000 + 900, text: i === 5 ? "  " : `문장 ${i}` })) };
+  await s.media.adoptImport(s.course.id, { sha256: s.asset.sha256, transcript: long, docs: [] });
+  await s.media.stop();
+  const version = long;
+  const media = new MediaService({ dataRoot: s.root, accountKey: () => s.course.accountKey, courses: async () => [s.course], originals: () => [s.asset], recordings: () => [],
+    engine: { info: { name: "synthetic", version: "1" }, parameters: {}, transcribe: async () => ({ language: "ko", text: "", words: [] }) },
+    videos: async () => [], openOriginal: async () => {}, video: () => { throw new Error("unused"); },
+    translate: async ({ lines }) => { batches.push(lines.length); return lines.map((l, i) => (i === 0 ? undefined : `EN:${l}`)); } });
+  await media.recover();
+  assert.deepEqual(await media.translation(s.course.id, s.asset.id, version.id, "en"), {}, "nothing before it is made");
+  const done = await media.translate(s.course.id, s.asset.id, version.id, "en");
+  assert.equal(done.texts.length, version.segments.length);
+  assert.equal(done.texts[0], version.segments[0]!.text, "a missing translation keeps the original");
+  assert.equal(done.texts[5], "  ", "a blank sentence stays blank");
+  assert.equal(done.texts[1], "EN:문장 1");
+  assert.equal(done.untranslated, Math.ceil(version.segments.length / TRANSLATE_BATCH), "the first of each batch came back missing");
+  assert.deepEqual(batches, [120, 120, 10]);
+  assert.deepEqual((await media.translation(s.course.id, s.asset.id, version.id, "en")).texts, done.texts);
+  assert.deepEqual(await media.translation(s.course.id, s.asset.id, version.id, "ja"), {}, "per language");
+  await media.stop();
+});
+
+test("WBS-071: preferences default to Korean and survive a restart", async () => {
+  const { Preferences } = await import("../src/preferences.ts");
+  const root = await mkdtemp(join(tmpdir(), "wbs071-pref-")); roots.push(root);
+  const file = join(root, "preferences.json");
+  assert.deepEqual(new Preferences(file).get(), { language: "ko" });
+  new Preferences(file).set({ language: "en" });
+  assert.deepEqual(new Preferences(file).get(), { language: "en" });
+  await writeFile(file, "{ broken");
+  assert.deepEqual(new Preferences(file).get(), { language: "ko" }, "an unreadable file falls back to defaults");
+});

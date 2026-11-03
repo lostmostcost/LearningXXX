@@ -2165,11 +2165,11 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "스파이크 후: 페이지 범위를 고르면 글자만 선호 언어로 바꾼 새 PDF를 만들고 토글로 원본과 전환한다. 스캔본 제외.",
-      "status": "Backlog",
+      "status": "Blocked",
       "branch": "spike/WBS-072-pdf-translation",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b78b1cf0998e869bb4?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조. 2026-11-03 스파이크 완료(spikes/pdf-translation/README.md). 구현은 pdf-lib·@pdf-lib/fontkit 추가(루트 pnpm-lock.yaml·host package.json 경로 추가) 승인 대기."
     },
     {
       "id": "WBS-073",

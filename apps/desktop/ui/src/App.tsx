@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Course, IpcResponse, LectureMention, MediaAsset } from "@learningxxx/contracts";
+import type { Course, IpcResponse, LectureMention, MediaAsset, PreferredLanguage } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } from "./layout.ts";
@@ -28,6 +28,7 @@ import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
 import type { PageSnapshot } from "./PdfView.tsx";
+import type { PdfTranslator } from "./PdfTranslation.tsx";
 import type { PageLocation, SelectedText, SelectionIntent, SelectionRequest } from "./selection.ts";
 
 /** `?fixture` shows the synthetic course (WBS-013); otherwise material comes from the host's local library (WBS-012). */
@@ -225,6 +226,21 @@ export function App() {
     },
     [library],
   );
+  // WBS-072: translated copies of PDFs in the preferred language (read again when settings change).
+  const [language, setLanguage] = useState<PreferredLanguage>();
+  useEffect(() => {
+    if (!IN_APP || FIXTURE_MODE) return;
+    const read = () => void invoke("app.preferences", {}).then((r) => { if (r.ok) setLanguage(r.data.language); });
+    read(); window.addEventListener("learningxxx:preferences", read);
+    return () => window.removeEventListener("learningxxx:preferences", read);
+  }, []);
+  const courseId = library?.course.id;
+  const translator = useMemo<PdfTranslator | undefined>(() => courseId && language ? {
+    language,
+    get: (assetId) => invoke("library.pdfTranslation", { courseId, assetId, language }),
+    make: (assetId, from, to) => invoke("library.translatePdf", { courseId, assetId, language, from, to }),
+    cancel: () => void invoke("library.cancelPdfTranslation", {}),
+  } : undefined, [courseId, language]);
   const collectButton = IN_APP && !FIXTURE_MODE ? (
     <button aria-label={collecting ? "수집 중…" : "자료 수집"} title={collecting ? "수집 중…" : "자료 수집"} onClick={() => void collect()} disabled={collecting}><Icon name="refresh" /></button>
   ) : null;
@@ -346,7 +362,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {

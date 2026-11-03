@@ -370,3 +370,4 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .import-file{display:flex;gap:8px;align-items:flex-start;}
 .import-fields{display:flex;flex-direction:column;gap:4px;margin:4px 0 0 24px;}
 .import-fields input{font-size:12px;}
+.pdf-translate{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 8px;font-size:11px;padding:2px 8px;}.pdf-translate input{width:42px;font-size:11px;padding:1px 4px;}.pdf-translate .meta{font-size:10px;}

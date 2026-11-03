@@ -4,7 +4,7 @@ import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { ImportedDocKind, LectureMention, LectureSourceId, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportedDocKind, LectureMention, LectureSourceId, PdfTranslationSkip, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -142,6 +142,17 @@ export const IpcChannels = {
     request: z.object({ courseId: Id, assetId: Id }),
     response: z.object({ mediaType: z.string().min(1), bytes: z.instanceof(Uint8Array) }),
   },
+  /** WBS-072: the translated copy of a collected PDF made before (pages translated, pages left as the original). */
+  "library.pdfTranslation": {
+    request: z.object({ courseId: Id, assetId: Id, language: PreferredLanguage }),
+    response: z.object({ bytes: z.instanceof(Uint8Array).optional(), pages: z.array(z.number().int().positive()), skipped: z.array(PdfTranslationSkip) }),
+  },
+  /** WBS-072: on request, Claude Code translates pages from–to (at most 40) and they are added to the copy. */
+  "library.translatePdf": {
+    request: z.object({ courseId: Id, assetId: Id, language: PreferredLanguage, from: z.number().int().positive(), to: z.number().int().positive() }),
+    response: z.object({ bytes: z.instanceof(Uint8Array), pages: z.array(z.number().int().positive()), skipped: z.array(PdfTranslationSkip), untranslated: z.number().int().nonnegative(), stopped: z.boolean() }),
+  },
+  "library.cancelPdfTranslation": { request: z.object({}), response: z.object({}) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),

@@ -6,7 +6,7 @@ import {
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { AppError, MediaAsset, Recording, SCHEMA_VERSION } from "@learningxxx/contracts";
-import type { ErrorCode, IpcRequest, IpcResponse } from "@learningxxx/contracts";
+import type { AudioImportType, ErrorCode, IpcRequest, IpcResponse } from "@learningxxx/contracts";
 
 /** What the renderer sends: 16 kHz, mono, 16-bit little-endian PCM. */
 export const SAMPLE_RATE = 16_000;
@@ -313,7 +313,7 @@ export class RecordingService {
    * to transcription here: the caller registers it after keeping any
    * transcript that came with it.
    */
-  importOriginal(input: { courseId: string; weekId?: string | undefined; lectureSourceId?: string | undefined; title: string; startedAt: string; durationMs: number; importedFrom: string; bytes: Uint8Array; mediaType: string; ext: "opus"; recordingId: string; assetId: string }): { recording: Recording; asset: MediaAsset } {
+  importOriginal(input: { courseId: string; weekId?: string | undefined; lectureSourceId?: string | undefined; title: string; startedAt: string; durationMs: number; importedFrom: string; bytes: Uint8Array; mediaType: string; ext: AudioImportType; recordingId: string; assetId: string }): { recording: Recording; asset: MediaAsset } {
     const existing = this.#state.recordings.find((r) => r.courseId === input.courseId && r.importedFrom === input.importedFrom);
     const existingAsset = existing && this.#state.assets.find((a) => a.id === existing.originalAssetId);
     if (existing && existingAsset) return { recording: existing, asset: existingAsset };

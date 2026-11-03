@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { AUDIO_IMPORT_TYPES, AUDIO_MEDIA_TYPES } from "@learningxxx/contracts";
 import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
@@ -33,7 +35,7 @@ import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
-import { LegacyImporter, importStore } from "./legacy-import.ts";
+import { AudioImporter } from "./audio-import.ts";
 import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
@@ -278,16 +280,17 @@ app.whenReady().then(async () => {
       return { fetch, resolveSource: createCommonsVideoResolver({ contentId, fetch }), allowedOrigins };
     },
   });
-  // WBS-066: the user's own earlier recordings and transcripts, copied on request.
-  const importer = new LegacyImporter({
-    chooseFolder: async () => {
-      const picked = await dialog.showOpenDialog({ title: "가져올 학기 폴더 선택 (예: 2026년 2학기)", properties: ["openDirectory"] });
-      return picked.canceled ? undefined : picked.filePaths[0];
+  // WBS-077: recordings the student made elsewhere, picked as audio files.
+  const importer = new AudioImporter({
+    chooseFiles: async () => {
+      const picked = await dialog.showOpenDialog({ title: "가져올 녹음 파일 선택", properties: ["openFile", "multiSelections"], filters: [{ name: "녹음 파일", extensions: [...AUDIO_IMPORT_TYPES] }] });
+      return picked.canceled ? undefined : picked.filePaths;
     },
-    courses: async () => { const key = library.accountKey(); return (await library.courses()).filter((c) => c.accountKey === key); },
-    weeks: async (courseId) => (await library.manifest(courseId))?.weeks ?? [],
-    recordings: (courseId) => recordings.list({ courseId }).recordings,
-    store: importStore({ adoptImport: (courseId, input) => media.adoptImport(courseId, input), importOriginal: (input) => recordings.importOriginal(input), register: (asset) => media.register(asset) }),
+    store: async ({ type, ...input }) => {
+      const { asset } = recordings.importOriginal({ ...input, mediaType: AUDIO_MEDIA_TYPES[type], ext: type, recordingId: randomUUID(), assetId: randomUUID() });
+      await media.register(asset);
+      return asset;
+    },
   });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
   await recordings.recover().catch(() => undefined);

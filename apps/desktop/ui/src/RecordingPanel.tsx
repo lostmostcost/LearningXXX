@@ -241,7 +241,7 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
     </div>
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     {view === "recording" ? <UnfiledRecordings recordings={recordings} weeks={weeks} lectures={lectures} status={status} onAssign={assign} /> : null}
-    {view === "recording" && !active ? <details className="import-details"><summary>이전에 만든 녹음·전사 가져오기</summary><ImportPanel onDone={() => void reload()} /></details> : null}
+    {view === "recording" && !active ? <details className="import-details"><summary>다른 앱으로 녹음한 파일 가져오기</summary><ImportPanel courseId={courseId} weeks={weeks} lectures={lectures} status={status} onDone={() => void reload()} /></details> : null}
     <MediaLibrary key={courseId} courseId={courseId} view={view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} />
   </section>;
 }

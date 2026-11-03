@@ -198,25 +198,16 @@ export const MANUAL_ENGINE = "manual";
 export const MAX_CORRECTION_SEGMENTS = 20_000;
 export const MAX_SEGMENT_TEXT = 5_000;
 
-/** One audio file found in the chosen folder, with where it would go. Paths stay in the host. */
-export const ImportItem = z.object({
-  id: z.string().regex(/^[a-f0-9]{16,64}$/),
-  /** "과목/NN주차/녹음/이름" as found. */
-  path: z.string().min(1).max(400),
-  kind: z.enum(["recording", "lecture"]),
-  title: z.string().min(1).max(200),
-  courseId: Id.optional(),
-  courseTitle: z.string().max(200).optional(),
-  weekId: Id.optional(),
-  weekLabel: z.string().max(200).optional(),
-  lectureSourceId: LectureSourceId.optional(),
-  hasTranscript: z.boolean(),
-  docs: z.array(ImportedDocKind),
-  bytes: z.number().int().nonnegative(),
-  /** `new` can be imported; the others say why not. */
-  status: z.enum(["new", "imported", "no_course"]),
-});
-export type ImportItem = z.infer<typeof ImportItem>;
+/**
+ * WBS-077: audio files a student can import (what macOS decodes for
+ * transcription), and the media type each is stored with.
+ */
+export const AUDIO_IMPORT_TYPES = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "flac", "caf", "mp4", "3gp", "amr", "ogg", "oga", "opus"] as const;
+export type AudioImportType = (typeof AUDIO_IMPORT_TYPES)[number];
+export const AUDIO_MEDIA_TYPES: Record<AudioImportType, string> = {
+  mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", caf: "audio/x-caf",
+  mp4: "audio/mp4", "3gp": "audio/3gpp", amr: "audio/amr", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg",
+};
 
 /**
  * WBS-070: an assignment/exam announcement heard in a lecture, which the user

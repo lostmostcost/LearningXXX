@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { AccountKey, AppError, Id, ImportedDocKind, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
+import { AccountKey, AppError, Id, ImportedDocKind, LectureMention, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
+import type { MentionCandidate } from "@learningxxx/contracts";
 import type { Course, TranscriptionJob } from "@learningxxx/contracts";
 import { downloadVideo } from "@learningxxx/collector";
 import type { VideoDownloadInput } from "@learningxxx/collector";
@@ -16,7 +17,7 @@ export type MediaDownload = z.infer<typeof Download>;
 const Imported = z.object({ sha256: Sha256, transcriptId: Id.optional(), model: z.string().max(200).optional(), docs: z.array(ImportedDocKind), createdAt: z.string() });
 /** WBS-069: a version the user corrected by hand, stored apart from engine output. */
 const Correction = z.object({ sha256: Sha256, transcriptId: Id });
-const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]), corrections: z.array(Correction).default([]) });
+const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]), corrections: z.array(Correction).default([]), mentions: z.array(LectureMention).default([]) });
 type Catalog = z.infer<typeof Catalog>;
 interface Partition { key: string; root: string; catalog: Catalog; queue: TranscriptionQueue; writes: Promise<void> }
 export interface MediaServiceOptions {
@@ -30,6 +31,8 @@ export interface MediaServiceOptions {
   videos: (course: Course) => Promise<{ sourceId: string; title: string }[]>;
   /** WBS-069: transcript text → readable note through the official CLI; absent, the button reports it is unavailable. */
   readable?: (input: { title: string; text: string; signal: AbortSignal }) => Promise<string>;
+  /** WBS-070: transcript text → assignment/exam candidates (parsed against the transcript). */
+  mentions?: (input: { title: string; text: string; transcript: Transcript; signal: AbortSignal }) => Promise<MentionCandidate[]>;
   openOriginal: (path: string) => Promise<void>;
   video: (course: Course, contentId: string) => Pick<VideoDownloadInput, "fetch" | "resolveSource" | "allowedOrigins">;
 }
@@ -146,7 +149,7 @@ export class MediaService {
       const root = join(this.#o.dataRoot, "media", "accounts", key);
       let catalog: Catalog;
       try { catalog = Catalog.parse(JSON.parse(await readFile(join(root, "catalog.json"), "utf8"))); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [], corrections: [] }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [], corrections: [], mentions: [] }; }
       const p = { key, root, catalog, writes: Promise.resolve() } as Partition;
       const engine: Engine = { info: this.#o.engine.info, parameters: this.#o.engine.parameters, transcribe: async (input) => {
         const asset = p.catalog.assets.find((a) => this.#path(p, a) === input.audioPath);
@@ -229,7 +232,8 @@ export class MediaService {
     return { transcriptId: transcript.id };
   }
 
-  #readable: AbortController | undefined;
+  /** One Claude Code request (readable note or announcement search) at a time. */
+  #claudeRun: AbortController | undefined;
   /**
    * WBS-069: on request, a readable note of one transcript version made by the
    * official Claude Code with the user's subscription. Kept as the original's
@@ -237,7 +241,7 @@ export class MediaService {
    */
   async makeReadable(courseId: string, assetId: string, transcriptId: string): Promise<{ doc: "readable_app" }> {
     if (!this.#o.readable) fail("NOT_FOUND", "정리본 만들기를 쓸 수 없습니다.");
-    if (this.#readable) fail("RUN_ALREADY_ACTIVE", "다른 정리본을 만드는 중입니다. 끝난 뒤 다시 시도하세요.");
+    if (this.#claudeRun) fail("RUN_ALREADY_ACTIVE", "Claude Code 요청이 이미 진행 중입니다. 끝난 뒤 다시 시도하세요.");
     const { p } = await this.#course(courseId);
     const asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
     const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
@@ -245,7 +249,7 @@ export class MediaService {
     const text = version.segments.filter((s) => s.text.trim()).map((s) => `[${stamp(s.startMs)}] ${s.text.trim()}`).join("\n");
     if (!text) fail("INVALID_REQUEST", "정리할 전사 내용이 없습니다.");
     const abort = new AbortController();
-    this.#readable = abort;
+    this.#claudeRun = abort;
     try {
       const note = (await this.#o.readable({ title: asset.title, text, signal: abort.signal })).trim();
       if (!note) fail("INVALID_REQUEST", "정리본이 비어 있습니다. 다시 시도하세요.");
@@ -258,7 +262,61 @@ export class MediaService {
       else p.catalog.imports.push(Imported.parse({ sha256: asset.sha256, docs: ["readable_app"], createdAt: new Date().toISOString() }));
       await this.#save(p);
       return { doc: "readable_app" };
-    } finally { this.#readable = undefined; }
+    } finally { this.#claudeRun = undefined; }
+  }
+
+  /** WBS-070: candidates only; nothing is saved until the user confirms some. */
+  async findMentions(courseId: string, assetId: string, transcriptId: string): Promise<{ candidates: MentionCandidate[] }> {
+    if (!this.#o.mentions) fail("NOT_FOUND", "과제·시험 안내 찾기를 쓸 수 없습니다.");
+    if (this.#claudeRun) fail("RUN_ALREADY_ACTIVE", "Claude Code 요청이 이미 진행 중입니다. 끝난 뒤 다시 시도하세요.");
+    const { p } = await this.#course(courseId);
+    const asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
+    const stamp = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+    const text = version.segments.filter((x) => x.text.trim()).map((x) => `[${stamp(x.startMs)}] ${x.text.trim()}`).join("\n");
+    if (!text) fail("INVALID_REQUEST", "찾을 전사 내용이 없습니다.");
+    const abort = new AbortController();
+    this.#claudeRun = abort;
+    try {
+      const candidates = await this.#o.mentions({ title: asset.title, text, transcript: version, signal: abort.signal });
+      if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+      return { candidates };
+    } finally { this.#claudeRun = undefined; }
+  }
+
+  /** WBS-070: the confirmed ones, with their evidence checked against the transcript again. */
+  async addMentions(courseId: string, assetId: string, candidates: MentionCandidate[]): Promise<{ mentions: LectureMention[] }> {
+    const { p } = await this.#course(courseId);
+    if (!p.catalog.assets.some((a) => a.id === assetId && a.courseId === courseId)) fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    const transcripts = (await this.list(courseId)).transcripts.filter((t) => t.sourceAssetId === assetId);
+    const confirmedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    const added: LectureMention[] = [];
+    for (const c of candidates) {
+      const segment = transcripts.find((t) => t.id === c.transcriptId)?.segments.find((x) => x.startMs === c.startMs);
+      if (!segment) fail("INVALID_REQUEST", "근거 시각이 전사와 맞지 않습니다. 다시 찾아 주세요.");
+      // The same announcement at the same time is kept once.
+      if ([...p.catalog.mentions, ...added].some((m) => m.assetId === assetId && m.startMs === c.startMs && m.title === c.title)) continue;
+      added.push(LectureMention.parse({ ...c, quote: segment.text.slice(0, 1000), id: randomUUID(), courseId, assetId, confirmedAt }));
+    }
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    p.catalog.mentions.push(...added);
+    await this.#save(p);
+    return { mentions: added };
+  }
+
+  async mentions(courseId: string): Promise<{ mentions: LectureMention[] }> {
+    const { p } = await this.#course(courseId);
+    return { mentions: p.catalog.mentions.filter((m) => m.courseId === courseId).toSorted((a, b) => b.confirmedAt.localeCompare(a.confirmedAt)) };
+  }
+
+  async removeMention(courseId: string, mentionId: string): Promise<Record<string, never>> {
+    const { p } = await this.#course(courseId);
+    const before = p.catalog.mentions.length;
+    p.catalog.mentions = p.catalog.mentions.filter((m) => !(m.id === mentionId && m.courseId === courseId));
+    if (p.catalog.mentions.length === before) fail("NOT_FOUND", "항목을 찾지 못했습니다.");
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    await this.#save(p);
+    return {};
   }
 
   async list(courseId: string) {
@@ -400,7 +458,7 @@ export class MediaService {
   }
   async stop() {
     this.#closing = true;
-    this.#readable?.abort();
+    this.#claudeRun?.abort();
     await this.#activation.catch(() => {});
     for (const d of this.#downloads.values()) d.abort.abort();
     await Promise.allSettled([...this.#downloads.values()].map((d) => d.done));

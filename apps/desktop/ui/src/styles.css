@@ -329,3 +329,14 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 /* WBS-069: correcting a transcript in place. */
 .segment-list.editing li{display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:start;}
 .segment-list.editing textarea{width:100%;font:inherit;font-size:13px;resize:vertical;}
+/* WBS-070: announcements heard in lectures. */
+.mention-candidates{border:1px dashed var(--line);border-radius:12px;padding:10px;margin:8px 0;font-size:12px;}
+.mention-candidates ul{list-style:none;padding:0;margin:6px 0;display:flex;flex-direction:column;gap:8px;}
+.mention-candidates label{display:flex;gap:8px;}
+.mention-candidates small,.mention-row small{display:block;color:var(--muted);}
+.mention-candidates q,.mention-row q{color:var(--muted);font-size:11px;}
+.mention-list{margin-top:16px;}
+.mention-row{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--line);font-size:12px;}
+.mention-row>.link-button{align-self:flex-start;font-size:11px;}
+.transcript-actions{flex-wrap:wrap;row-gap:6px;}
+.transcript-actions button{white-space:nowrap;}

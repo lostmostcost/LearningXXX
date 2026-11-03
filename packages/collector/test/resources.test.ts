@@ -145,6 +145,17 @@ describe("collecting again", () => {
     assert.equal(item(second, "notice", "6001")!.resource.revision, 1);
   });
 
+  test("WBS-074: a placeholder week is never asked for at the LMS", async () => {
+    const f = lms();
+    const client = new CanvasClient({ baseUrl: BASE, fetch: f.fetch, getAuthHeaders: async () => ({ Cookie: "session=synthetic" }) });
+    const store = createDirectoryStore(mkdtempSync(join(tmpdir(), "wbs074-")));
+    const calls = f.state.calls;
+    const gap = Week.parse({ id: stableId("week", courseId, "gap:3"), courseId, sourceWeekId: "gap:3", label: "3주차", order: 2 });
+    const r = await collectResources({ client, store, course, weeks: [...weeks, gap], now: () => new Date("2026-11-01T09:00:00Z"), retry: noWait() });
+    assert.deepEqual(r.errors, []);
+    assert.equal(calls.some((c) => c.url.includes("gap")), false);
+  });
+
   test("a damaged stored original is downloaded again", async () => {
     const { run, root } = setup();
     const first = await run();

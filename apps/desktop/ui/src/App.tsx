@@ -309,7 +309,10 @@ export function App() {
               const recs=week?weekRecordings(lectures.media, week.id):[];
               const rec=(r:RecordingRow,nested?:boolean)=><RecordingFile key={r.recording.id} row={r} nested={nested} selected={r.asset!==undefined&&r.asset.id===mediaAssetId} onOpen={openRecording}/>;
               const unfiled=week||!library?[]:unfiledRecordings(lectures.media?.recordings??[], library.weeks.map(w=>w.week), learning.status);
+              // WBS-074: every week shows, also one with nothing in it yet.
+              const empty=week&&!library?.weeks[weekIndex]?.entries.length&&!videos.length&&!recs.length;
               return <>
+                {empty?<p className="meta week-empty">이 주차에는 아직 자료가 없습니다.</p>:null}
                 {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
                   {canWatch(lmsItem)?<button className="watch-lms" title="LMS 공식 플레이어로 시청(출석 반영)" onClick={()=>void watch(lmsItem.moduleItemId)}><Icon name="play"/>LMS에서 시청</button>:null}
                   {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>;})}

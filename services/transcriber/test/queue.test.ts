@@ -193,3 +193,27 @@ test("a clean shutdown puts the running job back in the queue, and the next star
   assert.equal(next.job(job.id)!.status, "running");
   await next.stop();
 });
+
+test("pause stops the running job without cancelling it; resume starts it again, also after a restart", async () => {
+  const { queue, calls, make } = setup();
+  queue.start();
+  const job = queue.enqueue(asset("paused"));
+  await tick();
+  await queue.pause();
+  assert.equal(calls[0]!.input.signal.aborted, true);
+  assert.equal(queue.job(job.id)!.status, "queued");
+  assert.equal(queue.paused, true);
+  await tick();
+  assert.equal(calls.length, 1, "nothing starts while paused");
+  await queue.stop();
+  const next = make();
+  next.start();
+  await tick();
+  assert.equal(next.paused, true, "still paused after a restart");
+  assert.equal(calls.length, 1);
+  next.resume();
+  await tick();
+  assert.equal(calls.length, 2);
+  assert.equal(next.job(job.id)!.status, "running");
+  await next.stop();
+});

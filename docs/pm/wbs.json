@@ -779,7 +779,10 @@
         "apps/desktop/host/src/lms-session.ts",
         "services/transcriber/",
         "apps/desktop/ui/",
-        "packages/contracts/src/ipc.ts"
+        "packages/contracts/src/ipc.ts",
+        "apps/desktop/host/src/handlers.ts",
+        "apps/desktop/host/src/preload.cjs",
+        "packages/contracts/test/"
       ],
       "spec": "QA-001",
       "requirements": [
@@ -791,7 +794,7 @@
       "branch": "feat/WBS-028-b-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81c180eac578f864f9b5?pvs=204",
       "qa_mode": "developer_self_test",
-      "scope_note": "2026-11-03 자가 테스트 준비 중 발견한 결함(엔진이 이미 준비된 채 시작하면 ENGINE_UNAVAILABLE 실패를 재시도하지 않음)을 main.ts 한 곳에서 수정. 자율 진행 위임에 따른 영역 밖 예외. 2026-11-03 자가 테스트 결함 2건(전사 재개 지연, 영상 다운로드 리다이렉트) 수정: media-service.ts·lms-session.ts·services/transcriber. 2026-11-03 이문찬 요청으로 온라인 강의 받기·보기를 학습 자료 안으로 이동(ui, ipc media.videos week·downloads sourceId)."
+      "scope_note": "2026-11-03 자가 테스트 준비 중 발견한 결함(엔진이 이미 준비된 채 시작하면 ENGINE_UNAVAILABLE 실패를 재시도하지 않음)을 main.ts 한 곳에서 수정. 자율 진행 위임에 따른 영역 밖 예외. 2026-11-03 자가 테스트 결함 2건(전사 재개 지연, 영상 다운로드 리다이렉트) 수정: media-service.ts·lms-session.ts·services/transcriber. 2026-11-03 이문찬 요청으로 온라인 강의 받기·보기를 학습 자료 안으로 이동(ui, ipc media.videos week·downloads sourceId). 2026-11-03 전사 일시 정지·재개·중지 IPC(handlers·preload·contracts 테스트)."
     },
     {
       "id": "WBS-029",

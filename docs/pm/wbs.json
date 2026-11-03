@@ -1808,6 +1808,328 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81d3a848fdf4a9beccab?pvs=204",
       "scope_note": "WBS-029 AI 앱 안 검수 결함 D-1에서 분리(2026-11-03). WBS-056 Done 뒤 진행."
+    },
+    {
+      "id": "WBS-061",
+      "title": "개발 실행 버전 표시",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "개발 실행일 때 상단 바에 브랜치·WBS·커밋을 표시해 동시에 열린 앱을 구분한다. 배포 판에는 표시하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-061-dev-version-label",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8120b9eee34884ea91ae?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-062",
+      "title": "앱 실행 시 자료 수집 자동 동기화",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/",
+        "docs/specs/PRD-001.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "앱을 켤 때 로그인 확인 후 수집 1회와 학습 상태 새로고침. 수집 중이면 건너뛰고 실패해도 앱 사용을 막지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-062-sync-on-launch",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd817bb1dcf7dfbd55d64a?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-063",
+      "title": "일부 과목 동영상 강의 누락 수정",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "데이터베이스 00분반 등에서 빠지던 동영상 강의가 주차 학습 목록에 나온다. 실측은 형태만 기록한다.",
+      "status": "Backlog",
+      "branch": "fix/WBS-063-missing-videos",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8158b7cefbbb9dad726f?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-064",
+      "title": "녹음 중 표시등과 녹음 일시정지",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "녹음 중 빨간 표시(녹음 탭·상단), 일시정지·재개. 멈춘 구간은 저장하지 않고 이어서 녹음한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-064-recording-pause",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd814f8dd7f90e27cae2e6?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-065",
+      "title": "녹음의 주차·강의 소속",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-064"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "녹음 시작 때 주차·강의를 정하고 주차 학습의 강의 아래 표시. 과목 통합 목록 제거, 기존 녹음은 날짜 추정 후 사용자 확인으로 이동.",
+      "status": "Backlog",
+      "branch": "feat/WBS-065-recording-week",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81a09e63d3569012a7e9?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-066",
+      "title": "기존 녹음·전사문 가져오기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-065"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "사용자가 고른 학기 폴더의 녹음·강의영상 음성과 전사·정리본을 주차·강의에 연결해 복사한다. 원본 유지, 코드 파일과 khu-lecture-recorder 스킬은 읽지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-066-import-recordings",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8107ba06e29fa141ff8f?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-067",
+      "title": "공지·과제 본문과 첨부 앱 안 열람",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "collector",
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "packages/collector/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "공지·과제 본문을 수집해 앱 뷰어에서 안전하게 표시(스크립트 제거, 링크는 외부 브라우저)하고 첨부 PDF를 뷰어로 연다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-067-notice-body",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81cbafb0e55181bbb3a7?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-068",
+      "title": "왼쪽 가장자리 과목 사이드바",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "화면 맨 왼쪽에 마우스를 대면 과목 사이드바가 기존 사이드바를 밀어내며 나타나고 벗어나면 들어간다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-068-edge-sidebar",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd810aae1bc11fe0b8e750?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-069",
+      "title": "전사본 교정·가독성 정리",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-066"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared",
+        "transcriber"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "services/transcriber/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "전사 문장을 직접 고쳐 저장(원본 보존)하고, 요청 시 Claude Code(구독)로 가독성 정리본을 만든다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-069-transcript-edit",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81a9a9aac116789ac5c2?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-070",
+      "title": "전사본의 과제·시험 안내를 과제 탭에 추가",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-069"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "교정·정리된 전사본을 바탕으로 요청 시 과제·시험 안내 후보를 보여 주고 확인한 것만 근거 시각과 함께 과제 탭에 추가한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-070-transcript-notices",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81b09adbff611a111e90?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-071",
+      "title": "번역 선호 언어와 전사문 번역",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-069"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "설정에서 선호 언어를 고르고 전사문 번역을 토글로 켜고 끈다(끄면 원문).",
+      "status": "Backlog",
+      "branch": "feat/WBS-071-translation-language",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd811f97bcfe4da6527774?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-072",
+      "title": "PDF 번역본 만들기",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-071"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "spikes/pdf-translation/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "스파이크 후: 페이지 범위를 고르면 글자만 선호 언어로 바꾼 새 PDF를 만들고 토글로 원본과 전환한다. 스캔본 제외.",
+      "status": "Backlog",
+      "branch": "spike/WBS-072-pdf-translation",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81b78b1cf0998e869bb4?pvs=204",
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
     }
   ],
   "qaPolicy": {

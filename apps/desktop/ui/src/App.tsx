@@ -6,10 +6,10 @@ import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } 
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
-import { buildLibrary, formatSeoul, type Entry, type Library } from "./library.ts";
+import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
-import { canRecordView, canWatch, itemForResource, nextUnwatched, quizRows } from "./learning.ts";
+import { canRecordView, canWatch, itemForResource, nextUnwatched } from "./learning.ts";
 import { viewTarget } from "./document.ts";
 import { buildDetail, buildLabel } from "./build-label.ts";
 import { claimLaunchSync } from "./launch-sync.ts";
@@ -18,6 +18,7 @@ import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
+import { TaskSidebar } from "./TaskSidebar.tsx";
 import { JobQueue } from "./JobQueue.tsx";
 import { unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
@@ -324,11 +325,14 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
+            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
+                // WBS-075: by week, closed by default; to-do and submitted apart.
+                ?<TaskSidebar library={library} status={learning.status} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
+                :entriesOf(library).filter(e=>e.resource.kind==='notice').map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
               {section==='tasks'?<MentionList mentions={mentions.filter(m=>m.courseId===library.course.id)} sourceTitle={(id)=>lectures.media?.assets.find(a=>a.id===id)?.title??'녹음'}
                 onOpen={(m)=>{setMediaAssetId(m.assetId);setRightTab('transcripts');setView('chat');}}
                 onRemove={(m)=>void invoke("media.removeMention",{courseId:m.courseId,mentionId:m.id}).then((r)=>{if(r.ok)setMentions(x=>x.filter(y=>y.id!==m.id));})}/>:null}
-              {section==='tasks'&&quizRows(learning.status,now,formatSeoul).length?<section className="quiz-list" aria-label="퀴즈"><h2>퀴즈</h2>{quizRows(learning.status,now,formatSeoul).map(q=><div className="quiz-row" key={q.item.moduleItemId??q.item.sourceRef??q.item.title}><strong>{q.item.title}</strong><small>{q.status}</small>{q.blocked?<small className="meta">{q.blocked}</small>:<button onClick={()=>void openQuiz(q.item)}>응시 창 열기</button>}</div>)}{watchNotice?<p className="meta" role="status">{watchNotice}</p>:null}</section>:null}</>:null}
+              {section==='tasks'&&watchNotice?<p className="meta" role="status">{watchNotice}</p>:null}</>:null}
           </>
         ) : (
           <>

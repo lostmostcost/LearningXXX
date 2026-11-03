@@ -54,7 +54,24 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
+// One app per Mac account: two copies would share the same recordings and
+// transcription queue. Diagnostic runs (smoke, probes) are exempt.
+const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe)=/.test(arg));
+if (!diagnostic && !app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else if (!diagnostic) {
+  // Launching again brings the open window forward instead of starting a second copy.
+  app.on("second-instance", () => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (!window) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  });
+}
+
 app.whenReady().then(async () => {
+  if (!diagnostic && !app.hasSingleInstanceLock()) return;
   const probeOut = process.argv.find((arg) => arg.startsWith("--probe-out="))?.split("=")[1];
   if (probeOut !== undefined) {
     await runGuiCliProbe(probeOut, "/opt/homebrew/bin/claude", tmpdir());

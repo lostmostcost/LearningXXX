@@ -35,6 +35,8 @@ export interface LibraryServiceOptions {
   /** Signs in with saved details before a run when the session has lapsed (WBS-040). */
   ensureSignedIn?: () => Promise<void>;
   collect?: (input: CollectCourseInput) => Promise<CollectCourseResult>;
+  /** WBS-088: adds the student's own files to what is served; the collected manifest on disk is never changed. */
+  extend?: (manifest: CollectionManifest) => Promise<CollectionManifest>;
   now?: () => Date;
   newId?: () => string;
 }
@@ -198,7 +200,8 @@ export class LibraryService {
 
   async manifest(courseId: string): Promise<CollectionManifest | undefined> {
     if (!this.#accountKey) return undefined;
-    return readCurrentManifest(this.#o.root, { courseId, accountKey: this.#accountKey });
+    const manifest = await readCurrentManifest(this.#o.root, { courseId, accountKey: this.#accountKey });
+    return manifest && this.#o.extend ? this.#o.extend(manifest) : manifest;
   }
 
   /**

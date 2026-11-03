@@ -6,7 +6,7 @@ import { CourseWorkspaceService } from "./course-workspace.ts";
 import { weekNotes } from "./week-notes.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { CanvasClient, CollectionError, createCommonsVideoResolver, listActiveCourses } from "@learningxxx/collector";
+import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirectoryStore, listActiveCourses } from "@learningxxx/collector";
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
@@ -38,6 +38,7 @@ import { RecordingService } from "./recording-service.ts";
 import { AudioImporter } from "./audio-import.ts";
 import { ChatOutputs } from "./chat-outputs.ts";
 import { MemoService } from "./memos.ts";
+import { EXTERNAL_TYPES, ExternalMaterials } from "./external-materials.ts";
 import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
 import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
@@ -124,8 +125,11 @@ app.whenReady().then(async () => {
       }
     },
   });
+  // WBS-088: the student's own files, added to the served course material (declared before the library uses it).
+  let externals: ExternalMaterials | undefined;
   const library = new LibraryService({
     root: join(dataRoot, "library"),
+    extend: (manifest) => externals ? externals.merge(manifest) : Promise.resolve(manifest),
     client: () => createLmsClient(() => credentials.canvasToken()),
     ensureSignedIn: () => credentials.ensureSignedIn(),
     discoverCourses: listActiveCourses,
@@ -140,6 +144,14 @@ app.whenReady().then(async () => {
     },
   });
   await library.init();
+  externals = new ExternalMaterials({
+    root: join(dataRoot, "external-materials"), accountKey: () => library.accountKey(), store: createDirectoryStore(join(dataRoot, "library")),
+    collected: (courseId) => library.manifest(courseId),
+    chooseFiles: async () => {
+      const picked = await dialog.showOpenDialog({ title: "추가할 자료 선택", properties: ["openFile", "multiSelections"], filters: [{ name: "학습 자료", extensions: Object.keys(EXTERNAL_TYPES) }] });
+      return picked.canceled ? undefined : picked.filePaths;
+    },
+  });
   // WBS-056 check: the sign-in session before and after one sign-in with the saved details.
   // Writes cookie names and HTTP statuses only.
   const loginCheck = process.argv.find((arg) => arg.startsWith("--school-login-check="))?.split("=")[1];
@@ -419,6 +431,10 @@ app.whenReady().then(async () => {
     "chat.outputs": ({ appSessionId }) => chatOutputs.list(appSessionId),
     "chat.readOutput": ({ appSessionId, id }) => chatOutputs.read(appSessionId, id),
     "chat.showOutput": ({ appSessionId, id, how }) => chatOutputs.show(appSessionId, id, how),
+    // WBS-088: the student's own files in a week or 기타 자료.
+    "materials.choose": () => externals!.choose(),
+    "materials.add": (request) => externals!.add(request),
+    "materials.change": (request) => externals!.change(request),
     // WBS-086: memos per course week.
     "memo.get": ({ courseId, weekId }) => memos.get(courseId, weekId),
     "memo.save": ({ courseId, weekId, text, base }) => memos.save(courseId, weekId, text, base),

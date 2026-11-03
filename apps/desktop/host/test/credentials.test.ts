@@ -199,3 +199,12 @@ test("sign-ins never overlap: callers at the same time share one sign-in (WBS-06
   assert.equal(logins.length, 2);
   assert.equal(svc.status().schoolRejected, false);
 });
+
+test("the result-page diagnostics keep addresses and markers but no text or values", async () => {
+  const { pageShape } = await import("../src/school-login.ts");
+  const shape = pageShape(`<html><body>홍길동님 환영합니다 secret-value-123<form action="/xn-sso/gw-cb.php?token=abc"><input value="2026000001"></form><script>location.href="https://e-campus.khu.ac.kr/login/callback/20260001?x=y"</script></body></html>`);
+  assert.match(shape, /e-campus\.khu\.ac\.kr\/login\/callback\/#/);
+  assert.match(shape, /\/xn-sso\/gw-cb\.php/);
+  assert.match(shape, /<form/);
+  for (const leak of ["홍길동", "secret-value", "2026000001", "token=abc", "x=y"]) assert.doesNotMatch(shape, new RegExp(leak));
+});

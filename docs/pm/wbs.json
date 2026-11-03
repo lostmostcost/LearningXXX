@@ -1857,11 +1857,15 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "앱을 켤 때 로그인 확인 후 수집 1회와 학습 상태 새로고침. 수집 중이면 건너뛰고 실패해도 앱 사용을 막지 않는다.",
-      "status": "Review",
+      "status": "Done",
       "branch": "feat/WBS-062-sync-on-launch",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd817bb1dcf7dfbd55d64a?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed App launch effect (claimLaunchSync in sessionStorage; same collect() path so sign-in errors show as for the button), CredentialService serialization (#serial queue; waiting callers re-check signedIn), schoolLogin pageShape diagnostics (addresses/markers only, test asserts no text or values).",
+        "Real app (owner's account, 2026-11-03): first launch exposed a false refusal — concurrent sign-ins at launch overwrote the shared CSRF cookie, the school answered with a login error, saved sign-in was turned off. After serialization and the owner re-saving the details: Cmd+Q → relaunch → '수집 중…' → '수집 완료' in ~7 s, one school sign-in, no login window. Window reload did not collect again. pnpm -r run check passes."
+      ]
     },
     {
       "id": "WBS-063",

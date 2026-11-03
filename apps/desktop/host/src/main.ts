@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
 import { NativeTerminalService } from "./native-terminal.ts";
@@ -20,7 +21,7 @@ import { runLmsProbe } from "./lms-probe.ts";
 import { runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch } from "./lms-session.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources } from "./lms-session.ts";
 import { schoolLogin } from "./school-login.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
@@ -29,6 +30,7 @@ import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
 import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
+import { LearningStatusService, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -57,7 +59,7 @@ function createWindow(): BrowserWindow {
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else if (!diagnostic) {
@@ -291,7 +293,26 @@ app.whenReady().then(async () => {
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt));
+  const learning = new LearningStatusService({
+    root: join(dataRoot, "learning-status"),
+    sources: createLearningSources(() => credentials.canvasToken()),
+    ensureSignedIn: () => credentials.ensureSignedIn(),
+    courses: () => library.courses(),
+    accountKey: () => library.accountKey(),
+  });
+  // WBS-055 check: reads every course's learning status once and writes counts (no titles) to a file.
+  const learningDump = process.argv.find((arg) => arg.startsWith("--learning-status-dump="))?.split("=")[1];
+  if (learningDump !== undefined) {
+    const summary: Record<string, unknown>[] = [];
+    for (const course of await library.courses()) {
+      const status = await learning.status(course.id, true).catch(() => undefined);
+      summary.push({ course: course.sourceCourseId, ...(status ? summarizeLearning(status) : { status: "unreadable" }) });
+    }
+    writeFileSync(learningDump, `${JSON.stringify(summary, null, 2)}\n`);
+    app.quit();
+    return;
+  }
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

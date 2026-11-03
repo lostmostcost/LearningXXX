@@ -75,13 +75,13 @@ export function useVideoLectures(courseId: string | undefined, active: boolean) 
 }
 
 /** One lecture in the week menu: play it when downloaded, otherwise download it. */
-export function VideoFile({ row, playing, onPlay, onDownload }: { row: VideoRow; playing: boolean; onPlay: (asset: MediaAsset) => void; onDownload: (sourceId: string) => void }) {
+export function VideoFile({ row, playing, onPlay, onDownload, lms }: { row: VideoRow; playing: boolean; onPlay: (asset: MediaAsset) => void; onDownload: (sourceId: string) => void; /** LMS attendance badges (WBS-055). */ lms?: React.ReactNode }) {
   const label = row.state === "downloaded" ? "재생" : row.state === "downloading" ? "받는 중" : row.state === "failed" ? "다시 받기" : "받기";
   return (
     <button className={`video-file ${row.state}`} aria-pressed={playing} disabled={row.state === "downloading"} title={`${row.title} · ${row.status}`} aria-label={`동영상 강의 ${row.title}, ${row.status}, ${label}`}
       onClick={() => (row.asset ? onPlay(row.asset) : onDownload(row.sourceId))}>
       <Icon name={row.state === "downloaded" ? "play" : row.state === "downloading" ? "video" : "download"} />
-      <span><span className="video-title">{row.title}</span><small>{row.status}</small></span>
+      <span><span className="video-title">{row.title}</span><small>{row.status}{lms}</small></span>
     </button>
   );
 }

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 
 /**
  * Self-check for the real window, run with --ui-smoke=<dir>. It exercises what
@@ -8,6 +8,8 @@ import { BrowserWindow } from "electron";
  * movement and the narrow layout. Writes a report and screenshots to <dir>.
  */
 const STATE = `(() => ({
+  title: document.title,
+  brandLoaded: !!document.querySelector('img[alt="YOLO UNIV"]')?.naturalWidth,
   status: document.querySelector('[role="status"]')?.textContent ?? null,
   panels: [...document.querySelectorAll('section.panel')].map((p) => p.getAttribute('aria-label')),
   focused: document.activeElement?.getAttribute('aria-label') ?? null,
@@ -42,7 +44,10 @@ export async function runUiSmoke(window: BrowserWindow, dir: string): Promise<vo
   await wait(800);
   webContents.focus();
 
-  const report: Record<string, unknown> = { wide: await state() };
+  const report: Record<string, unknown> = {
+    application: { internalName: app.getName(), userData: app.getPath("userData"), sessionData: app.getPath("sessionData") },
+    wide: await state(),
+  };
   await shot("wide.png");
   const focus: unknown[] = [];
   for (let i = 0; i < 4; i += 1) {

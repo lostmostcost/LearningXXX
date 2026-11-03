@@ -60,6 +60,8 @@ export const IpcChannels = {
    * commit, WBS task, worktree folder). A packaged app answers `dev: false`.
    */
   /** WBS-071: this Mac's app preferences. */
+  /** WBS-080: open the macOS Settings pane for a permission (screen recording, microphone). */
+  "app.openSettings": { request: z.object({ pane: z.enum(["screen", "microphone"]) }), response: z.object({}) },
   "app.preferences": { request: z.object({}), response: z.object({ language: PreferredLanguage }) },
   "app.setPreferences": { request: z.object({ language: PreferredLanguage }), response: z.object({ language: PreferredLanguage }) },
   "app.build": {

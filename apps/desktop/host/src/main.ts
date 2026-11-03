@@ -10,7 +10,7 @@ import { CanvasClient, CollectionError, createCommonsVideoResolver, listActiveCo
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -43,6 +43,10 @@ import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
 const INVOKE_CHANNEL = "host:invoke";
 const PUSH_CHANNEL = "host:push";
+const PRIVACY_PANES = {
+  screen: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+  microphone: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+} as const;
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
 
 function createWindow(): BrowserWindow {
@@ -158,7 +162,11 @@ app.whenReady().then(async () => {
     return;
   }
   const attachments = new AttachmentService({
-    capture: () => captureRegion({ permission: () => systemPreferences.getMediaAccessStatus("screen") }),
+    capture: () => captureRegion({
+      permission: () => systemPreferences.getMediaAccessStatus("screen"),
+      // WBS-080: a screen source query is what makes macOS ask and list the app under Screen Recording.
+      requestAccess: async () => { await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }); },
+    }),
     dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),
     readAsset: (courseId, assetId) => library.attachmentSource(courseId, assetId),
     chooseLocal: async () => {
@@ -365,6 +373,8 @@ app.whenReady().then(async () => {
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
     // WBS-071: the preferred language, kept on this Mac.
+    // WBS-080: opens the macOS Settings pane for a permission the app needs; fixed addresses only.
+    "app.openSettings": async ({ pane }) => { await shell.openExternal(PRIVACY_PANES[pane]); return {}; },
     "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {

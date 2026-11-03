@@ -114,6 +114,7 @@ describe("producer → consumer round trip", () => {
       "collection.status": {},
       "library.manifest": { courseId: sid },
       "library.courses": {},
+      "learning.status": { courseId: sid, refresh: true },
       "credentials.status": {},
       "credentials.saveSchool": { schoolId: "synthetic-id", password: "synthetic-password" },
       "credentials.saveCanvasToken": { token: "synthetic-canvas-token" },

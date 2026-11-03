@@ -27,6 +27,7 @@ const CHANNELS = new Set([
   "credentials.saveCanvasToken",
   "credentials.clear",
   "library.manifest",
+  "learning.status",
   "library.courses",
   "library.asset",
   "session.create",

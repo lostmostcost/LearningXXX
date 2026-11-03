@@ -2,6 +2,7 @@ import type { HostPush, IpcChannel, IpcResponse, Run, RunEvent, Session } from "
 import { SAMPLE_MEDIA, SAMPLE_TRANSCRIPT, SAMPLE_JOBS } from "./transcript-fixtures.ts";
 import { syntheticAudio } from "./TranscriptDemo.tsx";
 import { INTENT_LABEL } from "./selection.ts";
+import { FIXTURE_MANIFEST } from "./fixtures.ts";
 import type { ComposerDraft } from "@learningxxx/contracts";
 
 /**
@@ -73,6 +74,17 @@ export function installFakeHost(courseTitle: string): void {
     "terminal.close": p => { terminalOutput.get(String(p.terminalId))!.closed = true; return ok({}); },
     "terminal.stage": () => ok({ text: '합성 첨부 경로 예제' }),
     "session.list": () => ok({ sessions: [...sessions] }),
+    // Synthetic LMS status for the fixture course: every other file done, assignments open.
+    "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
+      schemaVersion: 1, courseId: FIXTURE_MANIFEST.course.id, fetchedAt: now(), errors: [],
+      items: FIXTURE_MANIFEST.items.filter((i) => i.resource.kind !== "notice" && i.resource.source !== "manual").map((i, n) => ({
+        kind: i.resource.kind === "assignment" ? "assignment" : "material", title: i.resource.title,
+        sourceRef: i.resource.kind === "assignment" ? `assignment:${i.resource.sourceId}` : i.resource.sourceId,
+        completed: i.resource.kind === "assignment" ? null : n % 2 === 0, attendance: null, usesAttendance: false, period: "open",
+        unlockAt: null, dueAt: i.assignment?.dueAt ?? null, lockAt: null,
+        ...(i.resource.kind === "assignment" ? { submission: { state: n % 3 === 0 ? "submitted" : "unsubmitted", submittedAt: null, late: false, missing: false, attempt: null, types: ["online_upload"], allowedExtensions: ["pdf"], allowedAttempts: -1 } } : {}),
+      })),
+    } }),
     "session.transcript": () => ok({ turns: [] }),
     "session.create": (p) => {
       const id = crypto.randomUUID();

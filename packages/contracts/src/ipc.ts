@@ -3,6 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
+import { CourseLearningStatus } from "./learning.ts";
 import { MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
@@ -79,6 +80,14 @@ export const IpcChannels = {
   "credentials.clear": {
     request: z.object({ which: z.enum(["school", "canvasToken"]) }),
     response: CredentialStatus,
+  },
+  /**
+   * CR-054 / WBS-055: completion, attendance, deadlines and submission state
+   * as the LMS shows them, read only. Cached; `refresh` reads the LMS again.
+   */
+  "learning.status": {
+    request: z.object({ courseId: Id, refresh: z.boolean().optional() }),
+    response: z.object({ status: CourseLearningStatus.optional() }),
   },
   "library.manifest": {
     request: z.object({ courseId: Id }),

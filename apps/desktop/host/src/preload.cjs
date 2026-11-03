@@ -85,6 +85,8 @@ const CHANNELS = new Set([
   "media.queue",
   "media.translation",
   "media.translate",
+  "media.storage",
+  "media.removeOriginals",
   "app.preferences",
   "app.openSettings",
   "app.setPreferences",

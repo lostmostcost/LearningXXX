@@ -133,6 +133,8 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "media.list": async ({ courseId }) => { await libraryMedia().recover(); return libraryMedia().list(courseId); },
     "media.videos": ({ courseId }) => libraryMedia().videos(courseId),
     "media.download": ({ courseId, sourceId }) => libraryMedia().download(courseId, sourceId),
+    "media.storage": () => libraryMedia().storage(),
+    "media.removeOriginals": ({ courseId, assetIds }) => libraryMedia().removeOriginals(courseId, assetIds),
     "media.cancelDownload": ({ courseId, downloadId }) => libraryMedia().cancelDownload(courseId, downloadId),
     "media.original": ({ courseId, assetId }) => libraryMedia().asset(courseId, assetId),
     "media.open": ({ courseId, assetId }) => libraryMedia().open(courseId, assetId),

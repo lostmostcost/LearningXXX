@@ -4,7 +4,7 @@ import { MEDIA_COURSE_ID, SAMPLE_MEDIA, SAMPLE_RECOVERED_MEDIA, SAMPLE_VIDEO, SA
 import type { DownloadViewInput } from "./transcript-model.ts";
 
 /** A generated ten-second tone, never a real lecture. No audio/video is stored in Git. */
-function syntheticAudio(): Blob {
+export function syntheticAudio(): Blob {
   const buffer = new ArrayBuffer(160044), view = new DataView(buffer);
   const word = (at: number, text: string) => { for (const [i, c] of [...text].entries()) view.setUint8(at + i, c.charCodeAt(0)); };
   word(0, "RIFF"); view.setUint32(4, buffer.byteLength - 8, true); word(8, "WAVE"); word(12, "fmt "); view.setUint32(16, 16, true);

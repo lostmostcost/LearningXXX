@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MediaAsset, Recording } from "@learningxxx/contracts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { MediaLibrary } from "./MediaLibrary.tsx";
-import { ChunkBuffer, RECORDING_STATUS, SAMPLE_RATE, clock, toPcm16 } from "./recorder.ts";
+import { Icon } from "./StudyUI.tsx";
+import { ChunkBuffer, SAMPLE_RATE, clock, toPcm16 } from "./recorder.ts";
 // Its own file under the CSP's script-src 'self' (a small asset would otherwise be inlined as data:).
 import workletUrl from "./pcm-worklet.js?url&no-inline";
 
@@ -15,6 +15,7 @@ interface Capture {
   /** Chunks go to the host one after another, never in parallel. */
   sending: Promise<void>;
   startedAt: number;
+  stopping?: boolean;
 }
 
 /**
@@ -22,53 +23,53 @@ interface Capture {
  * captures and forwards PCM; the host checks permission and disk, flushes
  * every chunk and confirms the original when recording stops.
  */
-export function RecordingPanel({ courseId }: { courseId: string }) {
-  const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [assets, setAssets] = useState<MediaAsset[]>([]);
+export function RecordingPanel({ courseId, view = "recording" }: { courseId: string; view?: "recording" | "transcripts" }) {
   const [active, setActive] = useState<string>();
   const [savedMs, setSavedMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [playing, setPlaying] = useState<{ assetId: string; url: string }>();
+  const generation = useRef(0);
+  const starting = useRef(false);
   const capture = useRef<Capture | undefined>(undefined);
 
   const reload = useCallback(async () => {
     const result = await invoke("recording.list", { courseId });
-    if (result.ok) {
-      setRecordings(result.data.recordings);
-      setAssets(result.data.assets);
-    }
+    if (!result.ok) setNotice(result.error.message);
   }, [courseId]);
 
-  const release = () => {
+  const release = (expected = capture.current) => {
+    if (capture.current !== expected) return;
     const c = capture.current;
     capture.current = undefined;
     c?.stream.getTracks().forEach((t) => t.stop());
-    void c?.context.close();
+    void c?.context.close().catch(() => undefined);
     setActive(undefined);
   };
 
   const stop = useCallback(async (reason: "user" | "device_lost" = "user") => {
     const c = capture.current;
-    if (!c) return;
+    if (!c || c.stopping) return;
+    c.stopping = true;
     setBusy(true);
-    c.stream.getTracks().forEach((t) => t.stop());
-    const last = c.buffer.take();
-    if (last) c.sending = c.sending.then(() => send(c, last));
-    await c.sending;
-    const result = await invoke("recording.stop", { recordingId: c.recordingId, reason });
-    release();
-    setBusy(false);
-    if (!result.ok) setNotice(result.error.message);
-    else if (reason === "device_lost") setNotice("마이크 연결이 끊겨 녹음을 멈추고 지금까지의 녹음을 저장했습니다.");
-    else setNotice(result.data.recording.status === "failed" ? "녹음된 내용이 없어 저장하지 않았습니다." : "녹음을 저장했습니다.");
-    await reload();
+    try {
+      c.stream.getTracks().forEach((t) => t.stop());
+      const last = c.buffer.take();
+      if (last) c.sending = c.sending.then(() => send(c, last));
+      await c.sending.catch(() => setNotice("일부 녹음 전송을 확인하지 못했습니다. 저장된 부분을 확정합니다."));
+      const result = await invoke("recording.stop", { recordingId: c.recordingId, reason });
+      if (!result.ok) setNotice(result.error.message);
+      else if (reason === "device_lost") setNotice("마이크 연결이 끊겨 녹음을 멈추고 지금까지의 녹음을 저장했습니다.");
+      else setNotice(result.data.recording.status === "failed" ? "녹음된 내용이 없어 저장하지 않았습니다." : "녹음을 저장했습니다.");
+      await reload();
+    } catch { setNotice("녹음 저장 상태를 확인해 주세요. 저장된 원본은 유지됩니다."); }
+    finally { release(c); setBusy(false); }
   }, [reload]);
 
   const send = async (c: Capture, pcm: Uint8Array<ArrayBuffer>) => {
     if (capture.current !== c) return;
     const result = await invoke("recording.chunk", { recordingId: c.recordingId, seq: c.seq, pcm });
+    if (capture.current !== c) return;
     if (result.ok) {
       c.seq += 1;
       setSavedMs(result.data.savedMs);
@@ -81,44 +82,55 @@ export function RecordingPanel({ courseId }: { courseId: string }) {
   };
 
   const start = async () => {
-    setNotice(undefined);
-    setBusy(true);
-    const started = await invoke("recording.start", { courseId });
-    if (!started.ok) {
-      setBusy(false);
-      return setNotice(started.error.message);
-    }
-    const recordingId = started.data.recording.id;
+    if (starting.current || capture.current) return;
+    starting.current = true;
+    const current = generation.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
-      const context = new AudioContext({ sampleRate: SAMPLE_RATE });
-      await context.audioWorklet.addModule(workletUrl);
-      const node = new AudioWorkletNode(context, "pcm-forward");
-      const c: Capture = { recordingId, stream, context, buffer: new ChunkBuffer(), seq: 0, sending: Promise.resolve(), startedAt: Date.now() };
-      node.port.onmessage = (event: MessageEvent<Float32Array>) => {
-        const full = c.buffer.push(toPcm16(event.data));
-        if (full) c.sending = c.sending.then(() => send(c, full));
-      };
-      context.createMediaStreamSource(stream).connect(node);
-      stream.getAudioTracks()[0]?.addEventListener("ended", () => void stop("device_lost"));
-      capture.current = c;
-      setSavedMs(0);
-      setElapsedMs(0);
-      setActive(recordingId);
-    } catch {
-      // Nothing was captured: the host marks this recording as failed.
-      await invoke("recording.stop", { recordingId });
-      setNotice("마이크를 열지 못했습니다. 시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 이 앱을 켜고 다시 시도하세요.");
-      await reload();
-    } finally {
-      setBusy(false);
-    }
+      setNotice(undefined);
+      setBusy(true);
+      const started = await invoke("recording.start", { courseId });
+      if (!started.ok) {
+        setBusy(false);
+        return setNotice(started.error.message);
+      }
+      const recordingId = started.data.recording.id;
+      let stream: MediaStream | undefined, context: AudioContext | undefined;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+        context = new AudioContext({ sampleRate: SAMPLE_RATE });
+        await context.audioWorklet.addModule(workletUrl);
+        if (current !== generation.current) throw new Error("Course changed");
+        const node = new AudioWorkletNode(context, "pcm-forward");
+        const c: Capture = { recordingId, stream, context, buffer: new ChunkBuffer(), seq: 0, sending: Promise.resolve(), startedAt: Date.now() };
+        node.port.onmessage = (event: MessageEvent<Float32Array>) => {
+          if (capture.current !== c || c.stopping) return;
+          const full = c.buffer.push(toPcm16(event.data));
+          if (full) c.sending = c.sending.then(() => send(c, full));
+        };
+        context.createMediaStreamSource(stream).connect(node);
+        stream.getAudioTracks()[0]?.addEventListener("ended", () => { if (capture.current === c) void stop("device_lost"); });
+        capture.current = c;
+        setSavedMs(0);
+        setElapsedMs(0);
+        setActive(recordingId);
+      } catch {
+        stream?.getTracks().forEach(t => t.stop());
+        await context?.close().catch(() => undefined);
+        // Nothing was captured: the host marks this recording as failed.
+        await invoke("recording.stop", { recordingId });
+        setNotice("마이크를 열지 못했습니다. 시스템 설정 > 개인정보 보호 및 보안 > 마이크에서 이 앱을 켜고 다시 시도하세요.");
+        await reload();
+      } finally {
+        setBusy(false);
+      }
+    } catch { setNotice("녹음을 시작하지 못했습니다. 다시 시도해 주세요."); }
+    finally { starting.current = false; setBusy(false); }
   };
 
   useEffect(() => {
     void reload();
     return onHostPush((push) => {
-      if (push.kind !== "recording.stopped") return;
+      if (push.kind !== "recording.stopped" || push.recording.courseId !== courseId) return;
       if (capture.current?.recordingId === push.recording.id) release();
       setNotice(push.recording.errorCode === "DISK_FULL" ? "저장 공간이 부족해 녹음을 멈추고 저장했습니다." : "Mac이 잠자기에 들어가 녹음을 멈추고 지금까지의 녹음을 저장했습니다.");
       void reload();
@@ -132,46 +144,17 @@ export function RecordingPanel({ courseId }: { courseId: string }) {
   }, [active]);
 
   // Leaving the course or closing the window stops capture; the host confirms what was saved.
-  useEffect(() => () => void stop(), [courseId, stop]);
+  useEffect(() => { generation.current++; return () => { generation.current++; void stop(); }; }, [courseId, stop]);
 
-  const play = async (assetId: string) => {
-    const result = await invoke("media.asset", { assetId });
-    if (!result.ok) return setNotice(result.error.message);
-    if (playing) URL.revokeObjectURL(playing.url);
-    setPlaying({ assetId, url: URL.createObjectURL(new Blob([result.data.bytes], { type: result.data.mediaType })) });
-  };
-
-  return (
-    <section className="recordings" aria-label="강의 녹음">
-      <h3>강의 녹음</h3>
-      {active ? (
-        <p role="status">
-          ● 녹음 중 {clock(elapsedMs)} · 저장됨 {clock(savedMs)}{" "}
-          <button disabled={busy} onClick={() => void stop()}>녹음 멈추기</button>
-        </p>
-      ) : (
-        <button disabled={busy} onClick={() => void start()}>녹음 시작</button>
-      )}
-      {notice ? <p role="status" className="notice-box">{notice}</p> : null}
-      {recordings.length ? (
-        <ul className="entries">
-          {recordings.map((r) => {
-            const asset = assets.find((a) => a.id === r.originalAssetId);
-            return (
-              <li key={r.id}>
-                <span>{r.title}</span>{" "}
-                <span className="meta">
-                  {RECORDING_STATUS[r.status]}
-                  {r.durationMs ? ` · ${clock(r.durationMs)}` : ""}
-                </span>{" "}
-                {asset ? <button onClick={() => void play(asset.id)}>재생</button> : null}
-                {playing?.assetId === asset?.id && playing ? <audio controls autoPlay src={playing.url} /> : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-      <MediaLibrary key={courseId} courseId={courseId} />
-    </section>
-  );
+  return <section className="recordings" aria-label="녹음과 전사">
+    <div className="recording-capture" hidden={view !== "recording"}>
+      <div className={active ? "capture-symbol active" : "capture-symbol"}><Icon name="mic" /></div>
+      <h3>{active ? "강의를 녹음하고 있어요" : "강의 녹음"}</h3>
+      <p className="capture-clock" role="status">{clock(elapsedMs)}</p>
+      <p className="subtle">{active ? `저장됨 ${clock(savedMs)}` : "녹음이 끝나면 자동으로 전사합니다"}</p>
+      <button className="capture-action" aria-label={active ? "녹음 멈추기" : "녹음 시작"} title={active ? "녹음 멈추기" : "녹음 시작"} disabled={busy} onClick={() => active ? void stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>
+    </div>
+    {notice ? <p role="status" className="notice-box">{notice}</p> : null}
+    <MediaLibrary key={courseId} courseId={courseId} view={view} />
+  </section>;
 }

@@ -1,4 +1,6 @@
 import type { HostPush, IpcChannel, IpcResponse, Run, RunEvent, Session } from "@learningxxx/contracts";
+import { SAMPLE_MEDIA, SAMPLE_TRANSCRIPT, SAMPLE_JOBS } from "./transcript-fixtures.ts";
+import { syntheticAudio } from "./TranscriptDemo.tsx";
 import { INTENT_LABEL } from "./selection.ts";
 import type { ComposerDraft } from "@learningxxx/contracts";
 
@@ -37,7 +39,20 @@ export function installFakeHost(courseTitle: string): void {
     chat.messages.push({ id: crypto.randomUUID(), role: 'assistant', text: '강의 자료를 함께 살펴볼게요.\n\n**조합 논리회로**는 현재 입력에 따라 출력이 결정되는 회로예요.\n\n- **AND**: 두 입력이 모두 1일 때\n- **OR**: 하나라도 1일 때\n- **NOT**: 입력을 반전\n\n| A | B | AND |\n|---|---|---|\n| 0 | 1 | 0 |\n| 1 | 1 | 1 |\n\n```verilog\nassign y = a & b;\n```\n\n다음으로 진리표를 같이 작성해볼까요?\n\n*합성 UI 예제 · 실제 Claude 응답이 아닙니다.*', tools: [{ id: 'fixture-tool', name: 'Read · synthetic.pdf', input: '{"file_path":"/tmp/synthetic.pdf"}' }] });
   };
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
+  let fixtureEngine = new URLSearchParams(window.location.search).has('engineMissing') ? 'missing' : 'ready';
+  let fixtureJob = new URLSearchParams(window.location.search).has('engineMissing') ? { ...SAMPLE_JOBS[3]!, errorCode: 'ENGINE_UNAVAILABLE' } : SAMPLE_JOBS[2]!;
+  const engineStatus = () => ({ state: fixtureEngine, message: fixtureEngine === 'installing' ? '음성 모델 준비 중 · 합성 예시' : fixtureEngine === 'ready' ? '이 Mac에서 자동 전사할 준비가 됐습니다.' : '전사 엔진 또는 음성 모델 준비가 필요합니다.' });
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
+    'stt.status': () => ok(engineStatus()),
+    'stt.prepare': () => { fixtureEngine = 'installing'; setTimeout(() => { if (fixtureEngine === 'installing') { fixtureEngine = 'ready'; fixtureJob = SAMPLE_JOBS[2]!; } }, 1800); return ok(engineStatus()); },
+    'stt.cancel': () => { fixtureEngine = 'missing'; return ok(engineStatus()); },
+    'recording.list': () => ok({ recordings: [], assets: [] }),
+    'recording.start': () => fail('INVALID_REQUEST', '합성 UI 예제에서는 마이크를 사용하지 않습니다.'),
+    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: [], jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT] : [], downloads: [] }),
+    'media.original': async () => ok({ bytes: new Uint8Array(await syntheticAudio().arrayBuffer()), mediaType: 'audio/wav' }),
+    'media.retry': () => { fixtureJob = SAMPLE_JOBS[2]!; return ok({}); },
+    'media.open': () => ok({}),
+    'media.videos': () => ok({ videos: [] }),
     'chat.open': p => { const id = String(p.appSessionId); if (!chats.has(id)) chats.set(id, freshChat()); chats.get(id)!.connected = true; return ok(structuredClone(chats.get(id))); },
     'chat.state': p => ok(structuredClone(chats.get(String(p.appSessionId)))),
     'chat.configure': p => { const chat = chats.get(String(p.appSessionId))!; if (p.model) { chat.model = String(p.model); chat.effort = 'default'; } if (p.effort) chat.effort = String(p.effort); if (p.mode) chat.mode = String(p.mode); return ok(structuredClone(chat)); },

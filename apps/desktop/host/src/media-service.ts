@@ -163,8 +163,23 @@ export class MediaService {
 
   async retry(courseId: string, jobId: string) {
     const { p } = await this.#course(courseId), listed = await this.list(courseId);
-    if (!listed.jobs.some((j) => j.id === jobId)) fail("NOT_FOUND", "현재 과목의 전사 작업이 아닙니다.");
-    p.queue.retry(jobId); return {};
+    const previous = listed.jobs.find(j => j.id === jobId);
+    const asset = p.catalog.assets.find(a => a.id === previous?.sourceAssetId && a.courseId === courseId);
+    if (!asset) fail("NOT_FOUND", "현재 과목의 전사 작업이 아닙니다.");
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    const current = p.queue.enqueue(asset);
+    if (current.status === "failed" || current.status === "cancelled") p.queue.retry(current.id);
+    return {};
+  }
+
+  async retryUnavailable(): Promise<void> {
+    const p = await this.#activate(), courses = await this.#o.courses();
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    for (const asset of p.catalog.assets) {
+      if (!courses.some(c => c.id === asset.courseId && c.accountKey === p.key)) continue;
+      const current = p.queue.enqueue(asset);
+      if (current.status === "failed" && current.errorCode === "ENGINE_UNAVAILABLE") p.queue.retry(current.id);
+    }
   }
 
   async open(courseId: string, assetId: string) {

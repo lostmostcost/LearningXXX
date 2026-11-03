@@ -1603,6 +1603,177 @@
         "UI stage: App/RecordingPanel/MediaLibrary/TranscriptPanel and styles reviewed. Fixed duplicate lists/narrow nested columns, asset object polling restarting playback, swallowed retry errors, capture setup cleanup and late chunk responses affecting a newer capture. Browser fixture verified prepare-to-ready, timestamp playback, stable audio URL across polling and three tool tabs. Microphone/human lecture QA not claimed.",
         "Final integration review against main855241b: discovered ForcedAligner constructor is lazy, so first install would omit timestamp weights despite a pre-existing-cache test succeeding. Fixed by aligning synthetic silence during preparation; cold-cache regression and real Mac setup pass. Re-reviewed setup errors, process-group cancel and current-engine retry/account checks. No credentials/audio/private course data added."
       ]
+    },
+    {
+      "id": "WBS-054",
+      "title": "LMS 학습 상태·열람·출석 흐름 실측",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "spikes/lms-status/",
+        "docs/plans/PLAN-054-learning-status.md",
+        "docs/specs/PRD-001.md",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "LearningX/Canvas 학습 상태 필드와 PDF 열람·영상 출석·과제 제출 상태 흐름을 실제 계정에서 필드 이름·값 형태만 기록하고 가능 범위와 경계를 PLAN-054에 정한다.",
+      "status": "Done",
+      "branch": "spike/WBS-054-lms-status",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81068e99f1c68eab68c5?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-055",
+      "title": "LMS 학습 상태 읽기·표시",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-054"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "docs/plans/PLAN-054-learning-status.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "과목별 LMS 완료·출석·시청 진도·마감·제출 상태를 읽어 자료·영상·과제 배지, 주차 진행, 대시보드 해야 할 일로 보여 준다. 읽기 전용이며 일부 실패 시 마지막 정상 상태를 유지한다.",
+      "status": "Done",
+      "branch": "feat/WBS-055-learning-status",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81e08f05d4391213f1fe?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-056",
+      "title": "앱에서 연 자료의 LMS 열람 기록",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-055"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "docs/plans/PLAN-054-learning-status.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "앱에서 실제로 연 자료만 같은 LMS 세션의 항목 페이지를 열어 LMS 뷰어가 열람 완료를 보내게 하고, 열지 않은 자료는 기록하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-056-view-record",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81f394b2e86cae965252?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-057",
+      "title": "공식 플레이어 시청과 출석 자동 추적",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-055"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "docs/plans/PLAN-054-learning-status.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "앱 안 보이는 창에서 공식 플레이어로 실제 시청하고 출석 상태를 추적한다. 진도 조작·시청 없는 출석 기록은 하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-057-official-player",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81ff85edfbff47e3c24e?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-058",
+      "title": "과제 수동·자동 제출",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-055"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "docs/plans/PLAN-054-learning-status.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "확인 대화상자를 거친 수동 제출과, 사용자가 등록 시 확인한 규칙에 따른 자동 제출을 제공한다. 시작 전 연습용 과제 제출 흐름을 실측한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-058-assignment-submit",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+    },
+    {
+      "id": "WBS-059",
+      "title": "퀴즈 상태·응시 열기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-055"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/",
+        "docs/plans/PLAN-054-learning-status.md"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "퀴즈 상태 표시, 공식 응시 창 열기, 마감 알림을 제공한다. 대리 응시는 하지 않는다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-059-quiz-status",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81e98699f67208d15e39?pvs=204",
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
     }
   ],
   "qaPolicy": {

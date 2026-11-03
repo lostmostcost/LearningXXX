@@ -138,4 +138,4 @@
 | 상태는 수집과 별도 서비스로 LMS에서 읽고 계정·과목별로 10분 캐시, 화면의 새로 고침과 수집 완료 때 다시 읽음 | 수집(파일)과 상태(배지)의 갱신 주기가 다름. 수집 계약을 바꾸지 않음 | PR revert |
 | 자료와 상태는 `commons:<id>`(LearningX 파일)·`assignment:<id>`(Canvas 과제)로 연결 | 수집 manifest의 sourceId와 같은 키 | — |
 | 퀴즈 목록이 막힌 과목은 오류 없이 건너뜀, LMS를 전혀 못 읽으면 마지막 정상 상태를 오류와 함께 유지 | 한 부분 실패가 화면 전체를 비우지 않게 | — |
-| WBS-054~059를 wbs.json에 아직 등록하지 않음 | check.py가 Notion 카드 URL을 요구하는데 현재 연결 계정이 Notion 작업 DB에 접근 불가 | Notion 접근 후 등록 |
+| WBS-054~059를 Notion 작업 DB와 wbs.json에 등록(2026-11-03, 054·055 Done, 056~059 Backlog) | Notion 재연결 후 카드 생성, check.py가 카드 URL을 요구 | — |

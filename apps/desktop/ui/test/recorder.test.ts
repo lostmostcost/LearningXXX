@@ -21,3 +21,11 @@ test("elapsed time reads like a clock", () => {
   assert.equal(clock(243_900), "4:03");
   assert.equal(clock(3_909_000), "1:05:09");
 });
+
+test("recorded time leaves out the paused parts (WBS-064)", async () => {
+  const { recordedMs } = await import("../src/recorder.ts");
+  assert.equal(recordedMs(1_000, 61_000, 0), 60_000);
+  assert.equal(recordedMs(1_000, 61_000, 20_000), 40_000, "20 s paused earlier");
+  assert.equal(recordedMs(1_000, 90_000, 20_000, 61_000), 40_000, "paused now: the clock stands still");
+  assert.equal(recordedMs(5_000, 1_000, 0), 0);
+});

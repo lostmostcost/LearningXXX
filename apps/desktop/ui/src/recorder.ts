@@ -53,3 +53,14 @@ export const RECORDING_STATUS = {
   recovered_partial: "앱 종료로 끊김 · 저장된 부분까지 복구됨",
   failed: "실패",
 } as const;
+
+/**
+ * WBS-064: recording time without the paused parts — what the saved original
+ * holds, since nothing is sent while paused.
+ */
+export function recordedMs(startedAt: number, now: number, pausedTotalMs: number, pausedAt?: number): number {
+  return Math.max(0, (pausedAt ?? now) - startedAt - pausedTotalMs);
+}
+
+export type RecordingState = "idle" | "recording" | "paused";
+

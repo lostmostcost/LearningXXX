@@ -249,3 +249,25 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 /* WBS-061 development build tag next to the wordmark */
 .wordmark .build-tag { margin-left: 10px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: #fff; background: #c2410c; vertical-align: middle; white-space: nowrap; }
 
+/* WBS-064 recording light and pause */
+.rec-light { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; vertical-align: middle; flex: none; }
+.rec-light.recording { background: #dc2626; box-shadow: 0 0 0 0 #dc262699; animation: rec-pulse 1.4s ease-out infinite; }
+.rec-light.paused { background: transparent; border: 2px solid #d97706; width: 6px; height: 6px; }
+@keyframes rec-pulse { 0% { box-shadow: 0 0 0 0 #dc262699; } 70% { box-shadow: 0 0 0 6px #dc262600; } 100% { box-shadow: 0 0 0 0 #dc262600; } }
+@media (prefers-reduced-motion: reduce) { .rec-light.recording { animation: none; } }
+.icon-rail button { position: relative; }
+.icon-rail button > .rec-light { position: absolute; top: 6px; right: 6px; margin: 0; }
+.rec-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 12px; font-weight: 600; cursor: pointer; }
+.rec-pill .rec-light { margin-left: 0; }
+.rec-pill.paused { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+.capture-actions { display: flex; justify-content: center; gap: 12px; }
+.capture-action.secondary { background: #e7e5e4; color: #44403c; }
+.capture-action.secondary:hover { background: #d6d3d1; }
+.capture-symbol.paused { background: #fef3c7; color: #b45309; }
+@media (prefers-color-scheme: dark) {
+  .rec-pill { border-color: #7f1d1d; background: #450a0a; color: #fca5a5; }
+  .rec-pill.paused { border-color: #78350f; background: #451a03; color: #fcd34d; }
+  .capture-action.secondary { background: #44403c; color: #e7e5e4; }
+  .capture-action.secondary:hover { background: #57534e; }
+}
+

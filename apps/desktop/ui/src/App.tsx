@@ -13,6 +13,7 @@ import { canRecordView, itemForResource } from "./learning.ts";
 import { viewTarget } from "./document.ts";
 import { buildDetail, buildLabel } from "./build-label.ts";
 import { claimLaunchSync } from "./launch-sync.ts";
+import type { RecordingState } from "./recorder.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
@@ -92,6 +93,9 @@ export function App() {
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
+  // WBS-064: red light on the recording tab, the mic rail button and the top bar while recording.
+  const [recState, setRecState] = useState<RecordingState>("idle");
+  const recLight = recState === "idle" ? null : <span className={`rec-light ${recState}`} aria-hidden="true" />;
   // WBS-061: which code this development run is, also in the window title.
   const [build, setBuild] = useState<IpcResponse<"app.build">>();
   useEffect(() => { void invoke("app.build", {}).then((r) => { if (r.ok) setBuild(r.data); }); }, []);
@@ -211,10 +215,11 @@ export function App() {
 
   return (
     <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/></button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark">Learning<span>XXX</span>{devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
+        {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => { setRightTab("recording"); setView("chat"); }} title="녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
@@ -268,13 +273,13 @@ export function App() {
             setRightTab(next);
             document.getElementById(`tool-${next}`)?.focus();
           }}>
-            {([['chat', '채팅'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'recording' ? 'mic' : 'file'} />{label}</button>)}
+            {([['chat', '채팅'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'recording' ? 'mic' : 'file'} />{label}{id === 'recording' ? recLight : null}</button>)}
           </div>
           <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
             {window.host ? <RichChatPanel selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
           <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat"}>
-            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
+            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
           </div>
         </>)}
       </main>

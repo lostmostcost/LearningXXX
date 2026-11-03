@@ -1914,11 +1914,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "녹음 중 빨간 표시(녹음 탭·상단), 일시정지·재개. 멈춘 구간은 저장하지 않고 이어서 녹음한다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-064-recording-pause",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd814f8dd7f90e27cae2e6?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed RecordingPanel pause (drops worklet frames while paused, flushes the buffer on pause, clock via recordedMs), state lifting to App (onState, idle on unmount/course switch/host stop), indicators and dark-mode styles. Found and fixed: dark-mode hover made the pause/resume icon invisible. Synthetic check (?fixture=mic, generated tone, no real microphone): start → red pill/tab/rail dots → pause 3 s, clock and saved time stand still, amber indicators → resume, clock continues → stop, indicators gone. Host unchanged (no idle timeout). Real-microphone recording not tried by the agent."
+      ]
     },
     {
       "id": "WBS-065",

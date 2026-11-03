@@ -56,6 +56,7 @@ export const FIXTURE_MANIFEST: CollectionManifest = {
       resource: resource(6, "assignment", "과제 1: 진리표 작성", 2),
       assets: [],
       assignment: { resourceId: res(6), dueAt: "2026-11-07T14:59:00Z", timezone: "Asia/Seoul", timezoneBasis: "source_explicit", submissionUrl: lms("assignments/SYN-6") },
+      body: "<h2>제출 방법</h2><p>3입력 다수결 회로의 진리표를 PDF 1쪽으로 제출합니다.</p><table><tr><th>A</th><th>B</th><th>C</th><th>Y</th></tr><tr><td>0</td><td>1</td><td>1</td><td>1</td></tr></table>",
     },
     { resource: resource(7, "file", "아직 받지 않은 자료", 3), assets: [] },
     {
@@ -63,7 +64,9 @@ export const FIXTURE_MANIFEST: CollectionManifest = {
       assets: [],
       assignment: { resourceId: res(8), dueAt: null, timezone: "Asia/Seoul", timezoneBasis: "assumed_asia_seoul" },
     },
-    { resource: resource(9, "notice", "강의실 변경 안내"), assets: [] },
+    // WBS-067: synthetic bodies, including markup the viewer must neutralize (script, handler, javascript: link).
+    { resource: resource(9, "notice", "강의실 변경 안내"), assets: [file(9, "application/pdf", "room-map.pdf")],
+      body: `<p>다음 주부터 강의실이 <strong>합성관 101호</strong>로 바뀝니다.</p><ul><li>시간은 같습니다.</li><li>첨부한 <em>배치도</em>를 확인하세요.</li></ul><p><a href="https://lms.example.test/courses/SYN-101">강의 홈</a> · <a href="javascript:alert(1)">나쁜 링크</a></p><script>alert("x")</script><p onclick="alert(1)">끝.</p>` },
     { resource: resource(10, "notice", "중간고사 범위"), assets: [] },
     { resource: resource(11, "notice", "3주차 휴강 공지", 3), assets: [] },
     { resource: resource(12, "file", "내가 추가한 정리 노트", undefined, true), assets: [file(12, "application/pdf", "my-notes.pdf")] },
@@ -77,6 +80,7 @@ const BYTES: Record<string, () => Uint8Array> = {
   [assetId(4)]: () => makeSyntheticPdf({ pages: ["Locked supplement"], encrypted: true }),
   [assetId(5)]: () => new TextEncoder().encode("this is not a pdf"),
   [assetId(12)]: () => makeSyntheticPdf({ pages: ["My summary notes"] }),
+  [assetId(9)]: () => makeSyntheticPdf({ pages: ["Room map (synthetic)"] }),
 };
 
 /** Fixture asset loader; unknown ids behave like a missing local original. */

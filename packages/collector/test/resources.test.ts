@@ -127,6 +127,24 @@ describe("collecting again", () => {
     assert.equal(readFileSync(join(root, oldKey), "utf8"), "%PDF-synthetic-1");
   });
 
+  test("WBS-067: notice and assignment bodies are kept as sent; adding them is not a change, editing them is", async () => {
+    const { run, state } = setup();
+    const before = await run();
+    state.announcements[0]!.message = "<p>강의실이 <b>B101</b>로 바뀝니다.</p>";
+    state.assignments[0]!.description = "<p>보고서 1쪽</p>";
+    state.assignments[1]!.description = "   ";
+    const first = await run(manifest(before));
+    assert.equal(item(first, "notice", "6001")!.body, "<p>강의실이 <b>B101</b>로 바뀝니다.</p>");
+    assert.equal(item(first, "assignment", "7001")!.body, "<p>보고서 1쪽</p>");
+    assert.equal(item(first, "assignment", "7002")!.body, undefined, "an empty body is left out");
+    assert.equal(item(first, "notice", "6001")!.resource.revision, 1, "bodies appearing for the first time are not a change");
+    assert.equal(item(first, "assignment", "7001")!.resource.revision, 1);
+    state.assignments[0]!.description = "<p>보고서 2쪽</p>";
+    const second = await run(manifest(first));
+    assert.equal(item(second, "assignment", "7001")!.resource.revision, 2);
+    assert.equal(item(second, "notice", "6001")!.resource.revision, 1);
+  });
+
   test("a damaged stored original is downloaded again", async () => {
     const { run, root } = setup();
     const first = await run();

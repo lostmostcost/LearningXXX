@@ -5,6 +5,8 @@ export interface Entry {
   resource: Resource;
   assets: Asset[];
   assignment?: AssignmentMetadata;
+  /** WBS-067: notice/assignment body HTML as the LMS sent it; shown only through RichText. */
+  body?: string;
 }
 
 export interface Library {
@@ -22,10 +24,11 @@ const byKindThenTitle = (a: Entry, b: Entry) =>
 
 /** Groups a validated manifest for display. Week labels are the LMS originals; order comes from `order`. */
 export function buildLibrary(manifest: CollectionManifest): Library {
-  const entries: Entry[] = manifest.items.map(({ resource, assets, assignment }) => ({
+  const entries: Entry[] = manifest.items.map(({ resource, assets, assignment, body }) => ({
     resource,
     assets,
     ...(assignment ? { assignment } : {}),
+    ...(body ? { body } : {}),
   }));
   const weeks = [...manifest.weeks]
     .sort((a, b) => a.order - b.order)

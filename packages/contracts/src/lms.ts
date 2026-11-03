@@ -98,10 +98,14 @@ export const SyncRun = z
   });
 export type SyncRun = z.infer<typeof SyncRun>;
 
+/** WBS-067: the LMS's own HTML of a notice or assignment, kept as sent; the UI shows it through an allow-list, never as HTML. */
+export const MAX_BODY_CHARS = 300_000;
+
 export const ManifestItem = z.object({
   resource: Resource,
   assets: z.array(Asset),
   assignment: AssignmentMetadata.optional(),
+  body: z.string().max(MAX_BODY_CHARS).optional(),
 });
 
 export const Tombstone = z.object({

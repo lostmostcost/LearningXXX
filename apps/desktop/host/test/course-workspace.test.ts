@@ -8,7 +8,7 @@ import { CollectionManifest, type Session } from '@learningxxx/contracts';
 import { CourseWorkspaceService } from '../src/course-workspace.ts';
 import { materialLayout, syncMaterials } from '../src/course-materials.ts';
 const digest=(text:string)=>createHash('sha256').update(text).digest('hex');
-function setup(t:{after(f:()=>void|Promise<void>):void}, afterBuild:()=>void=()=>{}) {
+function setup(t:{after(f:()=>void|Promise<void>):void}, afterBuild:()=>void=()=>{}, notes?:(courseId:string)=>Promise<import('../src/week-notes.ts').WeekNote[]>) {
  const root=mkdtempSync(join(tmpdir(),'course-view-')),sessionsRoot=join(root,'sessions'),store=join(root,'store');mkdirSync(store);mkdirSync(sessionsRoot);
  let account='acct_synthetic01', builds=0;const sessions=new Map<string,Session>(), manifests=new Map<string,CollectionManifest>();
  const addCourse=(title:string,body='WEEK4_CANARY',revision=1,id=randomUUID())=>{
@@ -17,7 +17,7 @@ function setup(t:{after(f:()=>void|Promise<void>):void}, afterBuild:()=>void=()=
   const manifest=CollectionManifest.parse({schemaVersion:1,course:{id,title,accountKey:account,termId:'2026-2',sourceCourseId:'77'},weeks:[{id:week,courseId:id,sourceWeekId:'four',label:'4주차',order:0}],revision,syncRunId:randomUUID(),generatedAt:'2026-11-03T00:00:00Z',tombstones:[],items:[{resource:{id:resource,courseId:id,weekId:week,kind:'file',source:'lms',sourceId:'r',sourceUrl:'https://example.test/private?token=SECRET_SHOULD_NOT_APPEAR',title:'4주차 강의',revision,updatedAt:'2026-11-03T00:00:00Z'},assets:[{id:asset,resourceId:resource,mediaType:'application/pdf',bytes:body.length,sha256:digest(body),storageKey:'objects/'+digest(body),originalName:'week4.pdf'}]}]});manifests.set(id,manifest);return id;
  };
  const addSession=(courseId?:string)=>{const id=randomUUID(),cwd=join(sessionsRoot,id);mkdirSync(cwd);sessions.set(id,{appSessionId:id,mode:courseId?'course':'independent',...(courseId?{courseId}:{}),engine:'chat',status:'idle'} as Session);return{id,cwd};};
- const service=new CourseWorkspaceService({root:join(root,'views'),sessionsRoot,getSession:id=>sessions.get(id)!,source:{accountKey:()=>account,manifest:async id=>manifests.get(id),materials:async(id,dir)=>{builds++;const manifest=manifests.get(id)!;const entries=await syncMaterials(dir,materialLayout(manifest),{path:key=>join(store,key.replace('objects/','')),verify:async(key,sha)=>{try{return digest(readFileSync(join(store,key.replace('objects/','')),'utf8'))===sha}catch{return false}},pageTexts:async bytes=>[new TextDecoder().decode(bytes)]});afterBuild();return{manifest,entries};}}});
+ const service=new CourseWorkspaceService({...(notes?{notes}:{}),root:join(root,'views'),sessionsRoot,getSession:id=>sessions.get(id)!,source:{accountKey:()=>account,manifest:async id=>manifests.get(id),materials:async(id,dir)=>{builds++;const manifest=manifests.get(id)!;const entries=await syncMaterials(dir,materialLayout(manifest),{path:key=>join(store,key.replace('objects/','')),verify:async(key,sha)=>{try{return digest(readFileSync(join(store,key.replace('objects/','')),'utf8'))===sha}catch{return false}},pageTexts:async bytes=>[new TextDecoder().decode(bytes)]});afterBuild();return{manifest,entries};}}});
  // Read-only snapshots are derived test data only.
  t.after(()=>{const unlock=(p:string)=>{if(lstatSync(p).isSymbolicLink())return;if(lstatSync(p).isDirectory()){chmodSync(p,0o700);for(const n of requireReadDir(p))unlock(join(p,n));}else chmodSync(p,0o600);};unlock(root);rmSync(root,{recursive:true,force:true});});
  return{root,sessionsRoot,sessions,manifests,service,addCourse,addSession,builds:()=>builds,setAccount:(value:string)=>account=value};
@@ -57,4 +57,22 @@ test('an account change during preparation aborts publication',async t=>{
 test('a user file appearing during preparation is preserved instead of being replaced by the course link',async t=>{
  let cwd='';const f=setup(t,()=>writeFileSync(join(cwd,'course'),'USER_FILE')),s=f.addSession(f.addCourse('합성 A'));cwd=s.cwd;
  await assert.rejects(f.service.prepare(s.id,s.cwd));assert.equal(readFileSync(join(s.cwd,'course'),'utf8'),'USER_FILE');
+});
+
+test('WBS-078: a week\'s transcripts and notes sit beside its files, are listed in INDEX.md, and a new transcript makes a new copy',async t=>{
+ let transcript='[00:01] 오늘은 4주차, 메뉴 원가 계산';
+ const f=setup(t,()=>{},async()=>{const m=[...f.manifests.values()][0]!;return[{weekId:m.weeks[0]!.id,kind:'transcript',title:'4주차 녹음',text:transcript},{kind:'notice',title:'휴강 안내',text:'# 휴강 안내'}];});
+ const course=f.addCourse('합성 외식메뉴론'),s=f.addSession(course);const binding=await f.service.prepare(s.id,s.cwd);
+ const index=readFileSync(join(s.cwd,'course/INDEX.md'),'utf8');
+ assert.match(index,/주차별 강의 전사·정리본·과제·공지/);assert.match(index,/\[녹음 전사\] 4주차 녹음/);
+ const catalog=JSON.parse(readFileSync(join(s.cwd,'course/catalog.json'),'utf8'));
+ const note=catalog.weekNotes.find((n:{title:string})=>n.title==='4주차 녹음');
+ assert.match(note.path,/01 4주차\/\[녹음 전사\] 4주차 녹음\.txt$/,'in the same week folder as the PDF');
+ assert.equal(readFileSync(note.path,'utf8'),transcript);assert.equal(statSync(note.path).mode&0o222,0,'read-only like the rest');
+ assert.match(catalog.weekNotes.find((n:{title:string})=>n.title==='휴강 안내').path,/00 주차 없음\//);
+ assert.match(binding!.brief,/녹음 전사/,'the AI is told to read transcripts too');
+ const first=realpathSync(join(s.cwd,'course'));
+ await f.service.prepare(s.id,s.cwd);assert.equal(realpathSync(join(s.cwd,'course')),first,'unchanged notes reuse the copy');
+ transcript+='\n[00:30] 고친 문장';
+ await f.service.prepare(s.id,s.cwd);assert.notEqual(realpathSync(join(s.cwd,'course')),first,'a changed transcript gives a new copy');
 });

@@ -18,7 +18,10 @@ export async function assignmentSources(manifest: CollectionManifest, options: {
   if (options.summary?.trim()) add({ id: 'course-knowledge', title: '과목 정리 (course.md)', kind: 'course' }, options.summary);
   for (const item of [...manifest.items].sort((a, b) => a.resource.id.localeCompare(b.resource.id))) {
     const r = item.resource, week = r.weekId ? { weekId: r.weekId } : {};
-    if (r.kind === 'assignment' || r.kind === 'notice') add({ id: r.id, title: r.title, kind: r.kind, ...week, ...(r.kind === 'assignment' ? { assignmentId: r.id } : {}) }, htmlToText(item.body ?? ''));
+    if (r.kind === 'assignment' || r.kind === 'notice') {
+      const metadata = item.assignment ? `\n\n[수집된 과제 메타데이터]\n마감: ${item.assignment.dueAt ?? '미정'}\n표시 시간대: ${item.assignment.timezone} (근거: ${item.assignment.timezoneBasis})${item.assignment.submissionUrl ? `\n제출 페이지: ${item.assignment.submissionUrl}` : ''}` : '';
+      add({ id: r.id, title: r.title, kind: r.kind, ...week, ...(r.kind === 'assignment' ? { assignmentId: r.id } : {}) }, htmlToText(item.body ?? '') + metadata);
+    }
     for (const asset of [...item.assets].sort((a, b) => a.id.localeCompare(b.id))) {
       const base = { id: asset.id, title: `${r.title} · ${asset.originalName}`, kind: 'material' as const, ...week };
       if (asset.mediaType === 'application/pdf') {

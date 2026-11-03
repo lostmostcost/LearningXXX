@@ -15,4 +15,8 @@ test('all weeks/pages/text parts are supplied and missing visual/binary inputs s
   assert.ok(result.some(s => s.id === 'pdf:visual' && s.status === 'missing'));
   assert.ok(result.some(s => s.id === 'image' && s.status === 'missing'));
   assert.ok(result.some(s => s.title === '다른 주 전사' && s.text === '전사 전체'));
+  manifest.items[0]!.assignment = { resourceId: 'a', dueAt: '2026-11-09T14:59:00Z', timezone: 'Asia/Seoul', timezoneBasis: 'source_explicit' };
+  const withDeadline = await assignmentSources(manifest, { asset: async () => new Uint8Array(), pdf: async () => [], notes: [] });
+  assert.match(withDeadline.find(s => s.assignmentId === 'a')!.text!, /2026-11-09T14:59:00Z/);
+  assert.match(withDeadline.find(s => s.assignmentId === 'a')!.text!, /Asia\/Seoul/);
 });

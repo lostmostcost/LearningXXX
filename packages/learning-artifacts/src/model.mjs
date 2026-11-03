@@ -72,6 +72,7 @@ export function generationPrompt(s) {
     'reviewedSourceIds에는 실제 읽은 available source ID 전부를 넣고 missing은 넣지 마세요. 각 내용에는 근거 sourceIds 1개 이상. 문서면 sections(최대 40개, 문단 12개/절, 문단 3000자), slides면 slides(최대 60장, 장당 bullet 6개·합계 650자), video면 scenes(최대 30개, 장면당 bullet 5개·합계 400자, narration 2000자, 전체 narration 12000자). 사용하지 않는 배열은 []입니다.',
     'title/소제목 100자 이내. requirements 최대 60개, openQuestions 최대 30개. 한국어. 한 슬라이드·장면에 넘칠 정도로 넣지 말고 나누세요. 영상은 개념→예제→복습 순서. 과제는 요구사항별 초안과 확인할 점을 담습니다. HTML·URL·파일경로·코드 실행은 출력하지 마세요.',
     '문서에 ERD/개념도가 필요하면 해당 section에 diagram:{nodes:[{id,label,kind:"entity" 또는 "relationship",attributes:[속성],x,y}],edges:[{from,to,label:관계/카디널리티}]}를 추가하세요. node 최대16개, 이름24자, 속성6개/노드·18자/속성, 관계 label32자. x=0..740,y=0..1600, 폭260·높이80+속성당18인 카드가 겹치지 않도록 좌표를 정하세요. 관계 다이아몬드도 가능하며 긴 설명과 참여/카디널리티는 설명 문단으로 보충하세요. 과제에서 제외한 하위 문제는 풀지 마세요. 도표 데이터만 출력하고 SVG 코드는 출력하지 마세요.',
+    'diagram은 앱이 실제 SVG 도표로 렌더링하여 PDF에 포함합니다. 사용자가 별도 도구로 반드시 다시 그려야 한다고 단정하지 말고 도표·가정·카디널리티 검토를 안내하세요. 수집된 과제 메타데이터에 마감이 있으면 그 시간대·근거를 사용하고, 알려진 마감을 미확인이라고 하지 마세요.',
     JSON.stringify({ kind: s.kind, courseTitle: s.courseTitle, weekId: s.weekId, assignmentId: s.assignmentId, sources: s.sources }),
   ].join('\n\n');
 }

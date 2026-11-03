@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { setTimeout as pause } from 'node:timers/promises';
 import type { CollectionManifest, Session } from '@learningxxx/contracts';
 import { AssignmentWorkspaces, type AssignmentSource } from '../src/assignment-workspaces.ts';
@@ -112,6 +113,12 @@ test('explicit source selection keeps instructions and reports excluded content 
     const excluded = t.generatedSources().find(s => s.id === 'week-1')!;
     assert.equal(excluded.status, 'missing'); assert.equal(excluded.text, undefined); assert.match(excluded.reason!, /제외/);
     assert.equal(t.generatedSources().find(s => s.id === 'week-10')?.text, '열 번째 주 내용');
+    const { readdir } = await import('node:fs/promises');
+    const folder = (await readdir(t.options.root)).find(n => !n.endsWith('.json'))!;
+    const evidence = (await readdir(join(t.options.root, folder))).find(n => n.endsWith('.generation.json'))!;
+    const saved = await readFile(join(t.options.root, folder, evidence), 'utf8');
+    assert.ok(JSON.parse(saved).sources.find((s: { id: string }) => s.id === 'week-10').sha256);
+    assert.doesNotMatch(saved, /첫 주 내용|열 번째 주 내용/);
     await assert.rejects(t.service.generate({ ...selected, allowMissing: true, includedSourceIds: ['unknown'] }), /선택한 자료/);
   } finally { await t.done(); }
 });
@@ -126,5 +133,24 @@ test('working symlinks and changed immutable snapshots are never read as preview
     await writeFile(join(t.options.root, folder, `${made.revision}.html`), 'tampered');
     await assert.rejects(t.service.state(scope), /변경됐/);
     assert.equal(await readFile(external, 'utf8'), 'private canary');
+  } finally { await t.done(); }
+});
+test('root and session-directory symlinks are rejected before creating any external outputs', async () => {
+  const t = await setup(); try {
+    const opened = await t.service.open(scope), external = join(t.dir, 'external');
+    await mkdir(external);
+    const linkedRoot = join(t.dir, 'linked-records'); await symlink(t.options.root, linkedRoot);
+    assert.throws(() => new AssignmentWorkspaces({ ...t.options, root: linkedRoot }), /경계/);
+    const cwd = join(t.options.sessionsRoot, opened.sessionId);
+    await rm(cwd, { recursive: true }); await symlink(external, cwd);
+    await assert.rejects(t.service.state(scope), /경계/);
+    await assert.rejects(access(join(external, 'outputs')));
+  } finally { await t.done(); }
+});
+test('a named pipe working draft is rejected without waiting for a writer', { skip: process.platform === 'win32', timeout: 2000 }, async () => {
+  const t = await setup(); try {
+    const opened = await t.service.open(scope);
+    execFileSync('mkfifo', [t.working(opened.sessionId)]);
+    await assert.rejects(t.service.state(scope), /2MB 이하의 HTML/);
   } finally { await t.done(); }
 });

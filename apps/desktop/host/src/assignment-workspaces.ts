@@ -1,4 +1,4 @@
-import { constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { isAbsolute, join, relative } from 'node:path';
@@ -26,6 +26,14 @@ interface Options {
 const hash = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
 const fail: (message: string) => never = message => { throw Object.assign(new Error(message), { appError: { code: 'INVALID_REQUEST', message, retryable: false } }); };
 const inside = (root: string, path: string) => { const p = relative(root, path); return p !== '..' && !p.startsWith('../') && !isAbsolute(p); };
+const readRecord = (path: string): Record => {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > 2_000_000) fail('과제 기록 파일이 올바르지 않습니다.');
+    return RecordSchema.parse(JSON.parse(readFileSync(fd, 'utf8')));
+  } finally { closeSync(fd); }
+};
 
 /** Local immutable versions; a normal Claude conversation edits only its own working copy.
  * This checks app-level account/file boundaries; native Claude remains the approved normal environment.
@@ -38,32 +46,37 @@ export class AssignmentWorkspaces {
   #opening = new Map<string, Promise<State>>(); #publishing = new Map<string, Promise<void>>();
   constructor(options: Options) {
     this.#o = options; mkdirSync(options.root, { recursive: true, mode: 0o700 });
+    if (lstatSync(options.root).isSymbolicLink()) fail('과제 저장 폴더 경계가 바뀌었습니다.');
     for (const name of readdirSync(options.root).filter(n => /^[0-9a-f]{64}\.json$/.test(n))) {
       const path = join(options.root, name);
       if (lstatSync(path).isSymbolicLink()) continue;
-      try { this.#bind(RecordSchema.parse(JSON.parse(readFileSync(path, 'utf8')))); } catch { /* A corrupt record is refused when that assignment opens. */ }
+      try { this.#bind(readRecord(path)); } catch { /* A corrupt record is refused when that assignment opens. */ }
     }
   }
   #bind(r: Record) { for (const id of [r.sessionId, ...r.past]) this.#binding.set(id, { account: r.account, courseId: r.courseId, assignmentId: r.assignmentId }); }
   #assert(c: Context) { if (this.#o.accountKey() !== c.account) fail('학교 계정이 바뀌어 과제 작업을 중단했습니다.'); }
   #directory(c: Context) {
+    if (lstatSync(this.#o.root).isSymbolicLink()) fail('과제 저장 폴더 경계가 바뀌었습니다.');
     const path = join(this.#o.root, c.key); mkdirSync(path, { recursive: true, mode: 0o700 });
     if (lstatSync(path).isSymbolicLink() || !inside(realpathSync(this.#o.root), realpathSync(path))) fail('과제 저장 폴더 경계가 바뀌었습니다.');
     return path;
   }
   #save(c: Context, versionsOnly = false, allowSessionChange = false) {
+    if (lstatSync(this.#o.root).isSymbolicLink()) fail('과제 저장 폴더 경계가 바뀌었습니다.');
     const path = join(this.#o.root, `${c.key}.json`), tmp = `${path}.${randomUUID()}.tmp`;
     if (existsSync(path)) {
       if (lstatSync(path).isSymbolicLink()) fail('과제 기록 경계가 바뀌었습니다.');
-      const latest = RecordSchema.parse(JSON.parse(readFileSync(path, 'utf8')));
+      const latest = readRecord(path);
       if (!allowSessionChange && latest.sessionId !== c.record.sessionId) fail('과제 대화가 바뀌었습니다. 다시 열어 주세요.');
       const versions = new Map(latest.versions.map(v => [v.id, v]));
       for (const v of c.record.versions) versions.set(v.id, { ...v, pdf: v.pdf || versions.get(v.id)?.pdf || false });
       c.record = { ...(versionsOnly ? latest : c.record), versions: [...versions.values()], past: [...new Set([...latest.past, ...c.record.past])] };
     }
+    if (c.record.versions.length > 2000) fail('보존된 초안 판이 너무 많습니다. 기존 파일은 그대로 있습니다.');
     writeFileSync(tmp, JSON.stringify(c.record), { flag: 'wx', mode: 0o600 }); renameSync(tmp, path); this.#bind(c.record);
   }
   async #context(scope: AssignmentScope, create = false): Promise<Context> {
+    if (lstatSync(this.#o.root).isSymbolicLink()) fail('과제 저장 폴더 경계가 바뀌었습니다.');
     const account = this.#o.accountKey(); if (!account) fail('먼저 학교 계정의 자료를 수집해 주세요.');
     const manifest = await this.#o.manifest(scope.courseId);
     if (!manifest || manifest.course.id !== scope.courseId || manifest.course.accountKey !== account || this.#o.accountKey() !== account) fail('현재 학교 계정의 과목이 아닙니다.');
@@ -75,7 +88,7 @@ export class AssignmentWorkspaces {
     let record: Record;
     if (existsSync(file)) {
       if (lstatSync(file).isSymbolicLink()) fail('과제 기록 경계가 바뀌었습니다.');
-      try { record = RecordSchema.parse(JSON.parse(readFileSync(file, 'utf8'))); } catch { fail('과제 기록을 읽지 못했습니다. 원본을 보존했습니다.'); }
+      try { record = readRecord(file); } catch { fail('과제 기록을 읽지 못했습니다. 원본을 보존했습니다.'); }
       if (record.account !== account || record.courseId !== scope.courseId || record.assignmentId !== scope.assignmentId) fail('과제 기록의 소속이 다릅니다.');
     } else {
       if (!create) fail('과제 작업을 먼저 열어 주세요.');
@@ -89,8 +102,10 @@ export class AssignmentWorkspaces {
     const session = this.#o.getSession(sessionId);
     if (session.archivedAt || session.engine !== 'chat' || session.mode !== 'course' || session.courseId !== c.manifest.course.id) fail('보관되거나 소속이 다른 과제 대화입니다. 새 과제 대화를 여세요.');
     mkdirSync(this.#o.sessionsRoot, { recursive: true, mode: 0o700 });
+    if (lstatSync(this.#o.sessionsRoot).isSymbolicLink()) fail('과제 대화 폴더 경계가 바뀌었습니다.');
     const root = realpathSync(this.#o.sessionsRoot), cwd = join(root, sessionId);
     mkdirSync(cwd, { recursive: true, mode: 0o700 });
+    if (lstatSync(cwd).isSymbolicLink() || realpathSync(cwd) !== cwd) fail('과제 대화 폴더 경계가 바뀌었습니다.');
     const folder = join(cwd, 'outputs'); mkdirSync(folder, { recursive: true, mode: 0o700 });
     if (lstatSync(cwd).isSymbolicLink() || realpathSync(cwd) !== cwd || lstatSync(folder).isSymbolicLink() || realpathSync(folder) !== folder) fail('과제 대화 폴더 경계가 바뀌었습니다.');
     return { cwd, path: join(folder, 'assignment-draft.html') };
@@ -131,7 +146,7 @@ export class AssignmentWorkspaces {
   async #readWorking(c: Context): Promise<string | undefined> {
     const { path } = this.#workspace(c); if (!existsSync(path)) return undefined;
     if (lstatSync(path).isSymbolicLink()) fail('초안 파일에 심볼릭 링크를 사용할 수 없습니다.');
-    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
       const info = await handle.stat(); if (!info.isFile() || info.size > 2_000_000) fail('초안은 2MB 이하의 HTML 파일이어야 합니다.');
       if (!inside(realpathSync(this.#o.sessionsRoot), realpathSync(path))) fail('초안 파일 경계를 벗어났습니다.');
@@ -142,7 +157,7 @@ export class AssignmentWorkspaces {
   async #snapshot(c: Context, id: string): Promise<string> {
     const version = c.record.versions.find(v => v.id === id); if (!version) fail('이 과제의 초안 판이 아닙니다.');
     const path = join(this.#directory(c), `${id}.html`);
-    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
       const stat = await handle.stat(); if (!stat.isFile() || stat.size > 2_000_000) fail('보존된 초안 파일이 올바르지 않습니다.');
       if (lstatSync(path).isSymbolicLink() || !inside(realpathSync(this.#o.root), realpathSync(path))) fail('보존된 초안 경계가 바뀌었습니다.');
@@ -175,7 +190,7 @@ export class AssignmentWorkspaces {
     const version = current.record.versions.at(-1), sources = this.#sources.get(c.key);
     if (version) await this.#snapshot(current, version.id);
     this.#assert(current);
-    return { sessionId: current.record.sessionId, title: current.title, phase: this.#active.get(c.key)?.phase ?? (current.record.phase ? 'interrupted' : 'idle'), error: current.record.error || (current.record.phase && !this.#active.has(c.key) ? '앱 종료로 작업이 중단됐습니다. 이전 초안은 보존됐으며 자동 재실행하지 않습니다.' : ''), sourceToken: sources?.token ?? '', sources: sources?.sources.map(({ text, weekId: _week, kind: _kind, assignmentId, ...s }) => ({ ...s, characters: text?.length ?? 0, required: assignmentId === c.record.assignmentId })) ?? [], ...(version ? { revision: version.id, previewUrl: `assignment-preview://view/${current.record.courseId}/${current.record.assignmentId}/${version.id}` } : {}), versions: current.record.versions.slice(-100).map(({ hash: _hash, ...v }) => v) };
+    return { sessionId: current.record.sessionId, title: current.title, phase: this.#active.get(c.key)?.phase ?? (current.record.phase ? 'interrupted' : 'idle'), error: current.record.error || (current.record.phase && !this.#active.has(c.key) ? '앱 종료로 작업이 중단됐습니다. 이전 초안은 보존됐으며 자동 재실행하지 않습니다.' : ''), sourceToken: sources?.token ?? '', sources: sources?.sources.map(({ text, weekId: _week, kind: _kind, assignmentId, ...s }) => ({ ...s, characters: text?.length ?? 0, required: assignmentId === c.record.assignmentId })) ?? [], ...(version ? { revision: version.id, previewUrl: `assignment-preview://view/${current.record.courseId}/${current.record.assignmentId}/${version.id}` } : {}), versions: current.record.versions.map(({ hash: _hash, ...v }) => v) };
   }
   async preview(scope: AssignmentScope & { revision: string }) { const c = await this.#context(scope); const html = await this.#snapshot(c, scope.revision); this.#assert(c); return html; }
   async state(scope: AssignmentScope) { return this.#state(await this.#context(scope)); }
@@ -207,6 +222,15 @@ export class AssignmentWorkspaces {
       const path = this.#workspace(c).path, tmp = `${path}.${randomUUID()}.tmp`;
       writeFileSync(tmp, html, { flag: 'wx', mode: 0o600 }); renameSync(tmp, path);
       delete c.record.phase; this.#save(c); await this.#publish(c, true);
+      const latest = await this.#context(scope), digest = hash(html);
+      const version = latest.record.versions.findLast(v => v.hash === digest);
+      if (!version) fail('생성된 초안 보존을 확인하지 못했습니다. 다시 열어 주세요.');
+      // Keep the exact text hashes and explicit exclusions with each generation,
+      // even when an identical HTML output reuses an existing immutable version.
+      writeFileSync(join(this.#directory(c), `${randomUUID()}.generation.json`), JSON.stringify({
+        version: 1, revision: version.id, htmlHash: digest, sourceToken: scope.sourceToken, createdAt: new Date().toISOString(),
+        sources: sources.map(({ text, ...metadata }) => ({ ...metadata, ...(text ? { sha256: hash(text), characters: text.length } : {}) })),
+      }), { flag: 'wx', mode: 0o600 });
     } catch (e) {
       delete c.record.phase; c.record.error = abort.signal.aborted ? '초안 생성을 취소했습니다. 이전 판은 보존했습니다.' : (e as { appError?: { message: string } }).appError?.message ?? '초안 생성이 실패했습니다. 이전 판은 보존했습니다.'; this.#save(c); throw e;
     } finally { clearInterval(timer); this.#active.delete(c.key); }

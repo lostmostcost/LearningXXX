@@ -25,13 +25,20 @@ function component(name: string, max = 100): string {
  * A resource with several files keeps each file's own name. Same names get a
  * number, so every path is unique.
  */
-export function materialLayout(manifest: CollectionManifest): MaterialEntry[] {
+/** The folder each week's files go in (`01 1주차`), in LMS order; shared with WBS-078's week notes. */
+export function weekFolders(manifest: CollectionManifest): Map<string, string> {
   const weeks = manifest.weeks.toSorted((a, b) => a.order - b.order);
-  const folder = new Map(weeks.map((w, i) => [w.id, component(`${String(i + 1).padStart(2, "0")} ${w.label}`)]));
+  return new Map(weeks.map((w, i) => [w.id, component(`${String(i + 1).padStart(2, "0")} ${w.label}`)]));
+}
+export const NO_WEEK_FOLDER = "00 주차 없음";
+export const fileComponent = (name: string): string => component(name);
+
+export function materialLayout(manifest: CollectionManifest): MaterialEntry[] {
+  const folder = weekFolders(manifest);
   const used = new Set<string>();
   const entries: MaterialEntry[] = [];
   for (const { resource, assets } of manifest.items) {
-    const dir = (resource.weekId && folder.get(resource.weekId)) || "00 주차 없음";
+    const dir = (resource.weekId && folder.get(resource.weekId)) || NO_WEEK_FOLDER;
     for (const asset of assets) {
       const ext = extname(asset.originalName).toLowerCase();
       const base = assets.length === 1 ? component(resource.title.endsWith(ext) ? resource.title.slice(0, -ext.length) : resource.title) : component(asset.originalName.slice(0, asset.originalName.length - ext.length));

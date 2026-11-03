@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
+import { weekNotes } from "./week-notes.ts";
 import { NativeTerminalService } from "./native-terminal.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -300,7 +301,20 @@ app.whenReady().then(async () => {
     if (s.state === "ready" && library.accountKey()) await media.retryUnavailable();
   }).catch(() => undefined);
   let conversations: ConversationService;
-  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id) });
+  // WBS-078: what the app keeps per week (transcripts, notes, assignment/notice text) goes into the course folder too.
+  const seoul = (utc: string) => new Date(utc).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const notesFor = async (courseId: string) => {
+    const manifest = await library.manifest(courseId);
+    if (!manifest) return [];
+    const listed = await media.list(courseId).catch(() => undefined);
+    return weekNotes({
+      manifest, media: listed, formatTime: seoul,
+      doc: async (assetId, kind) => (await media.importedDoc(courseId, assetId, kind).catch(() => undefined))?.text,
+      learning: await learning.status(courseId).catch(() => undefined),
+      mentions: (await media.mentions(courseId).catch(() => undefined))?.mentions,
+    });
+  };
+  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
   const terminals = new NativeTerminalService({ prepareCourse, courseHookPath: join(app.getAppPath(), 'src/native-course-hook.cjs'), canOpen: id => !conversations?.active(id), root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
   conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: id => terminals.isActive(id) });

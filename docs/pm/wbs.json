@@ -2315,16 +2315,20 @@
       ],
       "paths": [
         "apps/desktop/host/",
-        "docs/pm/"
+        "docs/pm/",
+        "packages/collector/test/runs.test.ts"
       ],
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "과목 채팅의 자료 폴더에 주차별 녹음 전사문·정리본·과제·공지 본문이 함께 있어 'N주차 강의 요약'이 PDF가 없어도 이것들을 읽고 답한다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-078-week-context",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81fcb443e6890dae929c?pvs=204",
-      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준. 영역 밖 최소 수정: packages/collector/test/runs.test.ts(기존 동시 수집 테스트의 경합으로 전체 검사가 간헐 실패, 시험 코드만 수정, collector 선점자 없음).",
+      "review_evidence": [
+        "Reviewed weekNotes (recording by filed week, downloaded lecture by LMS week label, newest transcript version only, readable notes, assignment/notice text via tag stripping with due/posted time, mentions by recording week), course-workspace changes (notes in the fingerprint, files beside the week's LMS files with unique names, read-only seal, catalog weekNotes, INDEX section, brief instruction to read transcripts and summarise without PDFs), main wiring (media list, imported docs, cached learning status, mentions; failures give no notes rather than blocking the chat). Checks: new week-notes and course-workspace tests (placement, newest version, assignment text, mention line, INDEX/catalog/read-only, reuse vs new copy on change), pnpm -r run check. A real chat answer was not tried by the agent."
+      ]
     }
   ],
   "qaPolicy": {

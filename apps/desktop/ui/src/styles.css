@@ -271,3 +271,22 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
   .capture-action.secondary:hover { background: #57534e; }
 }
 
+/* WBS-065: recordings under their week and lecture, and the week/lecture pickers. */
+.week-files .lecture-group{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+.week-files .recording-file small{display:block;color:var(--muted,#888);font-size:11px;}
+.week-files .recording-file .video-title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.week-files .recording-file .icon{color:#dc2626;}
+.week-files .recording-file.nested{margin-left:14px;min-width:126px;border-style:dashed;}
+.week-files .recording-file.unfiled{border-style:dashed;}
+.week-picker{display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.week-picker select{max-width:180px;font-size:12px;}
+.capture-place{margin:4px 0 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;}
+.media-heading .media-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.media-place{margin:-4px 0 10px;font-size:12px;}
+.move-place{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.unfiled-recordings{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:10px 0;}
+.unfiled-recordings h4{margin:0 0 4px;font-size:13px;}
+.unfiled-recordings ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:10px;}
+.unfiled-recordings li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.unfiled-title{display:flex;flex-direction:column;flex:1 1 100%;}
+.unfiled-title small{color:var(--muted);font-size:11px;}

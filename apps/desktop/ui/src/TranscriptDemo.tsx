@@ -26,7 +26,7 @@ export function TranscriptDemo() {
       <label>대상 채팅 <select aria-label="대상 채팅" value={session} onChange={(e) => setSession(e.target.value)}><option value="sample-a">샘플 세션 A</option><option value="sample-b">샘플 세션 B</option><option value="">세션 없음</option></select></label>
     </div>
     <TranscriptPanel courseId={MEDIA_COURSE_ID} assets={[SAMPLE_MEDIA, SAMPLE_RECOVERED_MEDIA, SAMPLE_VIDEO]} recordings={SAMPLE_RECORDINGS}
-      jobs={[SAMPLE_JOBS[jobIndex]!]} transcripts={[SAMPLE_TRANSCRIPT, SAMPLE_CORRECTED]} loadOriginal={loadOriginal}
+      jobs={[SAMPLE_JOBS[jobIndex]!]} transcripts={[SAMPLE_TRANSCRIPT, SAMPLE_CORRECTED]} loadOriginal={loadOriginal} selectedAssetId={SAMPLE_MEDIA.id}
       downloads={[{ id: "sample-download", courseId: MEDIA_COURSE_ID, title: "다음 온라인 강의 예시", status: SAMPLE_JOBS[jobIndex]!.status as DownloadViewInput["status"] }]}
       targetSession={session ? { id: session, title: session === "sample-a" ? "샘플 세션 A" : "샘플 세션 B" } : undefined}
       onRetry={async () => setJobIndex(1)}

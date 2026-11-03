@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { LectureSourceId, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -223,7 +223,13 @@ export const IpcChannels = {
    * then the renderer captures 16 kHz mono PCM and sends it in chunks.
    */
   "recording.start": {
-    request: z.object({ courseId: Id, title: z.string().trim().min(1).max(200).optional() }),
+    request: z.object({ courseId: Id, title: z.string().trim().min(1).max(200).optional(), weekId: Id.optional(), lectureSourceId: LectureSourceId.optional() })
+      .refine((r) => r.lectureSourceId === undefined || r.weekId !== undefined, "a lecture is chosen within a week"),
+    response: z.object({ recording: Recording }),
+  },
+  /** WBS-065: files a recording (also an older one without a week) under a week and, optionally, one of its lectures. */
+  "recording.assign": {
+    request: z.object({ recordingId: Id, weekId: Id, lectureSourceId: LectureSourceId.optional() }),
     response: z.object({ recording: Recording }),
   },
   /** One chunk of 16-bit little-endian PCM, appended and flushed before the answer. `seq` starts at 0. */

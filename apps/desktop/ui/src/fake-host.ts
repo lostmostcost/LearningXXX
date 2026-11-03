@@ -1,5 +1,6 @@
 import type { HostPush, IpcChannel, IpcResponse, Run, RunEvent, Session } from "@learningxxx/contracts";
-import { SAMPLE_MEDIA, SAMPLE_TRANSCRIPT, SAMPLE_JOBS } from "./transcript-fixtures.ts";
+import { SAMPLE_MEDIA, SAMPLE_TRANSCRIPT, SAMPLE_JOBS, SAMPLE_RECORDINGS } from "./transcript-fixtures.ts";
+import type { Recording } from "@learningxxx/contracts";
 import { syntheticAudio } from "./TranscriptDemo.tsx";
 import { INTENT_LABEL } from "./selection.ts";
 import { FIXTURE_MANIFEST } from "./fixtures.ts";
@@ -42,6 +43,9 @@ export function installFakeHost(courseTitle: string): void {
   const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
   const fakeViewed = new Set<string>();
   let fakeRec: { id: string; courseId: string; bytes: number } | undefined;
+  // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
+  let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
+  const forCourse = (courseId: unknown) => fakeRecordings.filter((r) => r.courseId === String(courseId) || r.id === SAMPLE_RECORDINGS[0]!.id).map((r) => ({ ...r, courseId: String(courseId) }));
   // `?fixture=mic` (WBS-064 checks): recording works with a generated tone in place of the
   // microphone, so the recording screen can be tried without opening a real one.
   const SYNTHETIC_MIC = new URLSearchParams(location.search).get("fixture") === "mic";
@@ -66,7 +70,7 @@ export function installFakeHost(courseTitle: string): void {
     'media.pauseTranscription': () => ok({ paused: true }),
     'media.resumeTranscription': () => ok({ paused: false }),
     'media.cancelTranscription': () => ok({}),
-    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: [], jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT] : [], downloads: [] }),
+    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: forCourse(p.courseId), jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT] : [], downloads: [] }),
     'media.original': async () => ok({ bytes: new Uint8Array(await syntheticAudio().arrayBuffer()), mediaType: 'audio/wav' }),
     'media.retry': () => { fixtureJob = SAMPLE_JOBS[2]!; return ok({}); },
     'media.open': () => ok({}),
@@ -88,10 +92,11 @@ export function installFakeHost(courseTitle: string): void {
     "terminal.stage": () => ok({ text: '합성 첨부 경로 예제' }),
     "session.list": () => ok({ sessions: [...sessions] }),
     // WBS-064: synthetic recording so the recording screen can be checked without a microphone or host.
-    "recording.start": (p) => { if (!SYNTHETIC_MIC) return fail('INVALID_REQUEST', '합성 UI 예제에서는 마이크를 사용하지 않습니다.'); fakeRec = { id: crypto.randomUUID(), courseId: String(p.courseId), bytes: 0 }; return ok({ recording: { schemaVersion: 1, id: fakeRec.id, courseId: fakeRec.courseId, title: "합성 녹음", startedAt: now(), status: "recording" } }); },
+    "recording.start": (p) => { if (!SYNTHETIC_MIC) return fail('INVALID_REQUEST', '합성 UI 예제에서는 마이크를 사용하지 않습니다.'); fakeRec = { id: crypto.randomUUID(), courseId: String(p.courseId), bytes: 0 }; const recording: Recording = { schemaVersion: 1, id: fakeRec.id, courseId: fakeRec.courseId, title: "합성 녹음", startedAt: now(), status: "recording", ...(p.weekId ? { weekId: String(p.weekId) } : {}), ...(p.lectureSourceId ? { lectureSourceId: String(p.lectureSourceId) } : {}) }; fakeRecordings.push(recording); return ok({ recording }); },
     "recording.chunk": (p) => { if (fakeRec) fakeRec.bytes += (p.pcm as Uint8Array).byteLength; return ok({ savedMs: Math.floor((fakeRec?.bytes ?? 0) / 32) }); },
-    "recording.stop": () => { const r = fakeRec; fakeRec = undefined; return ok({ recording: { schemaVersion: 1, id: r?.id ?? crypto.randomUUID(), courseId: r?.courseId ?? FIXTURE_MANIFEST.course.id, title: "합성 녹음", startedAt: now(), status: "failed", errorCode: "RECORDING_INTERRUPTED" } }); },
-    "recording.list": () => ok({ recordings: [], assets: [] }),
+    "recording.stop": () => { const r = fakeRec; fakeRec = undefined; const done = fakeRecordings.find((x) => x.id === r?.id); fakeRecordings = fakeRecordings.filter((x) => x.id !== r?.id); return ok({ recording: { ...(done ?? { schemaVersion: 1, id: r?.id ?? crypto.randomUUID(), courseId: r?.courseId ?? FIXTURE_MANIFEST.course.id, title: "합성 녹음", startedAt: now() }), status: "failed", errorCode: "RECORDING_INTERRUPTED" } }); },
+    "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),
+    "recording.assign": (p) => { const i = fakeRecordings.findIndex((r) => r.id === p.recordingId); if (i < 0) return fail('NOT_FOUND', '녹음을 찾을 수 없습니다.'); const { lectureSourceId: _old, ...rest } = fakeRecordings[i]!; fakeRecordings[i] = { ...rest, weekId: String(p.weekId), ...(p.lectureSourceId ? { lectureSourceId: String(p.lectureSourceId) } : {}) }; return ok({ recording: fakeRecordings[i] }); },
     "app.build": () => ok({ dev: true, branch: "fixture", commit: "0000000", dirty: false, folder: "fixture" }),
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
@@ -101,7 +106,9 @@ export function installFakeHost(courseTitle: string): void {
         sourceRef: i.resource.kind === "assignment" ? `assignment:${i.resource.sourceId}` : i.resource.sourceId,
         moduleItemId: String(1000 + n),
         completed: i.resource.kind === "assignment" ? null : n % 2 === 1 || fakeViewed.has(String(1000 + n)), attendance: null, usesAttendance: false, period: "open",
-        unlockAt: null, dueAt: i.assignment?.dueAt ?? null, lockAt: null,
+        weekLabel: FIXTURE_MANIFEST.weeks.find((w) => w.id === i.resource.weekId)?.label,
+        // WBS-065: synthetic opening times (week n opens 2026-08-31 + n-1 weeks) so "this week" can be estimated.
+        unlockAt: (() => { const w = FIXTURE_MANIFEST.weeks.find((x) => x.id === i.resource.weekId); return w ? new Date(Date.parse("2026-08-31T01:00:00Z") + w.order * 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, "Z") : null; })(), dueAt: i.assignment?.dueAt ?? null, lockAt: null,
         ...(i.resource.kind === "assignment" ? { submission: { state: n % 3 === 0 ? "submitted" : "unsubmitted", submittedAt: null, late: false, missing: false, attempt: null, types: ["online_upload"], allowedExtensions: ["pdf"], allowedAttempts: -1 } } : {}),
       })),
     } }),

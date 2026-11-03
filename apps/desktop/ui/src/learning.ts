@@ -73,21 +73,34 @@ export interface Todo {
 /**
  * Things still to do, as the LMS counts them: unsubmitted work, lectures not
  * attended, materials not completed, quizzes not taken. Only items still open
- * (the end date has not passed) are listed; earliest deadline first.
+ * (the end date has not passed) and already open (WBS-084) are listed;
+ * earliest deadline first.
  */
+/** WBS-084: not open yet — the LMS says so, or its start time is still ahead. */
+export const notOpenYet = (item: Pick<LearningItem, "period" | "unlockAt">, now: Date): boolean =>
+  item.period === "not_open" || (item.unlockAt !== null && Date.parse(item.unlockAt) > now.getTime());
+
+/** WBS-084: work that will open later, kept apart from the to-do list (soonest first). */
+export function upcoming(statuses: readonly CourseLearningStatus[], now: Date): Todo[] {
+  return statuses.flatMap((status) => status.items.filter((item) => notOpenYet(item, now) && pendingOf(item))
+    .map((item) => ({ courseId: status.courseId, item, until: item.dueAt ?? item.lockAt, overdue: false })))
+    .sort((a, b) => (a.item.unlockAt ?? a.until ?? "9999").localeCompare(b.item.unlockAt ?? b.until ?? "9999"));
+}
+
+const pendingOf = (item: LearningItem): boolean => item.submission
+  ? item.submission.state === "unsubmitted" && !item.submission.types.every((x) => x === "none" || x === "on_paper")
+  : item.usesAttendance
+    ? item.attendance !== "attendance"
+    : item.completed === false;
+
 export function todos(statuses: readonly CourseLearningStatus[], now: Date): Todo[] {
   const t = now.getTime();
   const list: Todo[] = [];
   for (const status of statuses) {
     for (const item of status.items) {
-      if (item.period === "not_open") continue;
+      if (notOpenYet(item, now)) continue;
       if (item.lockAt && Date.parse(item.lockAt) <= t) continue;
-      const pending = item.submission
-        ? item.submission.state === "unsubmitted" && !item.submission.types.every((x) => x === "none" || x === "on_paper")
-        : item.usesAttendance
-          ? item.attendance !== "attendance"
-          : item.completed === false;
-      if (!pending) continue;
+      if (!pendingOf(item)) continue;
       const until = item.dueAt ?? item.lockAt;
       list.push({ courseId: status.courseId, item, until, overdue: until !== null && Date.parse(until) <= t });
     }

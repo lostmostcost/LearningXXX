@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CourseLearningStatus, LearningItem, Resource } from "@learningxxx/contracts";
-import { badges, canRecordView, itemForResource, todos, weekProgress } from "../src/learning.ts";
+import { badges, canRecordView, itemForResource, notOpenYet, todos, upcoming, weekProgress } from "../src/learning.ts";
 
 const base: LearningItem = { kind: "material", title: "자료", completed: false, attendance: null, usesAttendance: false, period: "open", unlockAt: null, dueAt: null, lockAt: null };
 const item = (over: Partial<LearningItem>): LearningItem => ({ ...base, ...over });
@@ -88,4 +88,17 @@ test("WBS-059: quizzes list their state, period and why one cannot open here", a
     ["잠금", "미응시 · 마감 11-05 · 응시 1회 · 10문항", "학교 전용 브라우저(LockDown Browser)가 필요합니다"],
     ["예정", "미응시 · 12-01부터", "LMS에서 직접 여세요"],
   ]);
+});
+
+test("WBS-084: work whose start time is still ahead is not a to-do but listed as upcoming", () => {
+  const now = new Date("2026-11-03T00:00:00Z");
+  const s = status([
+    item({ title: "다음 주에 열림", kind: "assignment", completed: null, period: null, unlockAt: "2026-11-05T00:00:00Z", dueAt: "2026-11-12T00:00:00Z", submission: submission("unsubmitted") }),
+    item({ title: "LMS가 공개 전", completed: false, period: "not_open" }),
+    item({ title: "열림", completed: false, unlockAt: "2026-11-01T00:00:00Z" }),
+    item({ title: "이미 제출, 나중에 열림", kind: "assignment", completed: null, unlockAt: "2026-11-05T00:00:00Z", submission: submission("submitted") }),
+  ]);
+  assert.deepEqual(todos([s], now).map((t) => t.item.title), ["열림"]);
+  assert.deepEqual(upcoming([s], now).map((t) => t.item.title), ["다음 주에 열림", "LMS가 공개 전"]);
+  assert.equal(notOpenYet(item({ unlockAt: "2026-11-02T23:59:59Z" }), now), false);
 });

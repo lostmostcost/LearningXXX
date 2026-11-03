@@ -110,7 +110,10 @@ export function installFakeHost(courseTitle: string): void {
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
       schemaVersion: 1, courseId: FIXTURE_MANIFEST.course.id, fetchedAt: now(), errors: [],
-      items: FIXTURE_MANIFEST.items.filter((i) => i.resource.kind !== "notice" && i.resource.source !== "manual").map((i, n) => ({
+      items: [
+        // WBS-057: a synthetic online lecture not attended yet, for the watch button.
+        { kind: "video", title: "합성 1차시 강의", weekLabel: "1주차", moduleItemId: "2001", sourceRef: "commons:synthetic01", completed: false, attendance: "none", usesAttendance: true, period: "open", unlockAt: null, dueAt: "2026-11-09T14:59:00Z", lockAt: null },
+        ...FIXTURE_MANIFEST.items.filter((i) => i.resource.kind !== "notice" && i.resource.source !== "manual").map((i, n) => ({
         kind: i.resource.kind === "assignment" ? "assignment" : "material", title: i.resource.title,
         sourceRef: i.resource.kind === "assignment" ? `assignment:${i.resource.sourceId}` : i.resource.sourceId,
         moduleItemId: String(1000 + n),
@@ -119,8 +122,10 @@ export function installFakeHost(courseTitle: string): void {
         // WBS-065: synthetic opening times (week n opens 2026-08-31 + n-1 weeks) so "this week" can be estimated.
         unlockAt: (() => { const w = FIXTURE_MANIFEST.weeks.find((x) => x.id === i.resource.weekId); return w ? new Date(Date.parse("2026-08-31T01:00:00Z") + w.order * 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, "Z") : null; })(), dueAt: i.assignment?.dueAt ?? null, lockAt: null,
         ...(i.resource.kind === "assignment" ? { submission: { state: n % 3 === 0 ? "submitted" : "unsubmitted", submittedAt: null, late: false, missing: false, attempt: null, types: ["online_upload"], allowedExtensions: ["pdf"], allowedAttempts: -1 } } : {}),
-      })),
+      }))],
     } }),
+    // WBS-057: no real window in the fixture; the close is announced a moment later.
+    "learning.watch": (p) => { setTimeout(() => push({ kind: "learning.watchClosed", courseId: String(p.courseId), moduleItemId: String(p.moduleItemId) }), 800); return ok({}); },
     // WBS-056: the synthetic LMS "records" the view after a short wait.
     "learning.recordView": async (p) => {
       await new Promise((r) => setTimeout(r, 600));

@@ -54,3 +54,21 @@ test("only an open, unfinished LMS PDF in the viewer is recorded as viewed", () 
   assert.equal(canRecordView(item({}), now), false, "no LMS item page");
   assert.equal(canRecordView(undefined, now), false);
 });
+
+test("WBS-057: the next lecture to watch is the earliest-due open one not attended", async () => {
+  const { nextUnwatched, canWatch } = await import("../src/learning.ts");
+  const base = { completed: false, usesAttendance: true, unlockAt: null, lockAt: null, attendance: "none" as const, period: "open" as const };
+  const status = { schemaVersion: 1 as const, courseId: "11111111-1111-4111-8111-000000000001", fetchedAt: "2026-11-03T00:00:00Z", errors: [], items: [
+    { ...base, kind: "video" as const, title: "attended", moduleItemId: "1", dueAt: "2026-11-01T00:00:00Z", attendance: "attendance" as const },
+    { ...base, kind: "video" as const, title: "later", moduleItemId: "2", dueAt: "2026-11-20T00:00:00Z" },
+    { ...base, kind: "video" as const, title: "sooner", moduleItemId: "3", dueAt: "2026-11-10T00:00:00Z" },
+    { ...base, kind: "video" as const, title: "not open", moduleItemId: "4", dueAt: "2026-11-05T00:00:00Z", period: "not_open" as const },
+    { ...base, kind: "video" as const, title: "closed", moduleItemId: "5", dueAt: "2026-10-01T00:00:00Z", lockAt: "2026-10-02T00:00:00Z" },
+    { ...base, kind: "material" as const, title: "pdf", moduleItemId: "6", dueAt: "2026-11-04T00:00:00Z" },
+  ] };
+  assert.equal(nextUnwatched(status, new Date("2026-11-03T00:00:00Z"))?.title, "sooner");
+  assert.equal(nextUnwatched(undefined, new Date()), undefined);
+  assert.equal(canWatch(status.items[3]), false);
+  assert.equal(canWatch(status.items[1]), true);
+  assert.equal(canWatch(status.items[5]), false);
+});

@@ -318,3 +318,6 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .sidebar-edge .icon-rail{transform:translateX(240px);}
 .sidebar-edge .course-drawer{left:0;transform:none;visibility:visible;z-index:45;}
 @media(prefers-reduced-motion:reduce){.study-app,.icon-rail{transition:none;}}
+/* WBS-057: watching a lecture in the official LMS player. */
+.week-files .watch-lms{min-width:0;font-size:11px;padding:4px 8px;margin-left:14px;border-style:dashed;}
+.up-next{font-size:12px;margin:8px 0 0;}

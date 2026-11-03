@@ -97,3 +97,20 @@ export function todos(statuses: readonly CourseLearningStatus[], now: Date): Tod
 
 const KIND_LABEL: Record<LearningItem["kind"], string> = { video: "강의", material: "자료", live: "실시간", file: "파일", assignment: "과제", quiz: "퀴즈", other: "항목" };
 export const kindLabel = (item: LearningItem): string => KIND_LABEL[item.kind];
+
+/**
+ * WBS-057: the lecture to watch next — the earliest-due online lecture that
+ * counts toward attendance, is open (or in its late period) and is not yet
+ * attended. Undefined when there is none.
+ */
+export function nextUnwatched(status: CourseLearningStatus | undefined, now: Date): (LearningItem & { moduleItemId: string }) | undefined {
+  const t = now.getTime();
+  const open = (status?.items ?? []).filter((i): i is LearningItem & { moduleItemId: string } =>
+    (i.kind === "video" || i.kind === "live") && !!i.moduleItemId && i.usesAttendance && i.attendance !== "attendance"
+    && i.period !== "not_open" && !(i.lockAt && Date.parse(i.lockAt) <= t));
+  return open.sort((a, b) => (a.dueAt ?? a.lockAt ?? "9999").localeCompare(b.dueAt ?? b.lockAt ?? "9999"))[0];
+}
+
+/** WBS-057: whether a lecture item can be opened in the LMS watch window. */
+export const canWatch = (item: LearningItem | undefined): item is LearningItem & { moduleItemId: string } =>
+  !!item && (item.kind === "video" || item.kind === "live") && !!item.moduleItemId && item.period !== "not_open";

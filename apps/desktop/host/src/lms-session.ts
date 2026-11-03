@@ -125,3 +125,22 @@ export function allowedRedirectFetch(allowedOrigins: readonly string[]): typeof 
     return lms.fetch(url, { ...init, redirect: "manual" });
   }) as typeof globalThis.fetch;
 }
+
+/** CR-054 / WBS-055 read-only sources: LearningX weekly learning and Canvas assignments/quizzes. */
+export function createLearningSources(canvasToken: () => string | undefined): import("./learning-status.ts").LearningSources {
+  const lms = session.fromPartition(LMS_PARTITION);
+  const lx = async (path: string) => {
+    const token = await learningxToken();
+    const response = await lms.fetch(`${KHU_CANVAS_BASE_URL}/learningx/api/v1/${path}`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), Accept: "application/json" } });
+    if (response.status === 401 || response.status === 403) throw Object.assign(new Error("auth"), { appError: { code: "AUTH_REQUIRED" } });
+    if (!response.ok) throw new Error(`learningx ${response.status}`);
+    return (await response.json()) as unknown;
+  };
+  const canvas = () => createLmsClient(canvasToken);
+  return {
+    modules: async (id) => { const v = await lx(`courses/${encodeURIComponent(id)}/modules?include_detail=true`); return Array.isArray(v) ? v : []; },
+    attendanceItem: (id, itemId) => lx(`courses/${encodeURIComponent(id)}/attendance_items/${encodeURIComponent(itemId)}`),
+    assignments: (id) => canvas().getList(`/api/v1/courses/${encodeURIComponent(id)}/assignments?include[]=submission&per_page=100`),
+    quizzes: (id) => canvas().getList(`/api/v1/courses/${encodeURIComponent(id)}/quizzes?per_page=100`),
+  };
+}

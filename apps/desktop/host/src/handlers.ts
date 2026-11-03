@@ -4,6 +4,7 @@ import type { AppModifier } from "@learningxxx/app-modifier";
 import type { AttachmentService } from "./attachment-service.ts";
 import type { CredentialService } from "./credential-service.ts";
 import type { FileService } from "./file-service.ts";
+import type { LearningStatusService } from "./learning-status.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { RecordingService } from "./recording-service.ts";
 import type { SttRuntimeService } from "./stt-runtime.ts";
@@ -11,7 +12,7 @@ import type { MediaService } from "./media-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService, learning?: LearningStatusService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
@@ -56,6 +57,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "credentials.saveCanvasToken": (request) => signIn().saveCanvasToken(request),
     "credentials.clear": async (request) => signIn().clear(request),
     "library.courses": async () => ({ courses: await library.courses() }),
+    "learning.status": async ({ courseId, refresh }) => {
+      const status = await learning?.status(courseId, refresh ?? false);
+      return status ? { status } : {};
+    },
     "library.manifest": async ({ courseId }) => {
       const manifest = await library.manifest(courseId);
       return manifest ? { manifest } : {};

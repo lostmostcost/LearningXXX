@@ -225,3 +225,18 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .video-lectures .video-row .title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .video-lectures .video-row .meta { white-space: nowrap; }
 .video-viewer video { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 6px; }
+
+/* WBS-055: LMS learning status badges (completion, attendance, submission). */
+.badge.lms { display: inline-block; margin-left: 6px; white-space: nowrap; vertical-align: middle; }
+.badge.lms.done { color: #3f7a4a; border-color: #b9d6bd; }
+.badge.lms.todo { color: var(--focus); border-color: color-mix(in srgb, var(--focus) 45%, transparent); }
+.badge.lms.warn { color: #b3403a; border-color: #e3b3ae; }
+.agenda small .badge.lms { margin-left: 4px; }
+.agenda.overdue > span:last-child { color: #b3403a; }
+.week-progress { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.dashboard h2 .icon-button { margin-left: 6px; vertical-align: middle; }
+@media (prefers-color-scheme: dark) {
+  .badge.lms.done { color: #8cc795; border-color: #3f6a46; }
+  .badge.lms.warn { color: #ef9a93; border-color: #7a3b37; }
+  .agenda.overdue > span:last-child { color: #ef9a93; }
+}

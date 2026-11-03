@@ -89,3 +89,8 @@ STT 엔진과 실행 위치는 WBS-021에서 정한다. 자동 수집은 MVP 이
 ## 결정 6 · CR-050: 공식 대화형 Claude Code 중심
 사용자 직접 승인으로 새 대화는 node-pty(host) + xterm.js(renderer)로 공식 interactive CLI에 연결한다. 구독 인증은 기존 CLI preflight가 확인하며 API 키 대체·인증 추출은 없다. 새 일반 대화는 과거 independent 격리를 제공하지 않는다고 명시한다. 결정5는 legacy structured 경로에만 적용한다.
 PTY native addon은 Mac/Electron에서 실제 실행 검증한다. pnpm 자동 build script는 node-pty도 false로 유지한다. 공식 패키지에 동봉된 Mac spawn-helper의 실행 권한 준비만 명시 setup:pty에서 수행하며 임의 native addon을 다운로드하지 않는다. Python PTY 코드는 검증용 spike이며 제품 런타임 의존성이 아니다.
+
+
+## 결정 7 · CR-051: 공식 SDK 위의 채팅 기본 화면
+사용자 직접 승인으로 기본 채팅은 공식 Agent SDK의 구조화 스트림·제어 API를 사용하며 설치된 공식 CLI 실행 파일을 지정한다. 인증은 Mac의 기존 구독 로그인 preflight이며 API fallback은 없다. SDK는 최소 배포 경과 정책을 지킨 0.3.301로 고정하고 CLI 2.1.317과 합성 실검증했다. 모델·강도·모드·문맥·MCP·권한·파일 체크포인트는 엔진이 책임지고 UI가 실제 값만 표시한다. 구독 사용량 API는 실험 상태이므로 별도 호환 어댑터와 명시 실패 안내를 둔다.
+PTY/xterm은 고급 도구에 유지하며 동일 세션의 SDK와 PTY 실행은 상호 배타적이다. 양쪽 전환은 SessionStart 매핑으로 재개하고 현재 CLI 원본 메시지를 읽어 표시한다. Markdown은 기존 안전 렌더러를 재사용하며 renderer가 실행 경로·인증·임의 명령 인자를 고르지 못한다. 일반 설정·기억·스킬 허용과 격리 보장 없음은 결정6과 동일하다. 과거 기록 마이그레이션은 생략한다.

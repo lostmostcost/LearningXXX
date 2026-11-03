@@ -1,7 +1,7 @@
 # SPEC-003 · macOS 화면·자료·자유 채팅
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204
-Snapshot: 2026-11-03 · v0.3.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.4.0 · Notion is authoritative; refresh after approved changes.
 
 ## 화면 원칙
 REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. CR-047(2026-11-03 사용자 직접 승인): 시작 화면은 실제 수집 과목·과제 일정·개인 할 일 대시보드다. 과목 선택 후 PDF·채팅 중심 화면으로 전환한다. 초기 이미지 시안은 참고이며 최신 회의의 자유 채팅 결정을 따른다.
@@ -40,3 +40,10 @@ AI 답변은 Markdown(굵게·목록·표·코드)으로 렌더한다. raw HTML�
 ## CR-050 · Claude Code 중심 채팅
 새 채팅의 기본 화면은 실제 CLI 터미널이다. 입력 / 목록·자동완성·권한·답변은 설치된 Claude Code가 표시한다. 앱의 고정 로컬 명령 제안 UI는 활성 채팅에서 제거한다. 일반 대화는 격리 없음 안내를 표시한다. 사용자 초기화 승인에 따라 기존 대화 기록 이전·호환 화면은 제공하지 않는다.
 PDF 선택 문장은 명시 복사 후 CLI 입력창에 붙여넣는다. 파일/PDF는 준비→사용자 확인→읽기 전용 전달 복사본 경로 복사→원하는 CLI 대화에 사용자가 붙여넣는다. 키 입력을 권한 확인 화면에 잘못 주입할 수 있어 파일/선택을 자동으로 타이핑·전송하지 않는다. 녹음 탭과 세션 선택을 바꿔도 같은 CLI 프로세스는 유지한다.
+
+
+## CR-051 · 채팅 기본·핵심 명령 (이전 화면보다 우선)
+사용자 선택에 따라 Markdown 대화, 접을 수 있는 도구 실행 카드, 명시 권한·질문 카드와 일반 입력창이 기본이다. 터미널은 고급 도구로 유지한다. / 목록은 핵심 카탈로그 + 엔진의 실제 명령/스킬이며 빈도 순위라고 표현하지 않는다. 필터·방향키·Tab/Enter·Escape·IME 조합을 지원한다. 미지원 명령을 일반 모델 질문으로 바꾸지 않는다.
+/model·/effort·/plan·/mode·/permissions는 실제 엔진 제어, /compact·지원 스킬은 CLI 실행이다. /context·/cost·/usage·/skills·/mcp는 엔진 조회다. /clear는 기존 기록 보존 후 새 앱 세션, /resume는 앱 대화 목록, /rename는 앱 제목과 생성된 CLI 이력 제목을 변경한다. /copy·/export·/status·/help·/stop는 앱 동작이다. /rewind는 최근 사용자 요청 시점의 파일 체크포인트 미리보기·확인 후 복구이며 대화 문맥은 유지한다. /memory·/diff·/add-dir·/theme 등은 실제 제공 여부에 따라 고급 터미널로 안내한다.
+첨부·캡처는 준비→사용자 확인→입력 칩→명시 전송이다. PDF 선택은 명시적으로 초안에 넣는다. 비동기 응답은 시작한 세션에 연결하며 탭·세션 전환으로 초안과 작업을 중단하지 않는다. 모델·강도·모드는 입력 하단에 표시한다. 고급 도구로 바꿀 때 SDK 연결을 종료하고, 돌아올 때 PTY를 종료한 뒤 같은 CLI 대화를 재개한다. 과거 structured/native 기록의 마이그레이션 UI는 만들지 않는다.
+CR: https://app.notion.com/p/40dbd7ec20cd814aaefff0ff176ee897 · WBS-051.

@@ -212,7 +212,7 @@ export class SessionService {
     const now = this.#now();
     // Independent folders carry a UUID only: a course name in a path is context.
     const workspaceKey =
-      request.engine === "native" ? `native-sessions/${appSessionId}` : request.mode === "independent" ? `sessions/${appSessionId}` : `courses/${request.courseId}/sessions/${appSessionId}`;
+      (request.engine === "native" || request.engine === "chat") ? `native-sessions/${appSessionId}` : request.mode === "independent" ? `sessions/${appSessionId}` : `courses/${request.courseId}/sessions/${appSessionId}`;
     mkdirSync(join(this.#options.dataRoot, workspaceKey), { recursive: true });
     const session = Session.parse({
       appSessionId,

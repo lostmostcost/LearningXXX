@@ -5,7 +5,7 @@ import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
-import { NativeChatPanel } from "./NativeChatPanel.tsx";
+import { RichChatPanel } from "./RichChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { ModifyPanel } from "./ModifyPanel.tsx";
@@ -228,7 +228,7 @@ export function App() {
             {([['chat', '채팅'], ['recording', '녹음']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={`tool-panel-${id}`} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : 'mic'} />{label}</button>)}
           </div>
           <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
-            {window.host ? <NativeChatPanel selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
+            {window.host ? <RichChatPanel selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
           <div className="tool-pane recording-pane" id="tool-panel-recording" role="tabpanel" aria-labelledby="tool-recording" hidden={rightTab !== 'recording'}>
             {IN_APP && !FIXTURE_MODE && library ? <RecordingPanel courseId={library.course.id} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}

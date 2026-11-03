@@ -25,7 +25,24 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  */
 const TerminalId = z.string().uuid();
 const TerminalSize = { cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500) };
+export const ConversationState = z.object({
+  messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant', 'system']), text: z.string(), tools: z.array(z.object({ id: z.string(), name: z.string(), input: z.string() })) })),
+  busy: z.boolean(), connected: z.boolean(), error: z.string(), model: z.string(), effort: z.string(), mode: z.string(),
+  models: z.array(z.object({ value: z.string(), resolvedModel: z.string().optional(), displayName: z.string(), supportedEffortLevels: z.array(z.string()).optional(), supportsAutoMode: z.boolean().optional() })),
+  commands: z.array(z.object({ name: z.string(), description: z.string(), argumentHint: z.string() })),
+  permissions: z.array(z.object({ id: z.string(), tool: z.string(), input: z.record(z.string(), z.unknown()) })), totalCost: z.number(), tokens: z.number(), sessionId: z.string(),
+});
 export const IpcChannels = {
+  'chat.open': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
+  'chat.state': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
+  'chat.send': { request: z.object({ appSessionId: TerminalId, requestId: TerminalId, text: z.string().trim().min(1).max(100000) }), response: ConversationState },
+  'chat.configure': { request: z.object({ appSessionId: TerminalId, model: z.string().max(200).optional(), effort: z.string().max(30).optional(), mode: z.string().max(30).optional() }), response: ConversationState },
+  'chat.answer': { request: z.object({ appSessionId: TerminalId, permissionId: TerminalId, allow: z.boolean(), answers: z.record(z.string(), z.string()).optional() }), response: ConversationState },
+  'chat.interrupt': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
+  'chat.info': { request: z.object({ appSessionId: TerminalId, kind: z.enum(['context', 'cost', 'usage', 'mcp', 'skills']) }), response: z.object({ text: z.string() }) },
+  'chat.rewind': { request: z.object({ appSessionId: TerminalId, messageId: TerminalId, preview: z.boolean() }), response: z.object({ canRewind: z.boolean(), error: z.string().optional(), filesChanged: z.array(z.string()).optional(), insertions: z.number().optional(), deletions: z.number().optional(), skippedLinks: z.number().optional() }) },
+  'chat.detach': { request: z.object({ appSessionId: TerminalId }), response: z.object({}) },
+  'chat.back': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   "terminal.stage": { request: z.object({ appSessionId: TerminalId, attachmentId: TerminalId }), response: z.object({ text: z.string() }) },
   "terminal.open": { request: z.object({ appSessionId: TerminalId, ...TerminalSize }), response: z.object({ terminalId: TerminalId }) },
   "terminal.read": { request: z.object({ terminalId: TerminalId, after: z.number().int().nonnegative() }), response: z.object({ chunks: z.array(z.object({ seq: z.number().int(), data: z.string() })), state: z.enum(['running', 'exited']), gap: z.boolean(), exitCode: z.number().optional() }) },
@@ -78,9 +95,9 @@ export const IpcChannels = {
   },
   "session.create": {
     request: z.discriminatedUnion("mode", [
-      z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native"]).optional(), title: z.string().min(1).max(200) }),
+      z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),
       // No courseId field at all: the browsing course cannot be passed in.
-      z.strictObject({ mode: z.literal("independent"), engine: z.enum(["structured", "native"]).optional(), title: z.string().min(1).max(200) }),
+      z.strictObject({ mode: z.literal("independent"), engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),
     ]),
     response: z.object({ session: Session }),
   },

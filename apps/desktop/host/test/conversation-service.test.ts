@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -118,4 +118,57 @@ test('a failed course refresh does not enqueue or record the question; the same 
  let blocked=false;const f=setup(t,async()=>{if(blocked)throw new Error('account changed');return undefined;});await f.service.open(f.id);blocked=true;const uuid=randomUUID();
  await assert.rejects(f.service.send(f.id,'4주차 강의 요약해줘',uuid));assert.equal(f.service.state(f.id).busy,false);assert.equal(f.service.state(f.id).messages.length,0);
  blocked=false;await f.service.send(f.id,'4주차 강의 요약해줘',uuid);assert.equal(f.service.state(f.id).messages.length,1);
+});
+
+function resumeSetup(t: { after: (f: () => void | Promise<void>) => void }, sessions: NonNullable<ConversationOptions['sessions']>) {
+  const root = mkdtempSync(join(tmpdir(), 'wbs060-')), id = randomUUID(); let options: Options | undefined; const queries: FakeQuery[] = [];
+  const session = { appSessionId: id, engine: 'chat', mode: 'independent', status: 'idle' } as Session;
+  const service = new ConversationService({ root, getSession: () => session, rename() {}, nativeActive: () => false, prepare: async () => '/official/claude', sessions,
+    createQuery: ((args: { options: Options }) => { options = args.options; const q = new FakeQuery(); queries.push(q); return q as unknown as Query; }) as never });
+  t.after(async () => { await service.stopAll(); rmSync(root, { recursive: true, force: true }); });
+  return { root, id, service, cwd: join(root, id), options: () => options!, queries };
+}
+const sid = () => randomUUID();
+const noSessions = { info: async () => undefined, list: async () => [], messages: async () => [] };
+
+test('WBS-060: every prompt saves the session record, so the conversation reopens with its own session', async t => {
+  const f = resumeSetup(t, noSessions);
+  await f.service.open(f.id);
+  const id = sid();
+  const hook = f.options().hooks!.UserPromptSubmit![0]!.hooks[0]!;
+  await hook({ hook_event_name: 'UserPromptSubmit', session_id: id, transcript_path: `/x/${id}.jsonl`, cwd: f.cwd, prompt: 'hi' } as never, undefined, { signal: new AbortController().signal });
+  assert.deepEqual(JSON.parse(readFileSync(join(f.cwd, '.learningxxx-session.json'), 'utf8')), { sessionId: id, transcriptPath: `/x/${id}.jsonl` });
+  await hook({ hook_event_name: 'UserPromptSubmit', session_id: 'not-a-uuid', transcript_path: '/x', cwd: f.cwd, prompt: 'hi' } as never, undefined, { signal: new AbortController().signal });
+  assert.equal(JSON.parse(readFileSync(join(f.cwd, '.learningxxx-session.json'), 'utf8')).sessionId, id, 'a bad id never replaces the record');
+});
+
+test('WBS-060: a saved session is resumed when Claude Code still has it, even without the transcript path', async t => {
+  const id = sid(); const asked: string[] = [];
+  const f = resumeSetup(t, { info: async (s, dir) => { asked.push(`${s}@${dir}`); return s === id ? { sessionId: s } : undefined; }, list: async () => [],
+    messages: async () => [{ uuid: sid(), type: 'user', parent_tool_use_id: null, message: { role: 'user', content: '이전 질문' } }, { uuid: sid(), type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'text', text: '이전 답' }] } }] });
+  mkdirSync(f.cwd, { recursive: true });
+  writeFileSync(join(f.cwd, '.learningxxx-session.json'), JSON.stringify({ sessionId: id }));
+  const state = await f.service.open(f.id);
+  assert.equal(f.options().resume, id);
+  assert.deepEqual(state.messages.map((m) => [m.role, m.text]), [['user', '이전 질문'], ['assistant', '이전 답']]);
+  assert.ok(asked[0]!.startsWith(`${id}@`));
+});
+
+test('WBS-060: a conversation that never saved a record is recovered from its own folder only, and remembered', async t => {
+  const mine = sid(), older = sid(), other = sid();
+  let cwd = '';
+  const f = resumeSetup(t, { info: async () => undefined, list: async (dir) => { cwd = dir; return [{ sessionId: older, lastModified: 1, cwd: dir }, { sessionId: other, lastModified: 9, cwd: '/somewhere/else' }, { sessionId: mine, lastModified: 5, cwd: dir }]; }, messages: async () => [] });
+  mkdirSync(f.cwd, { recursive: true });
+  writeFileSync(join(f.cwd, '.chat-ui.json'), JSON.stringify({ messages: [{ id: sid(), role: 'user', text: '예전 대화', tools: [] }], busy: false, connected: false, error: '', model: '', effort: 'default', mode: 'default', models: [], commands: [], permissions: [], totalCost: 0, tokens: 0, sessionId: '' }));
+  await f.service.open(f.id);
+  assert.equal(f.options().resume, mine, "the newest session of this folder, never another folder's");
+  assert.equal(JSON.parse(readFileSync(join(f.cwd, '.learningxxx-session.json'), 'utf8')).sessionId, mine);
+  assert.ok(cwd.endsWith(f.id));
+});
+
+test('WBS-060: with no session anywhere, an old conversation still says it cannot resume', async t => {
+  const f = resumeSetup(t, noSessions);
+  mkdirSync(f.cwd, { recursive: true });
+  writeFileSync(join(f.cwd, '.chat-ui.json'), JSON.stringify({ messages: [{ id: sid(), role: 'user', text: '예전 대화', tools: [] }], busy: false, connected: false, error: '', model: '', effort: 'default', mode: 'default', models: [], commands: [], permissions: [], totalCost: 0, tokens: 0, sessionId: '' }));
+  await assert.rejects(f.service.open(f.id), /원본 이력이 없어/);
 });

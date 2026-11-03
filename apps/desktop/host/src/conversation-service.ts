@@ -22,7 +22,25 @@ export interface ConversationOptions {
   nativeActive: (id: string) => boolean; env?: NodeJS.ProcessEnv;
   prepare?: () => Promise<string>; createQuery?: typeof query;
   prepareCourse?: (id: string, cwd: string) => Promise<CourseBinding | undefined>;
+  /** WBS-060: Claude Code's own session store (the SDK by default; tests pass fakes). */
+  sessions?: SessionStoreAccess;
 }
+/** The parts of the SDK's local session store used to find and read a conversation's Claude Code session. */
+export interface SessionStoreAccess {
+  info: (sessionId: string, dir: string) => Promise<{ sessionId: string } | undefined>;
+  list: (dir: string) => Promise<{ sessionId: string; lastModified: number; cwd?: string | undefined }[]>;
+  messages: (sessionId: string, dir: string) => Promise<{ uuid: string; type: 'user' | 'assistant' | 'system'; parent_tool_use_id?: string | null; message: unknown }[]>;
+}
+const sdkSessions = async (): Promise<SessionStoreAccess> => {
+  const sdk = await import('@anthropic-ai/claude-agent-sdk');
+  return {
+    info: (sessionId, dir) => sdk.getSessionInfo(sessionId, { dir }),
+    list: (dir) => sdk.listSessions({ dir, includeWorktrees: false }),
+    messages: (sessionId, dir) => sdk.getSessionMessages(sessionId, { dir }),
+  };
+};
+const UUID = /^[0-9a-f-]{36}$/i;
+const sameDir = (a: string, b: string) => { try { return realpathSync(a) === realpathSync(b); } catch { return a === b; } };
 const fail: (message: string) => never = (message) => { throw Object.assign(new Error(message), { appError: { code: 'INVALID_REQUEST', message, retryable: false } }); };
 export class ConversationService {
   #o: ConversationOptions; #entries = new Map<string, Entry>(); #opening = new Map<string, Promise<ChatState>>(); #stopped = false;
@@ -63,13 +81,13 @@ export class ConversationService {
       catch { fail('대화 표시 기록을 읽지 못했습니다. 원본을 보존했으며 새 대화를 시작할 수 있습니다.'); }
     }
     try { map = JSON.parse(readFileSync(join(cwd, '.learningxxx-session.json'), 'utf8')); } catch { /* fresh */ }
-    const resume = typeof map.sessionId === 'string' && /^[0-9a-f-]{36}$/i.test(map.sessionId) && typeof map.transcriptPath === 'string' && map.transcriptPath.endsWith(`/${map.sessionId}.jsonl`) && existsSync(map.transcriptPath) ? map.sessionId : undefined;
+    const sessions = this.#o.sessions ?? await sdkSessions();
+    const resume = await this.#resumable(cwd, map, sessions);
     const state: ChatState = { messages: Array.isArray(stored.messages) ? stored.messages.slice(-200) : [], busy: false, connected: false, error: '', model: stored.model ?? '', effort: stored.effort ?? 'default', mode: 'default', models: [], commands: [], permissions: [], totalCost: stored.totalCost ?? 0, tokens: stored.tokens ?? 0, sessionId: resume ?? '' };
     if (resume) {
       // Read the engine's current transcript after an advanced-terminal handoff too.
       // This is session resume, not migration of the retired structured engine.
-      const { getSessionMessages } = await import('@anthropic-ai/claude-agent-sdk');
-      const messages = await getSessionMessages(resume, { dir: cwd });
+      const messages = await sessions.messages(resume, cwd);
       state.messages = messages.filter(m => !m.parent_tool_use_id).flatMap(m => {
         const body = m.message as { content?: unknown } | null;
         const blocks = Array.isArray(body?.content) ? body.content : typeof body?.content === 'string' ? [{ type: 'text', text: body.content }] : [];
@@ -94,8 +112,13 @@ export class ConversationService {
         const abort = () => done({ behavior: 'deny', message: '요청이 취소됐습니다.' });
         entry.replies.set(permissionId, done); state.permissions.push({ id: permissionId, tool, input: toolInput }); request.signal.addEventListener('abort', abort, { once: true });
       }),
-      hooks: { UserPromptSubmit: [{ hooks: [async () => entry.course ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: entry.course.brief } } : {}] }], SessionStart: [{ hooks: [async info => {
-        if (info.hook_event_name === 'SessionStart') { state.sessionId = info.session_id; this.#atomic(join(cwd, '.learningxxx-session.json'), { sessionId: info.session_id, transcriptPath: info.transcript_path }); }
+      // WBS-060: the resume record is written on every prompt (SessionStart is not called for chat
+      // runs of current Claude Code), so a conversation always reopens with its own session.
+      hooks: { UserPromptSubmit: [{ hooks: [async info => {
+        this.#remember(cwd, state, info.session_id, info.transcript_path);
+        return entry.course ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: entry.course.brief } } : {};
+      }] }], SessionStart: [{ hooks: [async info => {
+        if (info.hook_event_name === 'SessionStart') this.#remember(cwd, state, info.session_id, info.transcript_path);
         return {};
       }] }] },
     };
@@ -108,6 +131,30 @@ export class ConversationService {
       state.connected = true; state.models = initialized.models; state.commands = initialized.commands;
       return this.state(id);
     } catch { await this.#closeEntry(id); fail('Claude Code 채팅 연결을 시작하지 못했습니다. 구독 로그인과 CLI 버전을 확인하세요.'); }
+  }
+  /** Keeps the conversation's Claude Code session id (and transcript file, which the advanced terminal needs). */
+  #remember(cwd: string, state: ChatState, sessionId: unknown, transcriptPath: unknown) {
+    if (typeof sessionId !== 'string' || !UUID.test(sessionId)) return;
+    state.sessionId = sessionId;
+    const path = typeof transcriptPath === 'string' && transcriptPath.endsWith(`/${sessionId}.jsonl`) ? transcriptPath : undefined;
+    try { this.#atomic(join(cwd, '.learningxxx-session.json'), { sessionId, ...(path ? { transcriptPath: path } : {}) }); } catch { /* the next prompt writes it again */ }
+  }
+  /**
+   * WBS-060: the session to resume. The saved one when Claude Code still has
+   * it; otherwise (conversations whose record was never written) the newest
+   * session Claude Code kept for this conversation's own folder, which is then
+   * saved. Sessions of other folders are never taken.
+   */
+  async #resumable(cwd: string, map: { sessionId?: string; transcriptPath?: string }, sessions: SessionStoreAccess): Promise<string | undefined> {
+    if (typeof map.sessionId === 'string' && UUID.test(map.sessionId)) {
+      if (typeof map.transcriptPath === 'string' && map.transcriptPath.endsWith(`/${map.sessionId}.jsonl`) && existsSync(map.transcriptPath)) return map.sessionId;
+      if (await sessions.info(map.sessionId, cwd).catch(() => undefined)) return map.sessionId;
+    }
+    const own = (await sessions.list(cwd).catch(() => [])).filter((s) => UUID.test(s.sessionId) && (s.cwd === undefined || sameDir(s.cwd, cwd)));
+    const latest = own.toSorted((a, b) => b.lastModified - a.lastModified)[0];
+    if (!latest) return undefined;
+    try { this.#atomic(join(cwd, '.learningxxx-session.json'), { sessionId: latest.sessionId }); } catch { /* resumed anyway */ }
+    return latest.sessionId;
   }
   #atomic(path: string, value: unknown) { const temp = `${path}.${randomUUID()}.tmp`; writeFileSync(temp, JSON.stringify(value), { mode: 0o600 }); renameSync(temp, path); }
   #save(e: Entry) { this.#atomic(join(e.cwd, '.chat-ui.json'), { ...e.state, messages: e.state.messages.slice(-200), models: [], commands: [], permissions: [], busy: false, error: '' }); }

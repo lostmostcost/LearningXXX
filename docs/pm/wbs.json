@@ -2335,6 +2335,35 @@
       "review_evidence": [
         "Reviewed weekNotes (recording by filed week, downloaded lecture by LMS week label, newest transcript version only, readable notes, assignment/notice text via tag stripping with due/posted time, mentions by recording week), course-workspace changes (notes in the fingerprint, files beside the week's LMS files with unique names, read-only seal, catalog weekNotes, INDEX section, brief instruction to read transcripts and summarise without PDFs), main wiring (media list, imported docs, cached learning status, mentions; failures give no notes rather than blocking the chat). Checks: new week-notes and course-workspace tests (placement, newest version, assignment text, mention line, INDEX/catalog/read-only, reuse vs new copy on change), pnpm -r run check. A real chat answer was not tried by the agent."
       ]
+    },
+    {
+      "id": "WBS-079",
+      "title": "쓰지 않는 터미널 의존성(node-pty·xterm) 정리",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-076"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "infra"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "node-pty·@xterm 의존성과 pty 준비 스크립트·문서가 없어지고, 잠금 파일을 다시 만들어 frozen 설치와 전체 검사가 통과한다.",
+      "status": "Backlog",
+      "branch": "chore/WBS-079-remove-terminal-deps",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd810cb566cfb48091c375?pvs=204",
+      "scope_note": "CR-074 이문찬 요청·승인(2026-11-04): 루트 lockfile·workspace 변경 포함."
     }
   ],
   "qaPolicy": {

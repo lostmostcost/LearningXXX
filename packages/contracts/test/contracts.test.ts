@@ -156,7 +156,7 @@ describe("producer → consumer round trip", () => {
       "media.translate": { courseId: sid, assetId: sid, transcriptId: sid, language: "en" },
       "app.preferences": {},
       "app.openSettings": { pane: "screen" },
-      "app.setPreferences": { language: "ja" },
+      "app.setPreferences": { language: "ja" }, "automation.status": {}, "study.list": { courseId: sid }, "study.make": { courseId: sid, weekId: sid, kind: "review" },
       "media.addMentions": { courseId: sid, assetId: sid, candidates: [{ kind: "exam", title: "중간고사", detail: "3장까지", due: "다음 주", transcriptId: sid, startMs: 1000, quote: "중간고사는 3장까지" }] },
       "media.mentions": { courseId: sid },
       "media.removeMention": { courseId: sid, mentionId: sid },

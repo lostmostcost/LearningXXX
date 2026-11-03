@@ -38,6 +38,10 @@ export interface MediaServiceOptions {
   mentions?: (input: { title: string; text: string; transcript: Transcript; signal: AbortSignal }) => Promise<MentionCandidate[]>;
   /** WBS-071: sentences → translations in the same order (undefined where none came back). */
   translate?: (input: { language: PreferredLanguage; lines: string[]; signal: AbortSignal }) => Promise<(string | undefined)[]>;
+  /** WBS-083: transcript sentences → the same sentences with misheard words fixed (undefined where none came back). */
+  correct?: (input: { title: string; context: string; lines: string[]; signal: AbortSignal }) => Promise<(string | undefined)[]>;
+  /** WBS-083: told when a transcription finishes, once per course asset with those bytes. */
+  onTranscribed?: (input: { courseId: string; assetId: string; transcriptId: string; title: string }) => void;
   openOriginal: (path: string) => Promise<void>;
   video: (course: Course, contentId: string) => Pick<VideoDownloadInput, "fetch" | "resolveSource" | "allowedOrigins">;
 }
@@ -46,6 +50,10 @@ function fail(code: "NOT_FOUND" | "SCOPE_VIOLATION" | "CHECKSUM_MISMATCH" | "AUT
 }
 
 /** Durable account-scoped originals → automatic local transcription. No summary. */
+/** WBS-083: the engine name of corrections Claude Code made automatically. */
+export const AUTO_CORRECTION_ENGINE = "claude-code-correction";
+
+
 export class MediaService {
   readonly #o: MediaServiceOptions;
   #partition: Partition | undefined;
@@ -224,7 +232,12 @@ export class MediaService {
         return this.#o.engine.transcribe(input);
       } };
       // A short lease: after a crash the interrupted job runs again within about a minute.
-      p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), leaseMs: 60_000, ...(this.#o.contextFor ? { contextFor: this.#o.contextFor } : {}) });
+      p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), leaseMs: 60_000,
+        onChange: (job) => {
+          if (job.status !== "succeeded" || !job.outputTranscriptId || !this.#o.onTranscribed) return;
+          const sha = p.catalog.assets.find((a) => a.id === job.sourceAssetId)?.sha256;
+          for (const a of p.catalog.assets.filter((x) => x.sha256 === sha && !this.#isRemoved(p, x.id))) this.#o.onTranscribed({ courseId: a.courseId, assetId: a.id, transcriptId: job.outputTranscriptId, title: a.title });
+        }, ...(this.#o.contextFor ? { contextFor: this.#o.contextFor } : {}) });
       for (const d of catalog.downloads) if (d.status === "running" || d.status === "queued") { d.status = "failed"; d.errorCode = "RUN_INTERRUPTED"; }
       await this.#save(p);
       if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
@@ -277,14 +290,14 @@ export class MediaService {
    * WBS-069: the user's own corrections of one transcript version, kept as a
    * new "corrected" version with the same times. Nothing existing is changed.
    */
-  async saveCorrection(courseId: string, assetId: string, basedOnTranscriptId: string, texts: string[]): Promise<{ transcriptId: string }> {
+  async saveCorrection(courseId: string, assetId: string, basedOnTranscriptId: string, texts: string[], engine: { name: string; version: string } = { name: MANUAL_ENGINE, version: "user" }): Promise<{ transcriptId: string }> {
     const { p } = await this.#course(courseId);
     const asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
     const base = (await this.list(courseId)).transcripts.find((t) => t.id === basedOnTranscriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "고칠 전사 판을 찾지 못했습니다.");
     if (texts.length !== base.segments.length) fail("INVALID_REQUEST", "전사 문장 수가 바뀌었습니다. 다시 열어 고쳐 주세요.");
     const transcript = Transcript.parse({
       schemaVersion: SCHEMA_VERSION, id: randomUUID(), sourceAssetId: assetId, kind: "corrected",
-      engine: { name: MANUAL_ENGINE, version: "user" }, parametersHash: createHash("sha256").update(MANUAL_ENGINE).digest("hex"),
+      engine, parametersHash: createHash("sha256").update(engine.name).digest("hex"),
       basedOnTranscriptId, language: base.language, createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
       segments: base.segments.map((segment, i) => ({ startMs: segment.startMs, endMs: segment.endMs, text: texts[i]!.trim() })),
     });
@@ -295,6 +308,29 @@ export class MediaService {
     p.catalog.corrections.push({ sha256: asset.sha256, transcriptId: transcript.id });
     await this.#save(p);
     return { transcriptId: transcript.id };
+  }
+
+  /**
+   * WBS-083: Claude Code fixes misheard words of one transcript version,
+   * sentence by sentence with the course's material titles as context, kept
+   * as a new corrected version (times unchanged). Sentences without an answer
+   * stay as they were.
+   */
+  async autoCorrect(courseId: string, assetId: string, transcriptId: string, signal: AbortSignal): Promise<{ transcriptId: string; changed: number }> {
+    const run = this.#o.correct ?? fail("INVALID_REQUEST", "자동 교정을 쓸 수 없습니다.");
+    const asset = (await this.#course(courseId)).p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    const base = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
+    const context = await (this.#o.contextFor?.(asset) ?? Promise.resolve(""));
+    const lines = base.segments.map((s) => s.text);
+    const out: string[] = [];
+    let changed = 0;
+    for (let at = 0; at < lines.length; at += TRANSLATE_BATCH) {
+      const batch = lines.slice(at, at + TRANSLATE_BATCH);
+      const fixed = await run({ title: asset.title, context, lines: batch, signal });
+      batch.forEach((line, i) => { const t = line.trim() ? fixed[i] ?? line : line; if (t !== line) changed++; out.push(t); });
+    }
+    const saved = await this.saveCorrection(courseId, assetId, transcriptId, out, { name: AUTO_CORRECTION_ENGINE, version: "claude-code" });
+    return { ...saved, changed };
   }
 
   /** One Claude Code request (readable note or announcement search) at a time. */

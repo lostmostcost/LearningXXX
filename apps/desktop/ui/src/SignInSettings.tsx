@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGUAGE_NAMES, PreferredLanguage, type CredentialStatus } from "@learningxxx/contracts";
+import { AutomationSettings } from "./AutomationSettings.tsx";
 import { invoke } from "./host-api.ts";
 import { Icon } from "./StudyUI.tsx";
 import { signInSummary } from "./signin.ts";
@@ -72,6 +73,7 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
         <p role="status">{message}</p>
         <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
         <LanguageSetting />
+        <AutomationSettings />
       </dialog>
     </>
   );

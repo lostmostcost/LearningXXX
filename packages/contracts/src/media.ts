@@ -240,6 +240,29 @@ export const PreferredLanguage = z.enum(["ko", "en", "ja", "zh", "es", "fr", "de
 export type PreferredLanguage = z.infer<typeof PreferredLanguage>;
 export const LANGUAGE_NAMES: Record<PreferredLanguage, string> = { ko: "한국어", en: "English", ja: "日本語", zh: "中文", es: "Español", fr: "Français", de: "Deutsch", vi: "Tiếng Việt" };
 
+/**
+ * WBS-083: what the app does by itself. Transcription is on (as before); the
+ * steps that use the student's Claude subscription are off until turned on.
+ */
+export const AutomationSettings = z.object({
+  /** New recordings and downloaded lectures are transcribed right away (off: the queue waits). */
+  transcribe: z.boolean().default(true),
+  /** After transcription, Claude Code fixes misheard words into a new corrected version. */
+  correct: z.boolean().default(false),
+  /** After that, a readable 정리본 of the lecture. */
+  readable: z.boolean().default(false),
+  /** Assignments and exams mentioned in the lecture are added to 과제 automatically. */
+  mentions: z.boolean().default(false),
+  /** course.md is made again when a lecture is transcribed or material changes (at most every 30 minutes per course). */
+  courseMd: z.boolean().default(false),
+  /** A short review note for the week after a lecture is transcribed. */
+  review: z.boolean().default(false),
+  /** A short "follow this class" note for the week a few hours before class (needs class times). */
+  preview: z.boolean().default(false),
+});
+export type AutomationSettings = z.infer<typeof AutomationSettings>;
+export const DEFAULT_AUTOMATION: AutomationSettings = AutomationSettings.parse({});
+
 /** WBS-072: a page left as the original in a translated PDF, and why (scanned: no text layer; unsupported: text inside forms or inline images; changed: the page no longer matches). */
 export const PdfTranslationSkip = z.object({ page: z.number().int().positive(), reason: z.enum(["scanned", "unsupported", "changed"]) });
 export type PdfTranslationSkip = z.infer<typeof PdfTranslationSkip>;

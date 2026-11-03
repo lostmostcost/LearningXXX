@@ -290,3 +290,14 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .unfiled-recordings li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
 .unfiled-title{display:flex;flex-direction:column;flex:1 1 100%;}
 .unfiled-title small{color:var(--muted);font-size:11px;}
+/* WBS-066: importing earlier recordings, and their copied notes. */
+.import-details{margin:10px 0;border:1px solid var(--line);border-radius:12px;padding:8px 12px;}
+.import-details>summary{cursor:pointer;font-size:12px;}
+.import-panel{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:12px;}
+.import-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.import-items{list-style:none;margin:6px 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.import-items label{display:flex;gap:8px;align-items:flex-start;}
+.import-items small{display:block;color:var(--muted);font-size:11px;}
+.import-items li.imported,.import-items li.no_course{opacity:.6;}
+.imported-docs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;font-size:12px;}
+.imported-doc{flex:1 1 100%;max-height:320px;overflow:auto;white-space:pre-wrap;font-size:12px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--panel);}

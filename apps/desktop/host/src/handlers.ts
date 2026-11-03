@@ -9,10 +9,11 @@ import type { LibraryService } from "./library-service.ts";
 import type { RecordingService } from "./recording-service.ts";
 import type { SttRuntimeService } from "./stt-runtime.ts";
 import type { MediaService } from "./media-service.ts";
+import type { LegacyImporter } from "./legacy-import.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService, learning?: LearningStatusService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService, learning?: LearningStatusService, importer?: LegacyImporter): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
@@ -21,6 +22,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
   const terminal = () => { if (!terminals) throw new Error('Terminal service unavailable'); return terminals; };
   const chat = () => { if (!conversations) throw new Error('Conversation service unavailable'); return conversations; };
   const runtime = () => { if (!stt) throw new Error("STT runtime unavailable"); return stt; };
+  const importing = () => { if (!importer) throw new Error("Importer unavailable"); return importer; };
   /** WBS-065: a recording is filed only under a week of its own course's collected manifest. */
   const checkWeek = async (courseId: string, weekId: string | undefined) => {
     if (weekId === undefined || (await library.manifest(courseId))?.weeks.some((w) => w.id === weekId)) return;
@@ -138,6 +140,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "media.cancelDownload": ({ courseId, downloadId }) => libraryMedia().cancelDownload(courseId, downloadId),
     "media.original": ({ courseId, assetId }) => libraryMedia().asset(courseId, assetId),
     "media.open": ({ courseId, assetId }) => libraryMedia().open(courseId, assetId),
+    "media.importScan": async () => { await libraryMedia().recover(); return importing().scan(); },
+    "media.importRun": (request) => importing().run(request),
+    "media.importStatus": async () => importing().status(),
+    "media.importedDoc": ({ courseId, assetId, doc }) => libraryMedia().importedDoc(courseId, assetId, doc),
     "media.retry": ({ courseId, jobId }) => libraryMedia().retry(courseId, jobId),
     "media.pauseTranscription": () => libraryMedia().pauseTranscription(),
     "media.resumeTranscription": () => libraryMedia().resumeTranscription(),

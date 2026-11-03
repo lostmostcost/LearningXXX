@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CourseLearningStatus, MediaAsset, Recording, Week } from "@learningxxx/contracts";
 import { invoke, onHostPush } from "./host-api.ts";
+import { ImportPanel } from "./ImportPanel.tsx";
 import { MediaLibrary } from "./MediaLibrary.tsx";
 import { UnfiledRecordings, WeekPicker, type Lecture, type Place } from "./RecordingPlace.tsx";
 import { estimateWeek, placeLabel } from "./recording-weeks.ts";
@@ -240,6 +241,7 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
     </div>
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     {view === "recording" ? <UnfiledRecordings recordings={recordings} weeks={weeks} lectures={lectures} status={status} onAssign={assign} /> : null}
+    {view === "recording" && !active ? <details className="import-details"><summary>이전에 만든 녹음·전사 가져오기</summary><ImportPanel onDone={() => void reload()} /></details> : null}
     <MediaLibrary key={courseId} courseId={courseId} view={view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} />
   </section>;
 }

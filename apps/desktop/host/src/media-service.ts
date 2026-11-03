@@ -2,8 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { AccountKey, AppError, Id, MediaAsset, Recording } from "@learningxxx/contracts";
-import type { Course, Transcript, TranscriptionJob } from "@learningxxx/contracts";
+import { AccountKey, AppError, Id, ImportedDocKind, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
+import type { Course, TranscriptionJob } from "@learningxxx/contracts";
 import { downloadVideo } from "@learningxxx/collector";
 import type { VideoDownloadInput } from "@learningxxx/collector";
 import { EngineError, TranscriptionQueue } from "@learningxxx/transcriber";
@@ -12,7 +12,9 @@ import { z } from "zod";
 
 const Download = z.object({ id: Id, courseId: Id, resourceId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().nonnegative().optional(), totalBytes: z.number().positive().optional(), errorCode: z.string().optional(), assetId: Id.optional() });
 export type MediaDownload = z.infer<typeof Download>;
-const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download) });
+/** WBS-066: an original imported with its own transcript and notes; it is not transcribed again. */
+const Imported = z.object({ sha256: Sha256, transcriptId: Id.optional(), model: z.string().max(200).optional(), docs: z.array(ImportedDocKind), createdAt: z.string() });
+const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]) });
 type Catalog = z.infer<typeof Catalog>;
 interface Partition { key: string; root: string; catalog: Catalog; queue: TranscriptionQueue; writes: Promise<void> }
 export interface MediaServiceOptions {
@@ -55,7 +57,7 @@ export class MediaService {
   #path(p: Partition, asset: MediaAsset): string {
     if (asset.role !== "original") fail("SCOPE_VIOLATION", "원본만 전사할 수 있습니다.");
     const recording = asset.source.type === "recording";
-    const pattern = recording ? /^media\/originals\/[a-f0-9]{64}\.(wav|m4a)$/ : /^video-originals\/[a-f0-9]{2}\/[a-f0-9]{64}\.mp4$/;
+    const pattern = recording ? /^media\/originals\/[a-f0-9]{64}\.(wav|m4a|opus)$/ : /^video-originals\/[a-f0-9]{2}\/[a-f0-9]{64}\.mp4$/;
     if (!pattern.test(asset.storageKey)) fail("SCOPE_VIOLATION", "허용된 원본 저장 경로가 아닙니다.");
     return resolve(recording ? this.#o.dataRoot : p.root, asset.storageKey);
   }
@@ -75,6 +77,58 @@ export class MediaService {
     return path;
   }
 
+  /** Every original is transcribed once, except one imported with its own transcript (WBS-066). */
+  #enqueue(p: Partition, asset: MediaAsset): TranscriptionJob | undefined {
+    if (p.catalog.imports.some((i) => i.sha256 === asset.sha256 && i.transcriptId)) return undefined;
+    return p.queue.enqueue(asset);
+  }
+
+  #importDir(p: Partition, sha256: string): string {
+    return join(p.root, "imports", Sha256.parse(sha256));
+  }
+
+  /**
+   * WBS-066, before the original itself is stored: keeps the transcript and
+   * notes that came with it, keyed by the original's content, so that a crash
+   * between the two steps never sends it to transcription.
+   */
+  async adoptImport(courseId: string, input: { sha256: string; transcript?: Transcript; model?: string; docs: { kind: ImportedDocKind; text: string }[] }): Promise<void> {
+    const { p } = await this.#course(courseId);
+    if (p.catalog.imports.some((i) => i.sha256 === input.sha256)) return;
+    const dir = this.#importDir(p, input.sha256);
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    for (const doc of input.docs) await writeFile(join(dir, `${ImportedDocKind.parse(doc.kind)}.txt`), doc.text, { mode: 0o600 });
+    const transcript = input.transcript ? Transcript.parse(input.transcript) : undefined;
+    if (transcript) await writeFile(join(dir, "transcript.json"), JSON.stringify(transcript), { mode: 0o600 });
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    p.catalog.imports.push(Imported.parse({ sha256: input.sha256, ...(transcript ? { transcriptId: transcript.id } : {}), ...(input.model ? { model: input.model.slice(0, 200) } : {}), docs: input.docs.map((d) => d.kind), createdAt: new Date().toISOString() }));
+    await this.#save(p);
+  }
+
+  /** Imported transcripts never change, so each is read once per account (the list is polled). */
+  readonly #importedCache = new Map<string, Transcript | undefined>();
+  async #importedTranscript(p: Partition, sha256: string): Promise<Transcript | undefined> {
+    const record = p.catalog.imports.find((i) => i.sha256 === sha256);
+    if (!record?.transcriptId) return undefined;
+    const key = `${p.key}/${sha256}`;
+    if (this.#importedCache.has(key)) return this.#importedCache.get(key);
+    let transcript: Transcript | undefined;
+    try { transcript = Transcript.parse(JSON.parse(await readFile(join(this.#importDir(p, sha256), "transcript.json"), "utf8"))); }
+    catch { transcript = undefined; }
+    this.#importedCache.set(key, transcript);
+    return transcript;
+  }
+
+  /** A copied note of an imported original, as text. */
+  async importedDoc(courseId: string, assetId: string, doc: ImportedDocKind): Promise<{ text: string }> {
+    const { p } = await this.#course(courseId), asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId);
+    const record = asset && p.catalog.imports.find((i) => i.sha256 === asset.sha256);
+    if (!asset || !record?.docs.includes(doc)) fail("NOT_FOUND", "가져온 문서를 찾지 못했습니다.");
+    const text = await readFile(join(this.#importDir(p, asset.sha256), `${ImportedDocKind.parse(doc)}.txt`), "utf8").catch(() => fail("NOT_FOUND", "가져온 문서를 찾지 못했습니다."));
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    return { text };
+  }
+
   async #activate(): Promise<Partition> {
     if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
     const key = this.#o.accountKey(); if (!key) fail("AUTH_REQUIRED", "학교 자료를 먼저 수집해 계정을 확인하세요.");
@@ -88,7 +142,7 @@ export class MediaService {
       const root = join(this.#o.dataRoot, "media", "accounts", key);
       let catalog: Catalog;
       try { catalog = Catalog.parse(JSON.parse(await readFile(join(root, "catalog.json"), "utf8"))); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [] }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [] }; }
       const p = { key, root, catalog, writes: Promise.resolve() } as Partition;
       const engine: Engine = { info: this.#o.engine.info, parameters: this.#o.engine.parameters, transcribe: async (input) => {
         const asset = p.catalog.assets.find((a) => this.#path(p, a) === input.audioPath);
@@ -104,7 +158,7 @@ export class MediaService {
       if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");
       if (key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 다시 여세요.");
       this.#partition = p;
-      for (const asset of catalog.assets) p.queue.enqueue(asset);
+      for (const asset of catalog.assets) this.#enqueue(p, asset);
       p.queue.start();
     });
     this.#activation = operation; await operation;
@@ -125,7 +179,7 @@ export class MediaService {
     await this.#verify(p, valid);
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
     if (!p.catalog.assets.some((a) => a.id === valid.id)) { p.catalog.assets.push(valid); await this.#save(p); }
-    p.queue.enqueue(valid); return valid;
+    this.#enqueue(p, valid); return valid;
   }
   async authorize(courseId: string): Promise<void> { await this.#course(courseId); }
 
@@ -133,7 +187,7 @@ export class MediaService {
   async recover(): Promise<void> {
     const p = await this.#activate(), courses = await this.#o.courses();
     for (const asset of this.#o.originals()) if (!p.catalog.assets.some((a) => a.id === asset.id) && courses.some((c) => c.id === asset.courseId && c.accountKey === p.key)) await this.register(asset);
-    for (const asset of p.catalog.assets) p.queue.enqueue(asset);
+    for (const asset of p.catalog.assets) this.#enqueue(p, asset);
   }
 
   async list(courseId: string) {
@@ -149,7 +203,18 @@ export class MediaService {
         if (job.outputTranscriptId) { const t = p.queue.transcript(job.outputTranscriptId); if (t) transcripts.push({ ...t, sourceAssetId: asset.id }); }
       }
     }
-    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
+    const importedDocs: Record<string, ImportedDocKind[]> = {};
+    for (const asset of assets) {
+      const record = p.catalog.imports.find((i) => i.sha256 === asset.sha256);
+      if (!record) continue;
+      if (record.docs.length) importedDocs[asset.id] = record.docs;
+      const transcript = await this.#importedTranscript(p, asset.sha256);
+      if (!transcript) continue;
+      transcripts.push({ ...transcript, sourceAssetId: asset.id });
+      // Shown like a finished transcription, so the screen needs no special case.
+      jobs.push({ schemaVersion: SCHEMA_VERSION, id: transcript.id, sourceAssetId: asset.id, engine: transcript.engine, parametersHash: transcript.parametersHash, idempotencyKey: asset.sha256, status: "succeeded", attempt: 1, outputTranscriptId: transcript.id, createdAt: transcript.createdAt, updatedAt: transcript.createdAt });
+    }
+    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, importedDocs, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
   }
 
   async asset(courseId: string, assetId: string) {
@@ -168,8 +233,8 @@ export class MediaService {
     const asset = p.catalog.assets.find(a => a.id === previous?.sourceAssetId && a.courseId === courseId);
     if (!asset) fail("NOT_FOUND", "현재 과목의 전사 작업이 아닙니다.");
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
-    const current = p.queue.enqueue(asset);
-    if (current.status === "failed" || current.status === "cancelled") p.queue.retry(current.id);
+    const current = this.#enqueue(p, asset);
+    if (current && (current.status === "failed" || current.status === "cancelled")) p.queue.retry(current.id);
     return {};
   }
 
@@ -201,8 +266,8 @@ export class MediaService {
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
     for (const asset of p.catalog.assets) {
       if (!courses.some(c => c.id === asset.courseId && c.accountKey === p.key)) continue;
-      const current = p.queue.enqueue(asset);
-      if (current.status === "failed" && current.errorCode === "ENGINE_UNAVAILABLE") p.queue.retry(current.id);
+      const current = this.#enqueue(p, asset);
+      if (current?.status === "failed" && current.errorCode === "ENGINE_UNAVAILABLE") p.queue.retry(current.id);
     }
   }
 
@@ -238,7 +303,7 @@ export class MediaService {
         if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 새 계정으로 전달하지 않았습니다.");
         p.catalog.assets.push(asset); item.assetId = asset.id; item.status = "succeeded";
         // Persist before enqueue; restart reconciles a missing job.
-        await this.#save(p); p.queue.enqueue(asset);
+        await this.#save(p); this.#enqueue(p, asset);
       } catch (error) {
         item.status = item.assetId ? "succeeded" : abort.signal.aborted ? "cancelled" : "failed";
         item.errorCode = (error as { appError?: { code?: string } }).appError?.code ?? "DOWNLOAD_FAILED";

@@ -1976,11 +1976,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "사용자가 고른 학기 폴더의 녹음·강의영상 음성과 전사·정리본을 주차·강의에 연결해 복사한다. 원본 유지, 코드 파일과 khu-lecture-recorder 스킬은 읽지 않는다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-066-import-recordings",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8107ba06e29fa141ff8f?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed contracts (ImportItem, media.importScan/Run/Status/importedDoc, Recording.importedFrom, media.list importedDocs), LegacyImporter scan/run (only week audio folders and same-stem transcript/notes read; symlinks and other folders skipped; re-checked inside the chosen folder at import), importStore order (transcript/notes keyed by content hash first, then original, then register), MediaService enqueue skip in all paths (activate, register, recover, retry, retryUnavailable), opus original path, account checks, UI import panel and imported-notes view. Found and fixed: media.list (polled every 2 s) re-read every imported transcript file — now cached per account. Checks: pnpm -r run check all pass (ui 116, host 208); new tests with a synthetic semester folder (course by LMS number, week by folder, lecture by content id, unknown course, code file/link/other folders ignored, no re-transcription, notes readable, user file unchanged, second import skipped, stale plan rejected, unreadable transcript → normal transcription). Fixture UI check: scan list, import, notes view. Real folder import not run by the agent (copies about 736 MB into the user's app data; owner's decision)."
+      ]
     },
     {
       "id": "WBS-067",

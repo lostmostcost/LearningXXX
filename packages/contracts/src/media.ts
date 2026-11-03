@@ -24,6 +24,8 @@ export const Recording = z
     weekId: Id.optional(),
     /** WBS-065: the week's online lecture it belongs to, if the user picked one. */
     lectureSourceId: LectureSourceId.optional(),
+    /** WBS-066: imported from the user's own folder; "과목/NN주차/녹음/이름", shown and used to skip a second import. */
+    importedFrom: z.string().min(1).max(400).optional(),
     title: z.string().min(1).max(200),
     startedAt: UtcTimestamp,
     /** Known once stopped (or recovered); absent while recording. */
@@ -183,3 +185,30 @@ export function canonicalParameters(parameters: Record<string, string | number |
 export function transcriptionKeyInput(sourceSha256: string, engine: TranscriptEngine, parametersHash: string): string {
   return [Sha256.parse(sourceSha256), engine.name, engine.version, Sha256.parse(parametersHash)].join("\n");
 }
+
+/** WBS-066: documents copied with an imported recording, shown read-only. */
+export const ImportedDocKind = z.enum(["readable", "corrections", "transcript_md", "live", "srt"]);
+export type ImportedDocKind = z.infer<typeof ImportedDocKind>;
+
+/** Engine name of transcripts that came with an import; such originals are not transcribed again. */
+export const IMPORTED_ENGINE = "imported";
+
+/** One audio file found in the chosen folder, with where it would go. Paths stay in the host. */
+export const ImportItem = z.object({
+  id: z.string().regex(/^[a-f0-9]{16,64}$/),
+  /** "과목/NN주차/녹음/이름" as found. */
+  path: z.string().min(1).max(400),
+  kind: z.enum(["recording", "lecture"]),
+  title: z.string().min(1).max(200),
+  courseId: Id.optional(),
+  courseTitle: z.string().max(200).optional(),
+  weekId: Id.optional(),
+  weekLabel: z.string().max(200).optional(),
+  lectureSourceId: LectureSourceId.optional(),
+  hasTranscript: z.boolean(),
+  docs: z.array(ImportedDocKind),
+  bytes: z.number().int().nonnegative(),
+  /** `new` can be imported; the others say why not. */
+  status: z.enum(["new", "imported", "no_course"]),
+});
+export type ImportItem = z.infer<typeof ImportItem>;

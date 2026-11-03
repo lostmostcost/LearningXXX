@@ -306,6 +306,40 @@ export class RecordingService {
     return { recording: done, asset };
   }
 
+  /**
+   * WBS-066: stores audio imported from the user's own folder as a finished
+   * recording. The bytes are copied (the user's file is never changed); the
+   * same file imported again returns what is already there. It is not handed
+   * to transcription here: the caller registers it after keeping any
+   * transcript that came with it.
+   */
+  importOriginal(input: { courseId: string; weekId?: string | undefined; lectureSourceId?: string | undefined; title: string; startedAt: string; durationMs: number; importedFrom: string; bytes: Uint8Array; mediaType: string; ext: "opus"; recordingId: string; assetId: string }): { recording: Recording; asset: MediaAsset } {
+    const existing = this.#state.recordings.find((r) => r.courseId === input.courseId && r.importedFrom === input.importedFrom);
+    const existingAsset = existing && this.#state.assets.find((a) => a.id === existing.originalAssetId);
+    if (existing && existingAsset) return { recording: existing, asset: existingAsset };
+    const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+    const storageKey = `media/originals/${sha256}.${input.ext}`;
+    const target = join(this.#o.dataRoot, storageKey);
+    mkdirSync(dirname(target), { recursive: true });
+    if (!existsSync(target)) {
+      writeFileSync(`${target}.part`, input.bytes);
+      renameSync(`${target}.part`, target);
+    }
+    const durationMs = Math.max(1, Math.round(input.durationMs));
+    const asset = MediaAsset.parse({
+      schemaVersion: SCHEMA_VERSION, id: input.assetId, courseId: input.courseId, role: "original",
+      source: { type: "recording", recordingId: input.recordingId }, title: input.title, mediaType: input.mediaType,
+      bytes: input.bytes.byteLength, sha256, storageKey, durationMs, createdAt: this.#stamp(),
+    });
+    this.#state.assets.push(asset);
+    const recording = this.#put({
+      schemaVersion: SCHEMA_VERSION, id: input.recordingId, courseId: input.courseId, title: input.title, startedAt: input.startedAt,
+      status: "finalized", durationMs, originalAssetId: asset.id, sourceDevice: "가져온 녹음", importedFrom: input.importedFrom,
+      ...(input.weekId ? { weekId: input.weekId } : {}), ...(input.lectureSourceId && input.weekId ? { lectureSourceId: input.lectureSourceId } : {}),
+    });
+    return { recording, asset };
+  }
+
   /** An original for playback, re-hashed before it is handed out. */
   asset({ assetId }: IpcRequest<"media.asset">): IpcResponse<"media.asset"> {
     const asset = this.#state.assets.find((a) => a.id === assetId) ?? fail("NOT_FOUND", "녹음 파일 정보를 찾을 수 없습니다.");

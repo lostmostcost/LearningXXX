@@ -15,8 +15,70 @@ import { AccountKey, AppError, Id, LANGUAGE_NAMES, type PdfTranslationSkip, type
  * range adds to what was made before.
  */
 
-/** One line as pdf.js places it, in the page's PDF coordinates. */
-export interface PdfLine { text: string; x: number; y: number; size: number; width: number; angle: number }
+/** One line as pdf.js places it, in the page's PDF coordinates; `color` (0–1 RGB) where it was read (WBS-096). */
+export interface PdfLine { text: string; x: number; y: number; size: number; width: number; angle: number; color?: [number, number, number] | undefined }
+
+type Matrix = [number, number, number, number, number, number];
+const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
+/** m1 applied after m2, the PDF way (row vector × m1 × m2). */
+const times = (m1: Matrix, m2: Matrix): Matrix => [
+  m1[0] * m2[0] + m1[1] * m2[2], m1[0] * m2[1] + m1[1] * m2[3],
+  m1[2] * m2[0] + m1[3] * m2[2], m1[2] * m2[1] + m1[3] * m2[3],
+  m1[4] * m2[0] + m1[5] * m2[2] + m2[4], m1[4] * m2[1] + m1[5] * m2[3] + m2[5],
+];
+const matrix = (v: unknown): Matrix | undefined => {
+  const m = v && typeof v === "object" ? [0, 1, 2, 3, 4, 5].map((i) => Number((v as Record<number, unknown>)[i])) : [];
+  return m.length === 6 && m.every(Number.isFinite) ? (m as Matrix) : undefined;
+};
+const hexColor = (v: unknown): [number, number, number] | undefined => {
+  const m = typeof v === "string" ? /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v) : null;
+  return m ? [parseInt(m[1]!, 16) / 255, parseInt(m[2]!, 16) / 255, parseInt(m[3]!, 16) / 255] : undefined;
+};
+
+/**
+ * WBS-096: where each run of text starts on the page and the fill colour in
+ * effect then, from pdf.js's operator list (colours there are already RGB
+ * hex). Text matrices, page transforms, saved states and forms are followed;
+ * advances inside a run are not, so only run starts are known.
+ */
+export function textStarts(OPS: Record<string, number>, fnArray: readonly number[], argsArray: readonly unknown[]): { x: number; y: number; color: [number, number, number] }[] {
+  const out: { x: number; y: number; color: [number, number, number] }[] = [];
+  let ctm: Matrix = IDENTITY, fill: [number, number, number] = [0, 0, 0], tlm: Matrix = IDENTITY, leading = 0;
+  const stack: { ctm: Matrix; fill: [number, number, number] }[] = [];
+  const move = (tx: number, ty: number) => { tlm = times([1, 0, 0, 1, tx, ty], tlm); };
+  const show = () => { const m = times(tlm, ctm); out.push({ x: m[4], y: m[5], color: fill }); };
+  fnArray.forEach((fn, i) => {
+    const args = (argsArray[i] ?? []) as unknown[];
+    switch (fn) {
+      case OPS.save: stack.push({ ctm, fill }); break;
+      case OPS.restore: { const top = stack.pop(); if (top) ({ ctm, fill } = top); break; }
+      case OPS.transform: { const m = matrix(args); if (m) ctm = times(m, ctm); break; }
+      case OPS.paintFormXObjectBegin: { stack.push({ ctm, fill }); const m = matrix(args[0]); if (m) ctm = times(m, ctm); break; }
+      case OPS.paintFormXObjectEnd: { const top = stack.pop(); if (top) ({ ctm, fill } = top); break; }
+      case OPS.setFillRGBColor: fill = hexColor(args[0]) ?? fill; break;
+      case OPS.beginText: tlm = IDENTITY; break;
+      case OPS.setTextMatrix: tlm = matrix(args[0] ?? args) ?? tlm; break;
+      case OPS.setLeading: leading = Number(args[0]) || 0; break;
+      case OPS.moveText: move(Number(args[0]) || 0, Number(args[1]) || 0); break;
+      case OPS.setLeadingMoveText: leading = -(Number(args[1]) || 0); move(Number(args[0]) || 0, Number(args[1]) || 0); break;
+      case OPS.nextLine: move(0, -leading); break;
+      case OPS.nextLineShowText: case OPS.nextLineSetSpacingShowText: move(0, -leading); show(); break;
+      case OPS.showText: case OPS.showSpacedText: show(); break;
+    }
+  });
+  return out;
+}
+
+/** The colour of the run that starts closest to where the line starts, on its baseline; black when none is near. */
+export function colorAt(starts: readonly { x: number; y: number; color: [number, number, number] }[], line: Pick<PdfLine, "x" | "y" | "size">): [number, number, number] | undefined {
+  let best: { d: number; color: [number, number, number] } | undefined;
+  for (const s of starts) {
+    if (Math.abs(s.y - line.y) > line.size * 0.5) continue;
+    const d = Math.abs(s.x - line.x);
+    if (d <= line.size * 1.5 && (!best || d < best.d)) best = { d, color: s.color };
+  }
+  return best?.color;
+}
 
 /** Pages per request, so one request stays within a few minutes. */
 export const MAX_PAGES = 40;
@@ -28,14 +90,15 @@ function fail(code: "NOT_FOUND" | "INVALID_REQUEST" | "RUN_ALREADY_ACTIVE" | "ME
 }
 
 /** pdf.js text items joined into lines: same baseline and angle, small gap. */
-export async function pdfLines(bytes: Uint8Array): Promise<PdfLine[][]> {
+export async function pdfLines(bytes: Uint8Array, colorPages?: ReadonlySet<number>): Promise<PdfLine[][]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const task = pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: false, verbosity: 0 });
   try {
     const doc = await task.promise;
     const pages: PdfLine[][] = [];
     for (let n = 1; n <= doc.numPages; n += 1) {
-      const items = (await (await doc.getPage(n)).getTextContent()).items;
+      const page = await doc.getPage(n);
+      const items = (await page.getTextContent()).items;
       const lines: PdfLine[] = [];
       for (const item of items) {
         if (!("str" in item) || !item.str.trim()) continue;
@@ -53,7 +116,9 @@ export async function pdfLines(bytes: Uint8Array): Promise<PdfLine[][]> {
           lines.push({ text: item.str, x: x!, y: y!, size, width: item.width, angle });
         }
       }
-      pages.push(lines.map((l) => ({ ...l, text: l.text.replace(/\s+/g, " ").trim() })).filter((l) => l.text));
+      // WBS-096: colours only for the pages being drawn; reading the operator list costs more than the text.
+      const starts = colorPages?.has(n) && lines.length ? await page.getOperatorList().then((ops) => textStarts(pdfjs.OPS as unknown as Record<string, number>, ops.fnArray, ops.argsArray)).catch(() => []) : [];
+      pages.push(lines.map((l) => ({ ...l, text: l.text.replace(/\s+/g, " ").trim(), ...(starts.length ? { color: colorAt(starts, l) } : {}) })).filter((l) => l.text));
     }
     return pages;
   } finally {
@@ -210,7 +275,7 @@ export async function buildTranslatedPdf(input: { original: Uint8Array; lines: r
       const room = text === line.text ? line.width : Math.max(line.width, Math.min(Math.max(line.width, line.size) * 1.3, next ? next.x - line.x - line.size * 0.3 : Infinity));
       let size = line.size;
       while (size > line.size * 0.6 && face.font.widthOfTextAtSize(text, size) > room) size -= 0.25;
-      page.drawText(text, { x: line.x, y: line.y, size, font: face.font, color: rgb(0, 0, 0), ...(line.angle ? { rotate: degrees(line.angle) } : {}) });
+      page.drawText(text, { x: line.x, y: line.y, size, font: face.font, color: rgb(...(line.color ?? [0, 0, 0])), ...(line.angle ? { rotate: degrees(line.angle) } : {}) });
     });
   }
   return { bytes: new Uint8Array(await doc.save()), skipped };
@@ -230,7 +295,7 @@ export interface PdfTranslationOptions {
   translate: (input: { language: PreferredLanguage; lines: string[]; signal: AbortSignal }) => Promise<(string | undefined)[]>;
   /** Font files to draw with, first choice first (tests pass a standard PDF font). */
   fonts?: (language: PreferredLanguage) => Promise<(Uint8Array | StandardFonts)[]>;
-  lines?: (bytes: Uint8Array) => Promise<PdfLine[][]>;
+  lines?: (bytes: Uint8Array, colorPages?: ReadonlySet<number>) => Promise<PdfLine[][]>;
   batch?: number;
 }
 
@@ -301,7 +366,10 @@ export class PdfTranslationService {
       const { key, dir } = this.#dir(courseId);
       const original = await this.#original(courseId, assetId);
       if (original.mediaType !== "application/pdf") fail("INVALID_REQUEST", "PDF만 번역본을 만들 수 있습니다.");
-      const lines = await (this.#o.lines ?? pdfLines)(original.bytes).catch(() => fail("MEDIA_UNREADABLE", "PDF를 읽지 못했습니다(암호가 걸렸거나 손상된 파일일 수 있음)."));
+      // Colours are read for the pages this copy will draw: the ones asked for and those made before.
+      const before = await this.#saved(join(dir, `${original.sha256}.${language}.json`));
+      const drawn = new Set([...Object.keys(before.pages).map(Number), ...Array.from({ length: Math.max(0, Math.min(to, from + MAX_PAGES) - from + 1) }, (_, i) => from + i)]);
+      const lines = await (this.#o.lines ?? pdfLines)(original.bytes, drawn).catch(() => fail("MEDIA_UNREADABLE", "PDF를 읽지 못했습니다(암호가 걸렸거나 손상된 파일일 수 있음)."));
       const last = Math.min(to, lines.length);
       if (!Number.isInteger(from) || from < 1 || from > last) fail("INVALID_REQUEST", `쪽 범위가 올바르지 않습니다(1–${lines.length}쪽).`);
       if (last - from + 1 > MAX_PAGES) fail("INVALID_REQUEST", `한 번에 ${MAX_PAGES}쪽까지 만들 수 있습니다.`);

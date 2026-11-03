@@ -2908,7 +2908,7 @@
       "phase": "MVP 검수",
       "priority": "P2",
       "spec": "PRD-001",
-      "status": "Backlog",
+      "status": "In Progress",
       "qa_mode": "appropriate_checks_only",
       "deps": [
         "WBS-072"
@@ -2917,7 +2917,8 @@
         "host"
       ],
       "paths": [
-        "apps/desktop/host/",
+        "apps/desktop/host/src/pdf-translate.ts",
+        "apps/desktop/host/test/pdf-translate.test.ts",
         "docs/pm/"
       ],
       "requirements": [
@@ -2926,7 +2927,11 @@
       "acceptance": "번역본의 각 줄이 원본 글자 색으로 그려져, 색 있는 제목과 어두운 배경 위 흰 글자가 실제 수집 PDF에서 그대로 보인다.",
       "branch": "feat/WBS-096-translated-pdf-colors",
       "url": "https://app.notion.com/p/40dbd7ec20cd81bbba9fe6c3779454eb?pvs=204",
-      "scope_note": "WBS-072 후속(2026-11-04)."
+      "scope_note": "WBS-072 후속(2026-11-04). 영역 예외(이문찬 2026-11-04 승인: 영역이 겹쳐도 병렬 진행, 충돌 시 책임지고 합병): host 영역은 WBS-097이 선점 중이라 task + 'pdf-translation' 영역만 선점하고 pdf-translate.ts와 그 테스트만 수정.",
+      "review_evidence": [
+        "pdf-translate.ts: textStarts follows pdf.js's operator list (colours already RGB hex; save/restore, transform, form XObjects, text matrix, moveText/TD leading, T*, ' and \") and records each text run's start and fill colour; colorAt picks the run starting nearest the line start on its baseline (within 1.5× size), else black. pdfLines reads colours only for pages being drawn (asked range + pages made before), so the cost stays on those pages; buildTranslatedPdf draws each line in its colour. Limits: advances inside a run are not tracked (a colour change mid-line keeps the line's first colour), pattern/shading fills fall back to the last plain colour. Tests: host 251 pass (2 new: synthetic red title and white-on-dark text keep their colours through the copy; matrix/move/leading/restore walk).",
+        "Real collected PDFs (stand-in translation, rendered with sips): LAB2 p3 red title stays red, footer gray (#4d4d4d), body black; 1장 p3 all black as in the original; ~0.9 s for 3 pages incl. colours."
+      ]
     },
     {
       "id": "WBS-097",

@@ -23,6 +23,7 @@ import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
 import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, windowSignInPage } from "./lms-session.ts";
 import { pageSchoolLogin, schoolLogin } from "./school-login.ts";
+import { readBuildInfo } from "./build-info.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
@@ -328,7 +329,9 @@ app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning));
+  // WBS-061: read once; a development run shows which code it is in the top bar.
+  const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
+  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning), "app.build": async () => build });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

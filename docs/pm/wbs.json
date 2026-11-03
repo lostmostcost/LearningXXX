@@ -1829,11 +1829,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "개발 실행일 때 상단 바에 브랜치·WBS·커밋을 표시해 동시에 열린 앱을 구분한다. 배포 판에는 표시하지 않는다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-061-dev-version-label",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8120b9eee34884ea91ae?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed build-info (git via /usr/bin/git -C app path, 5 s timeout, packaged → dev:false, git failure → dev:true without details, detached HEAD), contract regexes, main.ts router merge, UI label/title. Real app (test-app.sh, worktree wbs-061): top bar and window title show '개발 · WBS-061 · <commit> · 수정됨', hover shows branch/folder/commit. pnpm -r run check passes (host 198, ui 108, contracts 58)."
+      ]
     },
     {
       "id": "WBS-062",

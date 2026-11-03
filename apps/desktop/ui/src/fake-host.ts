@@ -75,6 +75,7 @@ export function installFakeHost(courseTitle: string): void {
     "terminal.close": p => { terminalOutput.get(String(p.terminalId))!.closed = true; return ok({}); },
     "terminal.stage": () => ok({ text: '합성 첨부 경로 예제' }),
     "session.list": () => ok({ sessions: [...sessions] }),
+    "app.build": () => ok({ dev: true, branch: "fixture", commit: "0000000", dirty: false, folder: "fixture" }),
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
       schemaVersion: 1, courseId: FIXTURE_MANIFEST.course.id, fetchedAt: now(), errors: [],

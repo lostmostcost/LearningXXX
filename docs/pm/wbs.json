@@ -2729,11 +2729,14 @@
         "REQ-002"
       ],
       "acceptance": "LearningX '파일' 항목으로 올라온 강의계획서(예: 외식메뉴상품기획론·웨스턴퀴진)가 왜 수집 목록에 없는지 밝히고, 받을 수 있는 형식이면 수집해 course.md·시간표 근거로 쓰인다.",
-      "status": "Backlog",
+      "status": "Review",
       "branch": "fix/WBS-090-learningx-syllabus-files",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81e88fabf283a6607bba?pvs=204",
-      "scope_note": "WBS-082 앱 확인(2026-11-04)에서 발견."
+      "scope_note": "WBS-082 앱 확인(2026-11-04)에서 발견.",
+      "review_evidence": [
+        "PRD-001 / SPEC-001 v0.1.0, REQ-002, CR-082/WBS-082 live Done (PR #104), integration base c5c8c73. Reviewed resources.ts LearningX branch, LearningXClient.download, store/manifest callers and learning-status.ts type mapping. Root cause in code: only extension-valued content_type was accepted, while the measured learning-status mapper explicitly recognizes generic file. Generic file now resolves its extension from Commons metadata before opening/fetching bytes; unsupported metadata fails only that resource, keeping previous original. File name fallback uses the resolved extension and unchanged files retain previous name. Token routing, unopened-item guard, original signature verification, week mapping and reuse remain in force. Final docker compose run --rm tools: exit 0, frozen install, tooling 20, collector 88/88 (3 added regressions), all workspace checks and host build pass. Re-reviewed actual final diff and callers: metadata-supported type gate precedes byte fetch; old name retained on reuse; failure preserves old original; no additional blocking finding within this change. Specific live course re-collection has not been run; no private data or credentials added."
+      ]
     },
     {
       "phase": "MVP 검수",

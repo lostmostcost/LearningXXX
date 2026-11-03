@@ -239,9 +239,12 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
       for (const it of mod.data.module_items ?? []) {
         if (it.content_type !== "attendance_item") continue;
         const icd = it.content_data?.item_content_data;
-        const ext = (icd?.content_type ?? "").toLowerCase();
-        if (!LEARNINGX_FILE_TYPES.has(ext)) {
-          skippedTypes[`learningx:${ext || "unknown"}`] = (skippedTypes[`learningx:${ext || "unknown"}`] ?? 0) + 1;
+        const contentType = (icd?.content_type ?? "").toLowerCase();
+        // LearningX also labels documents generically as "file". Resolve their
+        // real extension from Commons metadata in download(), before accepting bytes.
+        const ext = contentType === "file" ? "" : contentType;
+        if (contentType !== "file" && !LEARNINGX_FILE_TYPES.has(ext)) {
+          skippedTypes[`learningx:${contentType || "unknown"}`] = (skippedTypes[`learningx:${contentType || "unknown"}`] ?? 0) + 1;
           continue;
         }
         const contentId = icd?.content_id;
@@ -255,13 +258,13 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
         const id = stableId("resource", course.id, "file", sourceId);
         const prev = prevItems.get(id);
         const title = it.title ?? icd?.file_name ?? "강의 자료";
-        const originalName = icd?.file_name ?? `${title}.${ext}`;
+        const originalName = icd?.file_name;
         const updatedAt = sourceTime(icd?.last_updated_date) ?? keepTime(prev, now);
         const done = await attempt(sourceId, async () => {
           const res = resource("file", sourceId, { weekId, title, url: it.url, updatedAt });
           const old = prev?.assets[0];
           if (old && prev.resource.updatedAt === updatedAt && (await store.verify(old.storageKey, old.sha256))) {
-            items.set(id, withRevision({ resource: res, assets: [{ ...old, originalName }] }, prev));
+            items.set(id, withRevision({ resource: res, assets: [{ ...old, originalName: originalName ?? old.originalName }] }, prev));
             return true;
           }
           const { bytes, extension } = await lx.download(contentId, ext);
@@ -273,7 +276,7 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
             bytes: stored.bytes,
             sha256: stored.sha256,
             storageKey: stored.storageKey,
-            originalName,
+            originalName: originalName ?? `${title}.${extension}`,
           });
           items.set(id, withRevision({ resource: res, assets: [asset] }, prev));
           return true;

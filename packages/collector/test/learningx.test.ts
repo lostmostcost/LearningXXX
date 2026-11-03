@@ -127,6 +127,46 @@ describe("LearningX lecture materials (WBS-039)", () => {
     }
   });
 
+  test("generic LearningX files resolve their real format from Commons and are reused", async () => {
+    const { lx, root, run } = setup();
+    lx.state.contents.set("c0ffee01", { body: "%PDF-1.7 syllabus", ext: "pdf", type: "file", updated: "2026-09-02 10:00:00" });
+    const first = await run();
+    assert.deepEqual(first.errors, []);
+    const one = find(first, "c0ffee01")!;
+    assert.equal(one.assets[0]!.mediaType, "application/pdf");
+    assert.equal(readFileSync(join(root, one.assets[0]!.storageKey), "utf8"), "%PDF-1.7 syllabus");
+    assert.equal(one.resource.weekId, weeks[0]!.id);
+    lx.state.calls.length = 0;
+    const second = await run(manifest(first));
+    assert.deepEqual(find(second, "c0ffee01"), one);
+    assert.equal(lx.state.calls.some(c => c.url.startsWith(COMMONS)), false);
+  });
+
+  test("unsupported metadata on a generic file fails alone and keeps the previous original", async () => {
+    const { lx, run } = setup();
+    const first = await run();
+    lx.state.contents.set("c0ffee01", { body: "not a document", ext: "exe", type: "file", updated: "2026-10-02 10:00:00" });
+    lx.state.calls.length = 0;
+    const second = await run(manifest(first));
+    assert.equal(second.errors[0]?.code, "UNSUPPORTED_FORMAT");
+    assert.deepEqual(find(second, "c0ffee01"), find(first, "c0ffee01"));
+    assert.equal(lx.state.calls.some(c => c.url.includes("/dl/")), false);
+    assert.ok(find(second, "c0ffee02"));
+  });
+
+  test("generic files without a filename use the resolved extension; closed files are never requested", async () => {
+    const { lx, run } = setup();
+    lx.state.contents.set("syllabus01", { body: "PK\u0003\u0004document", ext: "docx", updated: 1 });
+    lx.state.extra.push(
+      { content_type: "attendance_item", title: "강의계획서", content_data: { opened: true, item_content_data: { content_id: "syllabus01", content_type: "file" } } },
+      { content_type: "attendance_item", title: "미공개", content_data: { opened: false, item_content_data: { content_id: "closed01", content_type: "file" } } },
+    );
+    const r = await run();
+    assert.deepEqual(r.errors, []);
+    assert.equal(find(r, "syllabus01")!.assets[0]!.originalName, "강의계획서.docx");
+    assert.equal(lx.state.calls.some(c => c.url.includes("closed01")), false);
+  });
+
   test("an unchanged material is reused without contacting Commons", async () => {
     const { lx, run } = setup();
     const first = await run();

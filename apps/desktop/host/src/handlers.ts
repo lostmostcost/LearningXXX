@@ -6,11 +6,12 @@ import type { CredentialService } from "./credential-service.ts";
 import type { FileService } from "./file-service.ts";
 import type { LibraryService } from "./library-service.ts";
 import type { RecordingService } from "./recording-service.ts";
+import type { SttRuntimeService } from "./stt-runtime.ts";
 import type { MediaService } from "./media-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
@@ -18,7 +19,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
   const libraryMedia = () => { if (!media) throw new Error("Media service unavailable"); return media; };
   const terminal = () => { if (!terminals) throw new Error('Terminal service unavailable'); return terminals; };
   const chat = () => { if (!conversations) throw new Error('Conversation service unavailable'); return conversations; };
+  const runtime = () => { if (!stt) throw new Error("STT runtime unavailable"); return stt; };
   return {
+    "stt.status": ({ refresh }) => runtime().status(refresh),
+    "stt.prepare": () => runtime().prepare(),
+    "stt.cancel": () => runtime().cancel(),
     'chat.rewind': ({ appSessionId, messageId, preview }) => chat().rewind(appSessionId, messageId, preview),
     'chat.open': ({ appSessionId }) => chat().open(appSessionId),
     'chat.state': async ({ appSessionId }) => chat().state(appSessionId),

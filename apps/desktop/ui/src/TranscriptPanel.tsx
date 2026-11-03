@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { MediaAsset, Recording, Transcript, TranscriptionJob } from "@learningxxx/contracts";
-import { downloadView, excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
+import { Icon } from "./StudyUI.tsx";
+import { excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
 
 export interface TranscriptPanelProps {
   courseId: string;
+  view?: "recording" | "transcripts";
+  engineReady?: boolean;
+  onOpenOriginal?: (assetId: string) => Promise<void>;
   assets: readonly MediaAsset[];
   recordings: readonly Recording[];
   jobs: readonly TranscriptionJob[];
@@ -20,19 +24,13 @@ export function TranscriptPanel(props: TranscriptPanelProps) {
   const [selectedId, setSelectedId] = useState<string>();
   const assets = props.assets.filter((a) => a.courseId === props.courseId && a.role === "original");
   const asset = assets.find((a) => a.id === selectedId) ?? assets[0];
-  const recordingLabel = { recording: "녹음 중 · 종료 후 원본 확정", finalized: "원본 보존됨", recovered_partial: "중단 후 일부 복구됨", failed: "녹음 실패 · 남은 원본 확인 필요" };
   return <section className="media-library" aria-label="녹음과 전사">
-    <h2>강의 원본과 전사</h2>
-    <ul>{props.recordings.filter((r) => r.courseId === props.courseId).map((r) => <li key={r.id}>{r.title} · {recordingLabel[r.status]}{r.durationMs !== undefined ? ` · ${mediaTime(r.durationMs)}` : ""}{r.errorCode ? ` · ${r.errorCode}` : ""}</li>)}</ul>
-    <ul aria-label="영상 다운로드">{props.downloads?.filter((d) => d.courseId === props.courseId).map((d) => {
-      const view = downloadView(d);
-      return <li key={d.id}>{d.title} · {view.label}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}{d.status === "running" ? <progress max={1} value={view.progress} aria-label="영상 다운로드 진행" /> : null}</li>;
-    })}</ul>
-    <div className="media-columns">
-      <nav aria-label="강의 원본"><ul className="entries">{assets.map((a) => <li key={a.id}><button className="entry" aria-pressed={a.id === asset?.id} onClick={() => setSelectedId(a.id)}>{a.mediaType.startsWith("video/") ? "영상" : "녹음"} · {a.title}</button></li>)}</ul></nav>
-      {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <p>아직 확정된 강의 원본이 없습니다. 녹음 또는 다운로드가 끝나면 여기에 표시됩니다.</p>}
-    </div>
+    <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3><span>{assets.length}</span></div>
+    {assets.length ? <label className="source-picker"><Icon name="file" /><select aria-label="강의 원본 선택" value={asset?.id ?? ""} onChange={e => setSelectedId(e.target.value)}>{assets.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}</select></label> : null}
+    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>녹음하거나 온라인 강의를 가져오면 여기에 표시됩니다.</small></div>}
+    {props.recordings.filter(r => r.courseId === props.courseId && !r.originalAssetId && r.status !== "recording").map(r => <p className="notice-box" key={r.id}>{r.title} · {r.status === "failed" ? "녹음을 저장하지 못했습니다" : "원본을 복구하고 있습니다"}</p>)}
   </section>;
+
 }
 
 function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
@@ -71,7 +69,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     }).catch(() => { if (alive) setNotice("원본을 불러오지 못했습니다. 다시 열어 보세요."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [asset, props.loadOriginal, loadAttempt]);
+  }, [asset.id, asset.sha256, props.loadOriginal, loadAttempt]);
 
   const changeVersion = (id: string) => { player.current?.pause(); endAt.current = undefined; setVersionId(id); setSelected([]); setPreview(undefined); setNotice(undefined); };
   const play = async (index: number) => {
@@ -99,41 +97,41 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     catch { setNotice("초안에 넣지 못했습니다. 대상 세션 상태를 확인한 뒤 다시 시도하세요."); }
     finally { setBusy(false); }
   };
+  const latest = props.jobs.filter(j => j.sourceAssetId === asset.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
   return <div className="media-detail">
-    <h3>{asset.title}</h3>
-    <p className="meta">{asset.durationMs !== undefined ? mediaTime(asset.durationMs) : "길이 미확인"} · 원본 메타데이터 · 자동 요약 안 함</p>
+    <div className="original-toolbar"><span className="meta">{asset.mediaType.startsWith("video/") ? "영상" : "녹음"} · {asset.durationMs !== undefined ? mediaTime(asset.durationMs) : "길이 미확인"}</span><span>{props.onOpenOriginal ? <button className="icon-button" title="시스템 플레이어로 열기" aria-label="시스템 플레이어로 열기" onClick={() => void props.onOpenOriginal?.(asset.id)}><Icon name="folder" /></button> : null}<button className="icon-button" title="원본 다시 열기" aria-label="원본 다시 열기" disabled={loading} onClick={() => setLoadAttempt(n => n + 1)}><Icon name="refresh" /></button></span></div>
     {loading ? <p role="status">원본 여는 중…</p> : null}
     {url ? <>
       {asset.mediaType.startsWith("video/") ? <video ref={(el) => { player.current = el; }} src={url} controls {...events} /> : <audio ref={(el) => { player.current = el; }} src={url} controls {...events} />}
-      <a href={url} target="_blank" rel="noreferrer">원본 열기</a>
+
     </> : null}
-    {!loading ? <button onClick={() => setLoadAttempt((n) => n + 1)}>원본 다시 열기</button> : null}
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
-    <ul aria-label="전사 작업">{props.jobs.filter((j) => j.sourceAssetId === asset.id).map((job) => {
+    <ul className="transcription-jobs" aria-label="전사 작업">{(latest ? [latest] : []).map((job) => {
       const view = jobView(job);
       return <li key={job.id}>{view.label}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
         {job.status === "running" ? <progress aria-label="전사 진행" max={1} value={view.progress} /> : null}
-        {job.errorCode ? ` · ${job.errorCode}` : ""}
-        {view.retry ? <button disabled={!props.onRetry || retrying !== undefined} onClick={async () => {
+        {job.errorCode ? <small>{job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {view.retry ? <button className="icon-button" title="전사 재시도" aria-label="전사 재시도" disabled={!props.onRetry || props.engineReady === false || retrying !== undefined} onClick={async () => {
           if (!props.onRetry || retrying !== undefined) return;
           setRetrying(job.id);
           try { await props.onRetry(job.id); } catch { setNotice("전사 재시도를 시작하지 못했습니다. 원본은 보존됩니다."); }
           finally { setRetrying(undefined); }
-        }}>전사 재시도</button> : null}</li>;
+        }}><Icon name="refresh" /></button> : null}</li>;
     })}</ul>
-    {version ? <>
+    {version && props.view !== "recording" ? <>
+      <div className="transcript-actions"><strong>전사 내용</strong><button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
       <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{v.kind === "engine" ? "자동 전사 원본" : "요청한 보정본"} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
-      <p className="meta">타임스탬프로 해당 구간을 재생합니다. 채팅에는 직접 선택한 구간만 넣습니다.</p>
+
       <ol className="segment-list">{version.segments.map((segment, index) => <li key={`${version.id}:${index}`}>
-        <input type="checkbox" aria-label={`${index + 1}번 전사 선택`} checked={selected.includes(index)} disabled={busy} onChange={(e) => setSelected(e.target.checked ? [...selected, index] : selected.filter((n) => n !== index))} />
+        {props.onAttach ? <input type="checkbox" aria-label={`${index + 1}번 전사 선택`} checked={selected.includes(index)} disabled={busy} onChange={(e) => setSelected(e.target.checked ? [...selected, index] : selected.filter((n) => n !== index))} /> : null}
         <button disabled={!mediaReady} aria-label={`${mediaTime(segment.startMs)} 구간 재생`} onClick={() => void play(index)}>{mediaTime(segment.startMs)}–{mediaTime(segment.endMs)}</button><span>{segment.text || "(발화 없음)"}</span>
       </li>)}</ol>
-      <button disabled={!selected.length || busy} onClick={prepare}>선택 전사 미리보기</button>
+      {props.onAttach ? <button disabled={!selected.length || busy} onClick={prepare}>선택 전사 미리보기</button> : null}
       {preview ? <div className="notice-box">
         <p>대상: {preview.session?.title ?? "세션을 고른 뒤 다시 미리보기 하세요"}</p><pre>{preview.excerpt.text}</pre>
         <button disabled={!preview.session || !props.onAttach || busy} onClick={() => void attach()}>{busy ? "초안에 넣는 중…" : "이 내용을 채팅 초안에 넣기"}</button>
         <button disabled={busy} onClick={() => setPreview(undefined)}>미리보기 취소</button>
       </div> : null}
-    </> : <p>아직 전사가 없습니다. 전사가 실패해도 원본은 남습니다.</p>}
+    </> : <p className="subtle">{version ? "전사 탭에서 내용을 확인하세요." : latest?.status === "failed" || latest?.status === "cancelled" ? "전사를 완료하지 못했습니다. 원본은 보관됩니다." : "전사 대기 중 · 원본은 안전하게 보관됩니다."}</p>}
   </div>;
 }

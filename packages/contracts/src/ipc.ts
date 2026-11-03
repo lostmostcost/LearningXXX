@@ -32,7 +32,11 @@ export const ConversationState = z.object({
   commands: z.array(z.object({ name: z.string(), description: z.string(), argumentHint: z.string() })),
   permissions: z.array(z.object({ id: z.string(), tool: z.string(), input: z.record(z.string(), z.unknown()) })), totalCost: z.number(), tokens: z.number(), sessionId: z.string(),
 });
+export const SttStatus = z.object({ state: z.enum(['missing', 'installing', 'ready', 'failed', 'unsupported']), message: z.string() });
 export const IpcChannels = {
+  'stt.status': { request: z.object({ refresh: z.boolean().optional() }), response: SttStatus },
+  'stt.prepare': { request: z.object({}), response: SttStatus },
+  'stt.cancel': { request: z.object({}), response: SttStatus },
   'chat.open': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   'chat.state': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   'chat.send': { request: z.object({ appSessionId: TerminalId, requestId: TerminalId, text: z.string().trim().min(1).max(100000) }), response: ConversationState },

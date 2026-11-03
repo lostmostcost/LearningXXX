@@ -122,3 +122,23 @@ test("quit during partition initialization cannot start a worker after stop retu
   await media.stop(); await recovering; await tick(); assert.equal(s.calls(), 0);
   await assert.rejects(media.recover(), /종료/);
 });
+
+test("engine recovery retries unavailable jobs once without duplicating originals or finished versions", async () => {
+  const { EngineError } = await import('@learningxxx/transcriber');
+  const s = await setup(); let ready = false, calls = 0;
+  const engine: Engine = { info: { name: 'synthetic', version: 'repair' }, parameters: {}, transcribe: async () => { calls++; if (!ready) throw new EngineError('ENGINE_UNAVAILABLE', 'missing', false); return output; } };
+  const media = s.make([s.asset], { engine }); await media.recover(); await tick();
+  assert.equal((await media.list(s.course.id)).jobs[0]!.errorCode, 'ENGINE_UNAVAILABLE');
+  ready = true; await media.retryUnavailable(); await tick(); await media.retryUnavailable(); await tick();
+  const result = await media.list(s.course.id); assert.equal(calls, 2); assert.equal(result.assets.length, 1); assert.equal(result.jobs.length, 1); assert.equal(result.transcripts.length, 1);
+  await media.stop();
+});
+
+test("retry of an obsolete engine job uses the current configuration and retains earlier output", async () => {
+  const s = await setup(), old = s.make(); await old.recover(); await tick(); s.finish(); await tick();
+  const oldId = (await old.list(s.course.id)).jobs[0]!.id; await old.stop();
+  let calls = 0;
+  const engine: Engine = { info: { name: 'synthetic', version: 'updated' }, parameters: { version: '2' }, transcribe: async () => { calls++; return output; } };
+  const current = s.make([], { engine }); await current.recover(); await tick(); await current.retry(s.course.id, oldId); await tick();
+  const result = await current.list(s.course.id); assert.equal(calls, 1); assert.equal(result.jobs.length, 2); assert.equal(result.transcripts.length, 2); await current.stop();
+});

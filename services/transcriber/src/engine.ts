@@ -97,7 +97,7 @@ export class QwenEngine implements Engine {
     return new Promise((resolve, reject) => {
       // -I: the script's folder and the current folder never shadow a module.
       const child = spawn(this.#o.python, ["-I", this.#o.script, "--wav", wav, "--model", this.#model, "--language", "Korean", "--context", context], {
-        env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME ?? "", HF_HOME: this.#o.modelHome, HF_HUB_DISABLE_TELEMETRY: "1" },
+        env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME ?? "", HF_HOME: this.#o.modelHome, HF_HUB_DISABLE_TELEMETRY: "1", HF_HUB_OFFLINE: "1" },
         stdio: ["ignore", "pipe", "pipe"],
         signal,
       });

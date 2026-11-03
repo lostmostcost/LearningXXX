@@ -1555,6 +1555,45 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8139ae71c0b54f2e6a10",
       "scope_note": "CR-052 사용자 승인: 세션 과목에 고정된 조회용 사본/목록과 기본 문맥을 SDK·PTY에 연결. 기존 로그인/일반 환경 유지. host/cli/shared claim 내 변경. 파생 사본의 이전 버전은 진행 중 참조를 위해 보존."
+    },
+    {
+      "id": "WBS-053",
+      "title": "녹음·전사 UI 정리와 엔진 준비 복구",
+      "phase": "B 전사",
+      "priority": "P0",
+      "deps": [
+        "WBS-052"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "transcriber",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/",
+        "services/transcriber/",
+        "packages/contracts/",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-003.md",
+        "docs/specs/SPEC-004.md"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "앱 안에서 전사 엔진 상태 확인/준비/복구 후 재시도할 수 있고 원본과 기존 전사를 보존한다. 녹음·전사 화면을 분리 정리하며 탭 전환 중 녹음을 유지한다. 합성 음성으로 실제 로컬 엔진 성공을 검증한다.",
+      "status": "Review",
+      "branch": "fix/WBS-053-recording-transcription",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81e5bd48fcb59f4b0f2c",
+      "scope_note": "CR-053 사용자 승인. ui/host/transcriber/shared 선점 내 변경, 선행 main855241b. 녹음·전사 정리와 앱 전용 엔진 준비·복구. 원본/기존 전사 보존.",
+      "review_evidence": [
+        "Backend stage: stt-runtime/main/handlers/preload/media-service and Python setup reviewed with callers. Fixed missing runtime diagnosis, swallowed warmup errors, restricted GUI sysctl path, snapshot readiness incorrectly requiring README, setup/shutdown race, repair during active transcription and installer descendant cleanup. Runtime/media targeted tests pass; actual setup and synthetic Korean Qwen transcription pass (19 timed words).",
+        "UI stage: App/RecordingPanel/MediaLibrary/TranscriptPanel and styles reviewed. Fixed duplicate lists/narrow nested columns, asset object polling restarting playback, swallowed retry errors, capture setup cleanup and late chunk responses affecting a newer capture. Browser fixture verified prepare-to-ready, timestamp playback, stable audio URL across polling and three tool tabs. Microphone/human lecture QA not claimed."
+      ]
     }
   ],
   "qaPolicy": {

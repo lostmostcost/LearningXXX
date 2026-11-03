@@ -13,6 +13,7 @@ import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
 import { createCliRunner } from "./cli-runner.ts";
 import { FileService } from "./file-service.ts";
+import { SttRuntimeService } from "./stt-runtime.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
@@ -199,10 +200,12 @@ app.whenReady().then(async () => {
     },
   });
   const sttRoot = join(app.getPath("userData"), "stt");
+  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: resolve(app.getAppPath(), "../../../services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") });
+  const stt = new SttRuntimeService({ root: sttRoot, source: resolve(app.getAppPath(), "../../../services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
   media = new MediaService({
     dataRoot, accountKey: () => library.accountKey(), courses: () => library.courses(),
     originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
-    engine: new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: resolve(app.getAppPath(), "../../../services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") }),
+    engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => { input.signal.throwIfAborted(); return engine.transcribe(input); }) },
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
     openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
     videos: async (course) => {
@@ -234,7 +237,7 @@ app.whenReady().then(async () => {
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
+    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await stt.stop(); await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
   });
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
   powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
@@ -244,7 +247,7 @@ app.whenReady().then(async () => {
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations));
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

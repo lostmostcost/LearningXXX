@@ -348,3 +348,11 @@
 | INDEX.md에 주차별 목록, catalog.json에 `weekNotes`, 기본 지침에 "주차 질문은 전사·정리본·과제·공지도 읽고, PDF가 없어도 전사로 요약, 근거는 [mm:ss]" | AI가 찾아 읽도록 | — |
 | 전사·정리본·안내가 바뀌면 새 사본(지문에 포함), 그대로면 기존 사본 재사용 | 고친 판이 바로 반영 | — |
 
+## WBS-076 고급 터미널 기능 제거 (CR-074, 2026-11-04)
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 채팅의 "고급 터미널" 버튼·화면, 터미널 서비스(native-terminal)·훅 스크립트, `terminal.open/read/write/resize/close`·`chat.back` IPC 제거. 채팅은 그대로 | 요청 그대로 | PR revert |
+| 이름에 terminal이 남은 `terminal.stage`(채팅 첨부 사본 준비)와 `chat.detach`(새 대화 전 정리)는 채팅이 써서 유지 | 채팅 기능 보존 | — |
+| `node-pty`·`@xterm` 의존성은 그대로 둠(제거하면 루트 lockfile이 바뀌어 별도 승인 필요). 코드에서는 쓰지 않음 | OPS-001 공유 파일 규칙 | — |
+

@@ -25,7 +25,6 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  * validation is a convenience, not a security boundary.
  */
 const TerminalId = z.string().uuid();
-const TerminalSize = { cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500) };
 export const ConversationState = z.object({
   messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant', 'system']), text: z.string(), tools: z.array(z.object({ id: z.string(), name: z.string(), input: z.string() })) })),
   busy: z.boolean(), connected: z.boolean(), error: z.string(), model: z.string(), effort: z.string(), mode: z.string(),
@@ -47,13 +46,7 @@ export const IpcChannels = {
   'chat.info': { request: z.object({ appSessionId: TerminalId, kind: z.enum(['context', 'cost', 'usage', 'mcp', 'skills']) }), response: z.object({ text: z.string() }) },
   'chat.rewind': { request: z.object({ appSessionId: TerminalId, messageId: TerminalId, preview: z.boolean() }), response: z.object({ canRewind: z.boolean(), error: z.string().optional(), filesChanged: z.array(z.string()).optional(), insertions: z.number().optional(), deletions: z.number().optional(), skippedLinks: z.number().optional() }) },
   'chat.detach': { request: z.object({ appSessionId: TerminalId }), response: z.object({}) },
-  'chat.back': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   "terminal.stage": { request: z.object({ appSessionId: TerminalId, attachmentId: TerminalId }), response: z.object({ text: z.string() }) },
-  "terminal.open": { request: z.object({ appSessionId: TerminalId, ...TerminalSize }), response: z.object({ terminalId: TerminalId }) },
-  "terminal.read": { request: z.object({ terminalId: TerminalId, after: z.number().int().nonnegative() }), response: z.object({ chunks: z.array(z.object({ seq: z.number().int(), data: z.string() })), state: z.enum(['running', 'exited']), gap: z.boolean(), exitCode: z.number().optional() }) },
-  "terminal.write": { request: z.object({ terminalId: TerminalId, data: z.string().min(1).max(65536) }), response: z.object({}) },
-  "terminal.resize": { request: z.object({ terminalId: TerminalId, ...TerminalSize }), response: z.object({}) },
-  "terminal.close": { request: z.object({ terminalId: TerminalId }), response: z.object({}) },
   "collection.run": {
     request: z.object({ scope: z.enum(["course", "all_courses"]), courseId: Id.optional() }),
     response: z.object({ syncRunId: Id }),

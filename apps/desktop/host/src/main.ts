@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
 import { weekNotes } from "./week-notes.ts";
-import { NativeTerminalService } from "./native-terminal.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CanvasClient, CollectionError, createCommonsVideoResolver, listActiveCourses } from "@learningxxx/collector";
@@ -316,13 +315,12 @@ app.whenReady().then(async () => {
   };
   const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
-  const terminals = new NativeTerminalService({ prepareCourse, courseHookPath: join(app.getAppPath(), 'src/native-course-hook.cjs'), canOpen: id => !conversations?.active(id), root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
-  conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: id => terminals.isActive(id) });
+  conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
+    void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
     } })().catch(() => undefined).finally(() => app.quit());
@@ -362,7 +360,7 @@ app.whenReady().then(async () => {
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
-  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning, importer), "app.build": async () => build,
+  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
     // WBS-071: the preferred language, kept on this Mac.
     "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {

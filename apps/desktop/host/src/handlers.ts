@@ -1,5 +1,4 @@
 import type { ConversationService } from "./conversation-service.ts";
-import type { NativeTerminalService } from "./native-terminal.ts";
 import type { AppModifier } from "@learningxxx/app-modifier";
 import type { AttachmentService } from "./attachment-service.ts";
 import type { CredentialService } from "./credential-service.ts";
@@ -13,13 +12,12 @@ import type { LegacyImporter } from "./legacy-import.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService, conversations?: ConversationService, stt?: SttRuntimeService, learning?: LearningStatusService, importer?: LegacyImporter): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, conversations?: ConversationService, stt?: SttRuntimeService, learning?: LearningStatusService, importer?: LegacyImporter): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
   const recorder = () => { if (!recordings) throw new Error("Recording service unavailable"); return recordings; };
   const libraryMedia = () => { if (!media) throw new Error("Media service unavailable"); return media; };
-  const terminal = () => { if (!terminals) throw new Error('Terminal service unavailable'); return terminals; };
   const chat = () => { if (!conversations) throw new Error('Conversation service unavailable'); return conversations; };
   const runtime = () => { if (!stt) throw new Error("STT runtime unavailable"); return stt; };
   const importing = () => { if (!importer) throw new Error("Importer unavailable"); return importer; };
@@ -41,22 +39,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     'chat.interrupt': ({ appSessionId }) => chat().interrupt(appSessionId),
     'chat.info': async ({ appSessionId, kind }) => ({ text: await chat().info(appSessionId, kind) }),
     'chat.detach': async ({ appSessionId }) => { await chat().detach(appSessionId); return {}; },
-    'chat.back': async ({ appSessionId }) => {
-      terminal().stopSession(appSessionId);
-      const end = Date.now() + 2500;
-      while (terminal().isActive(appSessionId) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 50));
-      if (terminal().isActive(appSessionId)) throw new Error('Terminal still closing');
-      return chat().open(appSessionId);
-    },
     "terminal.stage": async ({ appSessionId, attachmentId }) => {
       if (!['native', 'chat'].includes(sessions.get(appSessionId).engine ?? '')) throw new Error('Not a native session');
       return inputs().forNative(appSessionId, attachmentId);
     },
-    "terminal.open": request => terminal().open(request),
-    "terminal.read": async request => terminal().read(request),
-    "terminal.write": async request => terminal().write(request),
-    "terminal.resize": async request => terminal().resize(request),
-    "terminal.close": async request => terminal().close(request),
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
     "credentials.status": async () => signIn().status(),
@@ -97,7 +83,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "session.archive": async (request) => {
       if (request.archived) {
         if (conversations?.active(request.appSessionId) && conversations.state(request.appSessionId).busy) throw new Error('진행 중인 작업을 중지한 뒤 보관하세요.');
-        await conversations?.close(request.appSessionId); terminals?.stopSession(request.appSessionId);
+        await conversations?.close(request.appSessionId);
       }
       return { session: sessions.archive(request) };
     },
@@ -112,7 +98,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "attachments.confirm": async (request) => ({ attachment: inputs().confirm(request) }),
     "attachments.remove": async (request) => inputs().remove(request),
     "run.start": async (request) => {
-      if (['native', 'chat'].includes(sessions.get(request.draft.targetSessionId).engine ?? '') || terminals?.isActive(request.draft.targetSessionId)) throw Object.assign(new Error('Native terminal active'), { appError: { code: 'INVALID_REQUEST', message: '이 세션의 Claude Code를 종료한 뒤 기존 채팅을 실행하세요.', retryable: false } });
+      if (['native', 'chat'].includes(sessions.get(request.draft.targetSessionId).engine ?? '')) throw Object.assign(new Error('Native terminal active'), { appError: { code: 'INVALID_REQUEST', message: '이 세션의 Claude Code를 종료한 뒤 기존 채팅을 실행하세요.', retryable: false } });
       return { run: await sessions.startRun(request) };
     },
     "run.cancel": async (request) => ({ run: sessions.cancel(request) }),

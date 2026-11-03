@@ -378,6 +378,13 @@
 | host `node-pty`, ui `@xterm/xterm`·`@xterm/addon-fit` 의존성, `setup:pty` 스크립트(`prepare-pty.cjs`), 빌드의 `--external:node-pty`, `pnpm-workspace.yaml`의 `node-pty` 빌드 설정, `NATIVE-TERMINAL.md` 제거. `pnpm-lock.yaml`은 고정 pnpm 12.14.0으로 다시 만듦(삭제만 35줄) | WBS-076 뒤 쓰이지 않음, 이문찬 승인 | PR revert |
 | `pnpm start`는 이제 빌드 후 바로 실행(pty 준비 단계 없음) | 준비할 것이 없음 | — |
 
+## WBS-029 직접 확인 결과와 WBS-080·081 등록, WBS-072 의존성 승인 (이문찬, 2026-11-04)
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 2절 직접 확인: 번역(추후 수정 예정, 동작 확인)·재개(예전 대화 포함)·일반 대화 통과. 캡처는 권한 요청이 앱에서 오지 않아 시스템 설정에 앱이 없음 → WBS-080(P0). 파일 생성은 되지만 outputs를 앱에서 볼 방법이 없음 → WBS-081 | 직접 확인 결과 | — |
+| WBS-072 PDF 번역본: pdf-lib·@pdf-lib/fontkit 추가 승인, 허용 경로에 루트 pnpm-lock.yaml·host package.json 추가, Blocked 해제 | 이문찬 승인 | — |
+
 ## WBS-080 화면 캡처 권한을 앱이 직접 요청 (2026-11-04)
 
 | 결정 | 이유 | 되돌리기 |

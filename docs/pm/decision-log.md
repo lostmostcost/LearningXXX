@@ -378,3 +378,10 @@
 | host `node-pty`, ui `@xterm/xterm`·`@xterm/addon-fit` 의존성, `setup:pty` 스크립트(`prepare-pty.cjs`), 빌드의 `--external:node-pty`, `pnpm-workspace.yaml`의 `node-pty` 빌드 설정, `NATIVE-TERMINAL.md` 제거. `pnpm-lock.yaml`은 고정 pnpm 12.14.0으로 다시 만듦(삭제만 35줄) | WBS-076 뒤 쓰이지 않음, 이문찬 승인 | PR revert |
 | `pnpm start`는 이제 빌드 후 바로 실행(pty 준비 단계 없음) | 준비할 것이 없음 | — |
 
+## WBS-080 화면 캡처 권한을 앱이 직접 요청 (2026-11-04)
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| 캡처 전에 화면 기록 권한이 허용되지 않았으면 앱이 Electron `desktopCapturer`로 화면 목록을 한 번 요청 → macOS가 권한 창을 띄우고 "화면 및 시스템 오디오 녹음" 목록에 앱을 올림. 그래도 허용 전이면 캡처하지 않고 안내 | 원인: 캡처는 별도 프로그램 `screencapture`가 해서 앱이 권한을 요청한 적이 없어 목록에 안 나타남 | PR revert |
+| 안내에 "시스템 설정 열기" 버튼(해당 설정 화면을 바로 엶). 개발 실행은 목록에 "Electron"으로 보임을 안내, 허용 뒤 앱 재실행 필요 | macOS는 허용 뒤 재실행해야 적용 | — |
+

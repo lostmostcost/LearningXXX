@@ -69,6 +69,7 @@ const CHANNELS = new Set([
   "media.translation",
   "media.translate",
   "app.preferences",
+  "app.openSettings",
   "app.setPreferences",
   "media.addMentions",
   "media.mentions",

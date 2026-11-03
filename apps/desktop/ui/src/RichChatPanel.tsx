@@ -11,7 +11,8 @@ type State = IpcResponse<'chat.state'>;
 type Attachment = { id: string; name: string; text: string };
 type Draft = { text: string; attachments: Attachment[] };
 const emptyDraft = (): Draft => ({ text: '', attachments: [] });
-type Note = { title: string; text: string };
+/** `settings`: the notice offers to open that macOS Settings pane (WBS-080). */
+type Note = { title: string; text: string; settings?: 'screen' | undefined };
 type Rewind = { id: string; result: IpcResponse<'chat.rewind'> };
 
 /** Session IDs are captured before every async action; switching views never retargets a send. */
@@ -46,7 +47,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   const showCommands = !!state?.connected && !commandsHidden && choices.length > 0;
   useEffect(() => { if (showCommands) commandMenu.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [showCommands, commandIndex, choices.length]);
   const setDraft = (id: string, fn: (old: Draft) => Draft) => setDrafts(old => ({ ...old, [id]: fn(old[id] ?? emptyDraft()) }));
-  const tell = (id: string, title: string, text: string) => setNotes(old => ({ ...old, [id]: { title, text } }));
+  const tell = (id: string, title: string, text: string, settings?: Note['settings']) => setNotes(old => ({ ...old, [id]: { title, text, ...(settings ? { settings } : {}) } }));
   const accept = (id: string, value: State) => { if (context.current.activeId === id) setSnapshot({ id, state: value }); };
   const action = async (id: string, work: () => Promise<void>) => {
     if (locks.current.has(id)) return;
@@ -103,7 +104,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       if (kind === 'capture') {
         const r = await invoke('captures.start', { appSessionId: id });
         if (r.ok && r.data.capture) setPending({ sessionId: id, item: r.data.capture.attachment });
-        else if (!r.ok) tell(id, '캡처 실패', r.error.message);
+        else if (!r.ok) tell(id, '캡처 실패', r.error.message, r.error.code === 'CAPTURE_PERMISSION_DENIED' ? 'screen' : undefined);
       } else {
         const r = kind === 'asset' && courseId && assetId ? await invoke('attachments.prepareAsset', { appSessionId: id, courseId, assetId }) : await invoke('attachments.chooseLocal', { appSessionId: id });
         if (r.ok && r.data.attachment) setPending({ sessionId: id, item: r.data.attachment });
@@ -183,7 +184,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
         {state?.messages.map(m => <article key={m.id} className={`conversation-message ${m.role}`}><div className="message-author">{m.role === 'user' ? '나' : m.role === 'assistant' ? 'Claude' : 'Claude Code'}</div>{m.text ? <MarkdownAnswer text={m.text} /> : null}{m.tools.map(t => <details className="tool-card" key={t.id}><summary><Icon name="code" /><span>{t.name}</span><Icon name="chevron" /></summary><pre>{t.input}</pre></details>)}</article>)}
         {state?.permissions.map(p => <PermissionCard key={p.id} permission={p} disabled={busy} onAnswer={(allow, answers) => { if (!activeId) return; const id = activeId; void action(id, async () => { const r = await invoke('chat.answer', { appSessionId: id, permissionId: p.id, allow, ...(answers ? { answers } : {}) }); if (r.ok) accept(id, r.data); else tell(id, '확인 요청', r.error.message); }); }} />)}
         {state?.busy ? <div className="working-status" role="status"><span />{state.permissions.length ? '확인을 기다리고 있어요' : 'Claude가 작업하고 있어요'}</div> : null}
-        {note ? <aside className="chat-info"><button title="안내 닫기" aria-label="안내 닫기" onClick={() => setNotes(old => { const next = { ...old }; delete next[activeId!]; return next; })}>×</button><strong>{note.title}</strong><MarkdownAnswer text={note.text} /></aside> : null}
+        {note ? <aside className="chat-info"><button title="안내 닫기" aria-label="안내 닫기" onClick={() => setNotes(old => { const next = { ...old }; delete next[activeId!]; return next; })}>×</button><strong>{note.title}</strong><MarkdownAnswer text={note.text} />{note.settings ? <button onClick={() => void invoke('app.openSettings', { pane: note.settings! })}>시스템 설정 열기</button> : null}</aside> : null}
         {state?.error ? <p className="chat-error" role="alert">{state.error}</p> : null}
         {active && !state?.connected ? <button disabled={busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('chat.open', { appSessionId: id }); if (r.ok) accept(id, r.data); else tell(id, '연결 실패', r.error.message); }); }}><Icon name="refresh" /> 다시 연결</button> : null}
       </div>

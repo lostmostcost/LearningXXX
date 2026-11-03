@@ -58,3 +58,22 @@ test("PNG validation checks signature, header and size", () => {
   new DataView(zero.buffer).setUint32(16, 0);
   assert.throws(() => validateCapture(zero), code("CAPTURE_FAILED"));
 });
+
+test("WBS-080: when access is not granted the app asks macOS itself, then captures once allowed", async () => {
+  let status = "not-determined", asked = 0, ran = 0;
+  const run = async (output: string) => { ran++; writeFileSync(output, PNG); };
+  // The user allows it in the prompt.
+  const allowed = await captureRegion({ platform: "darwin", tempRoot: temp(), permission: () => status, run, requestAccess: async () => { asked++; status = "granted"; } });
+  assert.deepEqual(allowed, PNG);
+  assert.equal(asked, 1);
+  // Already allowed: no prompt.
+  await captureRegion({ platform: "darwin", tempRoot: temp(), permission: () => "granted", run, requestAccess: async () => { asked++; } });
+  assert.equal(asked, 1);
+  // Asked but not (yet) allowed: no capture, a clear error that points to Settings.
+  status = "not-determined";
+  await assert.rejects(captureRegion({ platform: "darwin", tempRoot: temp(), permission: () => status, run, requestAccess: async () => { asked++; } }), (e: unknown) => code("CAPTURE_PERMISSION_DENIED")(e) && /시스템 설정 열기/.test((e as Error).message));
+  assert.equal(asked, 2);
+  assert.equal(ran, 2, "nothing is captured without access");
+  // A failing request is the same as not allowed.
+  await assert.rejects(captureRegion({ platform: "darwin", tempRoot: temp(), permission: () => "denied", run, requestAccess: async () => { throw new Error("x"); } }), code("CAPTURE_PERMISSION_DENIED"));
+});

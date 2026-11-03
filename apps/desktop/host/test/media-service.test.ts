@@ -13,6 +13,8 @@ import { createHandlers } from "../src/handlers.ts";
 const roots: string[] = [];
 afterEach(async () => { for (const path of roots.splice(0)) await rm(path, { force: true, recursive: true }); });
 const tick = async () => { for (let i = 0; i < 30; i++) await new Promise((r) => setTimeout(r, 2)); };
+/** Polls until `ok` holds (up to 5 s), so tests do not depend on machine speed. */
+const until = async (ok: () => boolean | Promise<boolean>) => { for (let i = 0; i < 500 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 10)); };
 const output: EngineOutput = { language: "Korean", text: "합성 전사입니다.", words: [] };
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), "wbs027-")); roots.push(root);
@@ -82,8 +84,9 @@ test("authorized video download persists an original before automatic transcript
   const media = s.make([], { video: () => ({ fetch: (async () => new Response(bytes, { headers: { "content-type": "video/mp4", "content-length": String(bytes.length) } })) as typeof fetch, resolveSource: async () => ({ url: "https://test.invalid/v", referer: "https://test.invalid/em" }), allowedOrigins: ["https://test.invalid"] }) });
   const first = await media.download(s.course.id, "synthetic"), again = await media.download(s.course.id, "synthetic"); assert.equal(first.downloadId, again.downloadId);
   for (let n = 0; n < 100 && !(await media.list(s.course.id)).assets.length; n++) await new Promise((r) => setTimeout(r, 10));
-  await tick(); const listed = await media.list(s.course.id); assert.equal(listed.assets.length, 1); assert.equal(listed.assets[0]!.source.type, "lms_video"); assert.equal(s.calls(), 1);
-  s.finish(); await tick(); assert.equal((await media.list(s.course.id)).jobs[0]!.status, "succeeded");
+  // Wait for the condition rather than a fixed time: a busy CI machine can be slower than a few ticks.
+  await until(() => s.calls() === 1); const listed = await media.list(s.course.id); assert.equal(listed.assets.length, 1); assert.equal(listed.assets[0]!.source.type, "lms_video"); assert.equal(s.calls(), 1);
+  s.finish(); await until(async () => (await media.list(s.course.id)).jobs[0]?.status === "succeeded"); assert.equal((await media.list(s.course.id)).jobs[0]!.status, "succeeded");
   assert.deepEqual((await media.asset(s.course.id, listed.assets[0]!.id)).bytes, new Uint8Array(bytes)); await media.stop();
   const restarted = s.make([]); await restarted.recover(); assert.equal((await restarted.list(s.course.id)).assets.length, 1); assert.equal(s.calls(), 1); await restarted.stop();
 });

@@ -2383,7 +2383,9 @@
       "paths": [
         "apps/desktop/host/",
         "apps/desktop/ui/",
-        "docs/pm/"
+        "docs/pm/",
+        "packages/contracts/src/ipc.ts",
+        "packages/contracts/test/contracts.test.ts"
       ],
       "spec": "PRD-001",
       "requirements": [
@@ -2394,7 +2396,7 @@
       "branch": "fix/WBS-080-capture-permission",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81d8af72eee3b15f8d14?pvs=204",
-      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견. 같은 host 영역의 기존 간헐 실패 테스트(media-service 영상 다운로드, 고정 대기) 안정화 포함.",
+      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견. 같은 host 영역의 기존 간헐 실패 테스트(media-service 영상 다운로드, 고정 대기) 안정화 포함. 영역 밖 최소 수정: packages/contracts의 app.openSettings IPC 한 항목과 그 계약 테스트(shared 선점자 없음).",
       "review_evidence": [
         "Cause: capture runs the separate macOS screencapture tool, so the app itself never asked for Screen Recording and was never listed in Settings. Reviewed captureRegion (asks via injected requestAccess when not granted, refuses when still denied/restricted/not-determined, never captures without access), main wiring (desktopCapturer.getSources for screen, 1x1 thumbnail), app.openSettings with fixed pane URLs only, chat notice button for CAPTURE_PERMISSION_DENIED, message mentions 'Electron' for development runs and restart after allowing. Also stabilized the media-service video download test (fixed waits → polling; it failed once in CI on PR #97). Checks: capture tests 7 incl. new permission-request test, media-service test 5 runs, pnpm -r run check. The real macOS prompt was not triggered by the agent (it appears on the owner's screen); owner re-check needed."
       ]

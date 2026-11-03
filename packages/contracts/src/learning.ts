@@ -85,3 +85,12 @@ export const CourseMeeting = z.object({
   place: z.string().max(100).optional(),
 }).refine((m) => m.start < m.end, { message: "end after start" });
 export type CourseMeeting = z.infer<typeof CourseMeeting>;
+
+/** WBS-086: the student's memo of a course week, with an AI-tidied copy beside it when asked. */
+export const Memo = z.object({
+  text: z.string(), updatedAt: z.string().nullable(),
+  cleaned: z.object({ text: z.string(), at: z.string() }).optional(),
+  /** The text before the tidied copy was used can be brought back. */
+  canUndo: z.boolean(),
+});
+export type Memo = z.infer<typeof Memo>;

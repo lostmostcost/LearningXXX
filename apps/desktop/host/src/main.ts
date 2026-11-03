@@ -37,6 +37,7 @@ import { LearningStatusService, lectureVideos, summarizeLearning } from "./learn
 import { RecordingService } from "./recording-service.ts";
 import { AudioImporter } from "./audio-import.ts";
 import { ChatOutputs } from "./chat-outputs.ts";
+import { MemoService } from "./memos.ts";
 import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
 import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
@@ -357,7 +358,13 @@ app.whenReady().then(async () => {
     },
     write: ({ prompt, signal }) => claudeText({ prompt, what: '과목 정리 파일 만들기', signal }),
   });
-  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor, knowledge: (courseId) => knowledge.markdown(courseId) });
+  // WBS-086: the student's memos; also given to the course chat by week.
+  const memos = new MemoService({
+    root: join(dataRoot, 'memos'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    notes: (courseId) => notesFor(courseId), summary: (courseId) => knowledge.markdown(courseId),
+    write: ({ prompt, signal }) => claudeText({ prompt, what: '메모 정리', signal }),
+  });
+  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: async (courseId) => [...await notesFor(courseId), ...await memos.notes(courseId)], knowledge: (courseId) => knowledge.markdown(courseId) });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
   conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
@@ -412,6 +419,15 @@ app.whenReady().then(async () => {
     "chat.outputs": ({ appSessionId }) => chatOutputs.list(appSessionId),
     "chat.readOutput": ({ appSessionId, id }) => chatOutputs.read(appSessionId, id),
     "chat.showOutput": ({ appSessionId, id, how }) => chatOutputs.show(appSessionId, id, how),
+    // WBS-086: memos per course week.
+    "memo.get": ({ courseId, weekId }) => memos.get(courseId, weekId),
+    "memo.save": ({ courseId, weekId, text, base }) => memos.save(courseId, weekId, text, base),
+    "memo.cleanup": ({ courseId, weekId }) => memos.cleanup(courseId, weekId),
+    "memo.apply": ({ courseId, weekId, action }) => memos.apply(courseId, weekId, action),
+    "memo.pageText": async ({ courseId, assetId, page }) => {
+      const pages = await pdfPageTexts((await library.asset({ courseId, assetId })).bytes);
+      return { text: (pages[page - 1] ?? "").slice(0, 3000) };
+    },
     // WBS-082: the course summary file.
     "course.knowledge": ({ courseId }) => knowledge.get(courseId),
     "course.makeKnowledge": ({ courseId }) => knowledge.make(courseId),

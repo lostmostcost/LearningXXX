@@ -21,7 +21,7 @@ import { runLmsProbe } from "./lms-probe.ts";
 import { lmsSessionReport, runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, windowSignInPage } from "./lms-session.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, openLmsWatchWindow, windowSignInPage } from "./lms-session.ts";
 import { pageSchoolLogin, schoolLogin } from "./school-login.ts";
 import { readBuildInfo } from "./build-info.ts";
 import { captureRegion } from "./native-capture.ts";
@@ -321,6 +321,8 @@ app.whenReady().then(async () => {
     courses: () => library.courses(),
     accountKey: () => library.accountKey(),
     openItemPage: (page) => openLmsItemPage(page, (contents) => credentials.signInAgain((id, pw) => pageSchoolLogin(schoolDeps(), windowSignInPage(contents), id, pw))),
+    openWatchWindow: (page) => openLmsWatchWindow(page, (contents) => credentials.signInAgain((id, pw) => pageSchoolLogin(schoolDeps(), windowSignInPage(contents), id, pw))),
+    onWatchClosed: (courseId, moduleItemId) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send(PUSH_CHANNEL, { kind: "learning.watchClosed", courseId, moduleItemId }); },
   });
   // WBS-055 check: reads every course's learning status once and writes counts (no titles) to a file.
   const learningDump = process.argv.find((arg) => arg.startsWith("--learning-status-dump="))?.split("=")[1];

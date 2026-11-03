@@ -30,6 +30,7 @@ const CHANNELS = new Set([
   "learning.status",
   "app.build",
   "learning.recordView",
+  "learning.watch",
   "library.courses",
   "library.asset",
   "session.create",

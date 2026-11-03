@@ -188,6 +188,10 @@ export interface LearningStatusOptions {
    * "failed" otherwise. Absent, view records are not offered.
    */
   openItemPage?: (page: { sourceCourseId: string; moduleItemId: string }) => Promise<"recorded" | "sign_in" | "failed">;
+  /** WBS-057: open the lecture page in a visible window; resolves when the user closes it. */
+  openWatchWindow?: (page: { sourceCourseId: string; moduleItemId: string; title: string }) => Promise<void>;
+  /** WBS-057: after the watch window closed and the status was read again. */
+  onWatchClosed?: (courseId: string, moduleItemId: string) => void;
 }
 
 function fail(code: ErrorCode, message: string, retryable = false): never {
@@ -277,6 +281,30 @@ export class LearningStatusService {
     })().finally(() => this.#views.delete(key));
     this.#views.set(key, work);
     return work;
+  }
+
+  /**
+   * CR-054 / WBS-057: the user wants to watch an online lecture. Only LMS video
+   * or live items that are open qualify. The window is the official LMS page
+   * the user watches; the app reports nothing itself. When it closes, the
+   * status is read again so the attendance shown matches the LMS.
+   */
+  async watch(courseId: string, moduleItemId: string): Promise<void> {
+    const open = this.#o.openWatchWindow;
+    if (!open) fail("NOT_FOUND", "LMS 시청 창을 열 수 없습니다.");
+    const account = this.#o.accountKey();
+    const course = account ? (await this.#o.courses()).find((c) => c.id === courseId && c.accountKey === account) : undefined;
+    if (!account || !course) fail("NOT_FOUND", "과목을 찾을 수 없습니다.");
+    const item = (await this.status(courseId))?.items.find((i) => i.moduleItemId === moduleItemId);
+    if (!item || (item.kind !== "video" && item.kind !== "live")) fail("SCOPE_VIOLATION", "LMS 동영상 강의만 시청 창으로 엽니다.");
+    if (item.period === "not_open") fail("SCOPE_VIOLATION", "아직 열리지 않은 강의입니다.");
+    await this.#o.ensureSignedIn().catch(() => undefined);
+    const closed = open({ sourceCourseId: course.sourceCourseId, moduleItemId, title: item.title.slice(0, 120) });
+    void closed.then(async () => {
+      if (this.#o.accountKey() !== account) return;
+      await this.status(courseId, true).catch(() => undefined);
+      this.#o.onWatchClosed?.(courseId, moduleItemId);
+    });
   }
 
   async #read(account: string, course: Course, now: Date): Promise<CourseLearningStatus> {

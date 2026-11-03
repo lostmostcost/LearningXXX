@@ -108,6 +108,15 @@ export const IpcChannels = {
    * CR-054 / WBS-056: the user opened this LMS material (PDF) in the app; let
    * the LMS's own viewer record the view. Answers with the status read again.
    */
+  /**
+   * CR-054 / WBS-057: opens the lecture's LMS page in a visible app window for the
+   * user to watch in the official player. Returns once it is open; a
+   * `learning.watchClosed` push follows when the user closes it.
+   */
+  "learning.watch": {
+    request: z.object({ courseId: Id, moduleItemId: z.string().regex(/^\d{1,20}$/) }),
+    response: z.object({}),
+  },
   "learning.recordView": {
     request: z.object({ courseId: Id, moduleItemId: z.string().regex(/^\d{1,20}$/) }),
     response: z.object({ status: CourseLearningStatus.optional() }),
@@ -317,6 +326,8 @@ export const HostPush = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("modify.job"), job: ModifyJob }),
   /** The host stopped a recording on its own (sleep, low disk): the renderer stops capturing. */
   z.object({ kind: z.literal("recording.stopped"), recording: Recording, asset: MediaAsset.optional() }),
+  /** WBS-057: the LMS watch window closed; the status was read again. */
+  z.object({ kind: z.literal("learning.watchClosed"), courseId: Id, moduleItemId: z.string() }),
 ]);
 export type HostPush = z.infer<typeof HostPush>;
 

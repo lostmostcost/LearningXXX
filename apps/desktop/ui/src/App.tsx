@@ -8,8 +8,9 @@ import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
-import { Badges, useLearningStatus } from "./LearningBadges.tsx";
-import { itemForResource } from "./learning.ts";
+import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
+import { canRecordView, itemForResource } from "./learning.ts";
+import { viewTarget } from "./document.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
@@ -89,6 +90,15 @@ export function App() {
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
+  const selectedItem = selected ? itemForResource(learning.status, selected.resource) : undefined;
+  // WBS-056: an LMS PDF whose page is actually drawn in the viewer is a view the LMS records
+  // (once per item; retry on failure). A PDF that cannot be opened is not.
+  const { recordView } = learning;
+  const target = selected ? viewTarget(selected) : undefined;
+  const shownPdf = !playing && target?.kind === "pdf" && shownPage?.assetId === target.asset.id;
+  useEffect(() => {
+    if (shownPdf && canRecordView(selectedItem, new Date())) void recordView(selectedItem.moduleItemId);
+  }, [shownPdf, selectedItem, recordView]);
   const panels = visiblePanels(narrow, view);
 
   const refresh = useCallback(async () => {
@@ -236,7 +246,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {

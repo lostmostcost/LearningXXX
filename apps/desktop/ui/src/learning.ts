@@ -45,6 +45,16 @@ export function badges(item: LearningItem): Badge[] {
   return out;
 }
 
+/**
+ * CR-054 / WBS-056: whether opening this item in the app should let the LMS
+ * record the view — an LMS PDF material, open, not yet complete. Videos are
+ * never recorded this way: their attendance needs real watching (WBS-057).
+ */
+export function canRecordView(item: LearningItem | undefined, now: Date): item is LearningItem & { moduleItemId: string } {
+  return !!item && item.kind === "material" && !!item.moduleItemId && item.completed === false && item.period !== "not_open"
+    && !(item.lockAt && Date.parse(item.lockAt) <= now.getTime());
+}
+
 /** "3/5 완료" for a week; only items whose completion the LMS can judge are counted. */
 export function weekProgress(items: readonly LearningItem[]): { done: number; total: number } {
   const judged = items.filter((i) => i.submission || i.attendance || i.completed !== null);

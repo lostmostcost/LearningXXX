@@ -89,6 +89,14 @@ export const IpcChannels = {
     request: z.object({ courseId: Id, refresh: z.boolean().optional() }),
     response: z.object({ status: CourseLearningStatus.optional() }),
   },
+  /**
+   * CR-054 / WBS-056: the user opened this LMS material (PDF) in the app; let
+   * the LMS's own viewer record the view. Answers with the status read again.
+   */
+  "learning.recordView": {
+    request: z.object({ courseId: Id, moduleItemId: z.string().regex(/^\d{1,20}$/) }),
+    response: z.object({ status: CourseLearningStatus.optional() }),
+  },
   "library.manifest": {
     request: z.object({ courseId: Id }),
     response: z.object({ manifest: CollectionManifest.optional() }),

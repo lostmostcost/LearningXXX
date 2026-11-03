@@ -115,6 +115,7 @@ describe("producer → consumer round trip", () => {
       "library.manifest": { courseId: sid },
       "library.courses": {},
       "learning.status": { courseId: sid, refresh: true },
+      "learning.recordView": { courseId: sid, moduleItemId: "501" },
       "credentials.status": {},
       "credentials.saveSchool": { schoolId: "synthetic-id", password: "synthetic-password" },
       "credentials.saveCanvasToken": { token: "synthetic-canvas-token" },

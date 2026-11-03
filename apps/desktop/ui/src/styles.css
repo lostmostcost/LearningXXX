@@ -240,3 +240,8 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
   .badge.lms.warn { color: #ef9a93; border-color: #7a3b37; }
   .agenda.overdue > span:last-child { color: #ef9a93; }
 }
+
+/* WBS-056 view record note in the viewer */
+.viewer-lms { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.view-record-failed { display: inline-flex; align-items: center; gap: 6px; }
+.view-record-failed button.link { background: none; border: 0; padding: 0; color: var(--focus); cursor: pointer; font: inherit; text-decoration: underline; }

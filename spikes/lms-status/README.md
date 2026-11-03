@@ -30,8 +30,27 @@ Canvas 퀴즈(`/api/v1/courses/:id/quizzes`): `due_at`·`lock_at`·`unlock_at`, 
 
 판단: **상태 읽기(WBS-055)는 바로 구현 가능.** 완료·출석·진도·마감·제출 상태 모두 읽기 전용 GET으로 얻는다.
 
-## 결과 2: 열람 기록·출석·제출 흐름 (watch)
-미실행 — 이문찬이 앱 창에서 자료 열기·강의 재생을 해야 한다. 연습 과제 제출은 다음에 요청.
+## 결과 2: 열람 기록·출석 흐름 (watch, 2026-11-03 이문찬 조작, 316건)
+
+이문찬이 앱 창에서 로그인 → 미완료 PDF 열기 → 미시청 강의 약 3분 30초 재생 → 닫기. 기록은 방법·경로(번호 가림)·쓰기 본문 필드 이름뿐.
+
+흐름(항목 하나를 열 때 공통):
+1. `GET /courses/:cid/modules/items/:itemId` (주차학습 항목 페이지)
+2. `POST /learningx/lti/lecture_attendance/items/view/:id` — Canvas가 서명한 LTI 실행(oauth_* 필드). LearningX 뷰어 프레임이 열림
+3. `GET /learningx/api/v1/courses/:cid/attendance_items/:id` — 항목 상태
+4. Commons 뷰어 `GET commons.khu.ac.kr/em/<id>?startat&endat&…&pr&mxpr`
+
+**PDF 열람 기록**: 문서 뷰어가 열리자마자
+- `POST /learningx/api/v1/courses/:cid/sections/0/components/:id/progress/forceSubmit?user_id&user_login&content_id&content_type`
+- 이어서 `GET …/progress?…&state&duration&currentTime&cumulativeTime&page&totalpage…`(JSONP, `callback`)
+→ PDF는 **뷰어를 여는 것만으로 완료**가 기록된다.
+
+**동영상 출석**: 재생 중 약 2분마다 Commons 플레이어가 `GET …/components/:id/progress?…&state&duration&currentTime&cumulativeTime…`(JSONP)로 **누적 시청 시간**을 보고한다. 별도 쓰기 API 없이 이 보고가 쌓여 `attendance_data.progress`가 되고, 영상 길이 대비 기준을 넘으면 출석이 된다. 페이지도 주기적으로 `attendance_items/:id`를 다시 읽는다.
+
+판단:
+- **열람 기록(WBS-056)**: 앱 뷰어에서 사용자가 PDF를 열면 LMS의 공식 항목 페이지를 보이지 않는 창(같은 로그인 세션)으로 열어 **LMS 뷰어가 스스로 forceSubmit**하게 한다. 요청을 직접 위조하지 않으므로 LMS가 바뀌어도 공식 흐름을 따른다. `forceSubmit` 응답을 확인하면 창을 닫고 상태를 다시 읽는다.
+- **출석(WBS-057)**: 진도 보고는 플레이어의 누적 시청 시간 보고이므로, 이를 앱이 직접 보내는 것은 시청 없는 출석 위조다(CR-054에서 제외). **앱 안 보이는 창에서 공식 플레이어로 실제 재생·시청**하고, 앱은 `attendance_items`로 진도·출석을 추적·표시한다.
+- **제출**: 이번 기록에 없음. 연습 과제로 다음에 실측(Canvas 표준 파일 제출 예상).
 
 ## 남은 제약
 - 잠금 브라우저 필수 퀴즈(`require_lockdown_browser`)는 앱 창에서 응시할 수 없다 → "전용 브라우저 필요"로 표시.

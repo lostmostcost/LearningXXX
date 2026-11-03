@@ -74,6 +74,14 @@ export function App() {
   const [modifying, setModifying] = useState(false);
   // Asked from the LMS the first time the week menu opens for a course (IN_APP only: the fixture has no LMS).
   const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray);
+  // The course list closes when the user clicks anywhere else or presses Escape (not on hover-out).
+  useEffect(()=>{
+    if(!drawer)return;
+    const outside=(event:MouseEvent)=>{const target=event.target as Element|null;if(!target?.closest('.course-drawer, .drawer-toggle'))setDrawer(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setDrawer(false);};
+    document.addEventListener('mousedown',outside);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('mousedown',outside);document.removeEventListener('keydown',escape);};
+  },[drawer]);
   const selectEntry=(entry:Entry)=>{setPlaying(undefined);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
@@ -178,7 +186,7 @@ export function App() {
 
   return (
     <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''}`}>
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}else{setDrawer(true);}}}}><Icon name={id!}/></button>)}<button title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/></button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark">Learning<span>XXX</span></strong>

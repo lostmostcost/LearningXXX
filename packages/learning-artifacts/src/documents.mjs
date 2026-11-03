@@ -1,4 +1,5 @@
 import { requireThat } from './model.mjs';
+import { diagramSvg } from './diagrams.mjs';
 export const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 const xml = (s) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${s}`;
 
@@ -7,12 +8,12 @@ export function documentHtml(plan, snapshot) {
   const refs = (ids) => ids.map((id) => snapshot.sources.find((s) => s.id === id)?.title ?? id).map(escape).join(' · ');
   const missing = snapshot.sources.filter((s) => s.status === 'missing');
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>${escape(plan.title)}</title><style>
-  @page{size:A4;margin:22mm}body{font:11pt/1.7 'Noto Sans CJK KR','Apple SD Gothic Neo',sans-serif;color:#172033}h1{font-size:26pt;line-height:1.3}h2{font-size:17pt;break-after:avoid}p,li{overflow-wrap:anywhere;white-space:pre-wrap}p{orphans:3;widows:3}.source{font-size:9pt;color:#526174}.label{color:#8b2635}li{margin:8px 0}section{margin:24px 0}
+  @page{size:A4;margin:22mm}body{font:11pt/1.7 'Noto Sans CJK KR','Apple SD Gothic Neo',sans-serif;color:#172033}h1{font-size:26pt;line-height:1.3}h2{font-size:17pt;break-after:avoid}p,li{overflow-wrap:anywhere;white-space:pre-wrap}p{orphans:3;widows:3}.source{font-size:9pt;color:#526174}.label{color:#8b2635}li{margin:8px 0}section{margin:24px 0}.source-audit{font-size:9pt;overflow-wrap:anywhere}@media print{.source-audit{display:none}}
   </style></head><body><p class="label">검토용 과제 초안 · 제출 전 직접 확인</p><h1>${escape(plan.title)}</h1><p>${escape(snapshot.courseTitle)}</p>
   <h2>요구사항 확인</h2><ul>${plan.requirements.map((r) => `<li>${escape(r.text)}<div class="source">${refs(r.sourceIds)}</div></li>`).join('')}</ul>
-  ${plan.sections.map((s) => `<section><h2>${escape(s.title)}</h2>${s.paragraphs.map((p) => `<p>${escape(p)}</p>`).join('')}<p class="source">근거: ${refs(s.sourceIds)}</p></section>`).join('')}
+  ${plan.sections.map((s) => `<section><h2>${escape(s.title)}</h2>${s.diagram ? diagramSvg(s.diagram) : ''}${s.paragraphs.map((p) => `<p>${escape(p)}</p>`).join('')}<p class="source">근거: ${refs(s.sourceIds)}</p></section>`).join('')}
   <h2>직접 확인할 점</h2><ul>${plan.openQuestions.map((q) => `<li>${escape(q)}</li>`).join('') || '<li>모델이 확인 항목을 보고하지 않았습니다. 요구사항·사실·인용을 직접 확인하세요.</li>'}</ul>
-  <h2>자료 검토 범위</h2><ul>${snapshot.sources.map((s) => `<li>${escape(s.title)} — ${s.status === 'available' ? `검토 입력 제공 (${escape(s.id)})` : `누락: ${escape(s.reason)}`}</li>`).join('')}</ul>
+  <h2>자료 검토 범위</h2><p>초기 생성 입력: 텍스트 ${snapshot.sources.length - missing.length}개, 누락·제외 ${missing.length}개. 아래 초안은 제공한 텍스트에 근거하며 원본의 그림·도표 검토를 대신하지 않습니다. 전체 입력 목록은 보존된 HTML의 상세 내역에서 확인할 수 있습니다.</p><details class="source-audit"><summary>전체 입력·누락 상세 내역</summary><ul>${snapshot.sources.map((s) => `<li>${escape(s.title)} — ${s.status === 'available' ? `검토 입력 제공 (${escape(s.id)})` : `누락: ${escape(s.reason)}`}</li>`).join('')}</ul></details>
   ${missing.length ? '<p class="label">누락 자료가 있어 전체 자료 검토가 완료된 초안이 아닙니다.</p>' : ''}</body></html>`;
 }
 

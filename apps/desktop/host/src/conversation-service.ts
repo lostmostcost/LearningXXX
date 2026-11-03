@@ -28,6 +28,7 @@ export interface ConversationOptions {
   prepareCourse?: (id: string, cwd: string) => Promise<CourseBinding | undefined>;
   /** WBS-060: Claude Code's own session store (the SDK by default; tests pass fakes). */
   sessions?: SessionStoreAccess;
+  beforeSend?: (sessionId: string) => void;
 }
 /** The parts of the SDK's local session store used to find and read a conversation's Claude Code session. */
 export interface SessionStoreAccess {
@@ -50,6 +51,7 @@ export class ConversationService {
   #o: ConversationOptions; #entries = new Map<string, Entry>(); #opening = new Map<string, Promise<ChatState>>(); #stopped = false;
   constructor(options: ConversationOptions) { this.#o = options; }
   active(id: string) { return this.#entries.has(id) || this.#opening.has(id); }
+  busy(id: string) { const e = this.#entries.get(id); return !!e && (e.updating || e.state.busy || e.state.permissions.length > 0); }
   async #cli() {
     const env = this.#o.env ?? process.env, located = locateCli(env, homedir());
     if (!located.ok) throw Object.assign(new Error(located.error.message), { appError: located.error });
@@ -212,6 +214,7 @@ export class ConversationService {
   }
   async send(id: string, text: string, requestId: string, viewing?: Viewing) {
     const e = this.#entry(id); if (e.state.messages.some(m => m.role === 'user' && m.id === requestId)) return this.state(id);
+    this.#o.beforeSend?.(id);
     if (!e.state.connected) fail('대화를 다시 연결하세요.');
     if (e.state.busy || e.updating) fail('진행 중인 작업이 끝난 뒤 보내세요.');
     const command = /^\/([\w:-]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
@@ -219,6 +222,7 @@ export class ConversationService {
     e.updating = true;
     try {
       e.course = await this.#o.prepareCourse?.(id, e.cwd);
+      this.#o.beforeSend?.(id);
       if (e.closed || !e.state.connected || this.#stopped || this.#o.nativeActive(id)) fail('연결 상태가 바뀌었습니다. 다시 연결하세요.');
       e.state.error = ''; e.state.busy = true; e.current = undefined; e.partial = '';
       e.viewing = viewing;

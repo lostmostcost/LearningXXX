@@ -31,6 +31,14 @@ export const ChatOutput = z.object({
   bytes: z.number().int().nonnegative(), modifiedAt: z.string(), kind: z.enum(["text", "pdf", "image", "other"]), openable: z.boolean(),
 });
 export type ChatOutput = z.infer<typeof ChatOutput>;
+/** WBS-097: host-owned assignment/session binding; no renderer-supplied paths. */
+const AssignmentScope = z.object({ courseId: Id, assignmentId: Id });
+export const AssignmentWorkspace = z.object({
+  sessionId: Id, title: z.string(), phase: z.enum(['idle', 'generating', 'exporting', 'interrupted']), error: z.string(),
+  sourceToken: z.string(), sources: z.array(z.object({ id: z.string(), title: z.string(), status: z.enum(['available', 'missing']), reason: z.string().optional(), characters: z.number().int().nonnegative(), required: z.boolean() })),
+  revision: Id.optional(), previewUrl: z.string().max(500).optional(),
+  versions: z.array(z.object({ id: Id, createdAt: z.string(), pdf: z.boolean() })),
+});
 export const ConversationState = z.object({
   messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant', 'system']), text: z.string(), tools: z.array(z.object({ id: z.string(), name: z.string(), input: z.string() })) })),
   busy: z.boolean(), connected: z.boolean(), error: z.string(), model: z.string(), effort: z.string(), mode: z.string(),
@@ -40,6 +48,12 @@ export const ConversationState = z.object({
 });
 export const SttStatus = z.object({ state: z.enum(['missing', 'installing', 'ready', 'failed', 'unsupported']), message: z.string() });
 export const IpcChannels = {
+  'assignment.open': { request: AssignmentScope.extend({ reset: z.boolean().optional() }), response: AssignmentWorkspace },
+  'assignment.state': { request: AssignmentScope, response: AssignmentWorkspace },
+  'assignment.generate': { request: AssignmentScope.extend({ sourceToken: z.string().regex(/^[0-9a-f]{64}$/), allowMissing: z.boolean(), includedSourceIds: z.array(z.string().max(300)).max(2000).optional() }), response: AssignmentWorkspace },
+  'assignment.cancel': { request: AssignmentScope, response: z.object({}) },
+  'assignment.export': { request: AssignmentScope.extend({ revision: Id }), response: AssignmentWorkspace },
+  'assignment.showPdf': { request: AssignmentScope.extend({ revision: Id, how: z.enum(['open', 'reveal']) }), response: z.object({}) },
   'stt.status': { request: z.object({ refresh: z.boolean().optional() }), response: SttStatus },
   'stt.prepare': { request: z.object({}), response: SttStatus },
   'stt.cancel': { request: z.object({}), response: SttStatus },

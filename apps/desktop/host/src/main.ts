@@ -34,7 +34,8 @@ import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { LegacyImporter, importStore } from "./legacy-import.ts";
-import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions } from "./readable-note.ts";
+import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
+import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -262,6 +263,8 @@ app.whenReady().then(async () => {
     // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
     readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),
     // WBS-070: the same restricted runner; the answer is checked against the transcript.
+    // WBS-071: one batch of sentences per request.
+    translate: async ({ language, lines, signal }) => parseTranslation(await claudeText({ prompt: translatePrompt(language, lines), what: "번역", signal }), lines.length),
     mentions: async ({ title, text, transcript, signal }) => parseMentions(await claudeText({ prompt: mentionsPrompt(title, text), what: "과제·시험 안내 찾기", signal }), transcript),
     openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
     videos: async (course) => {
@@ -344,7 +347,10 @@ app.whenReady().then(async () => {
   }
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
-  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning, importer), "app.build": async () => build });
+  const preferences = new Preferences(join(dataRoot, "preferences.json"));
+  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning, importer), "app.build": async () => build,
+    // WBS-071: the preferred language, kept on this Mac.
+    "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

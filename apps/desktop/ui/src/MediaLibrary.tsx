@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { IpcResponse, MediaAsset } from "@learningxxx/contracts";
+import type { IpcResponse, MediaAsset, PreferredLanguage } from "@learningxxx/contracts";
 import { invoke } from "./host-api.ts";
 import { TranscriptPanel } from "./TranscriptPanel.tsx";
 import { Icon } from "./StudyUI.tsx";
@@ -9,6 +9,13 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
   const [engine, setEngine] = useState<IpcResponse<"stt.status">>();
   const [preparing, setPreparing] = useState(false);
   const [notice, setNotice] = useState<string>();
+  // WBS-071: the preferred language, read again when it is changed in settings.
+  const [language, setLanguage] = useState<PreferredLanguage>();
+  useEffect(() => {
+    const read = () => void invoke("app.preferences", {}).then((r) => { if (r.ok) setLanguage(r.data.language); });
+    read(); window.addEventListener("learningxxx:preferences", read);
+    return () => window.removeEventListener("learningxxx:preferences", read);
+  }, []);
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     const current = generation.current, result = await invoke("media.list", { courseId });
@@ -55,6 +62,9 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     {data ? <TranscriptPanel courseId={courseId} assets={data.assets} recordings={data.recordings} jobs={data.jobs} transcripts={data.transcripts} loadOriginal={loadOriginal} importedDocs={data.importedDocs}
       onSaveCorrection={async (assetId, basedOnTranscriptId, texts) => { const r = await invoke("media.saveCorrection", { courseId, assetId, basedOnTranscriptId, texts }); if (!r.ok) throw new Error(r.error.message); await refresh(); return r.data.transcriptId; }}
+      language={language}
+      loadTranslation={async (assetId, transcriptId, lang) => { const r = await invoke("media.translation", { courseId, assetId, transcriptId, language: lang }); if (!r.ok) throw new Error(r.error.message); return r.data.texts; }}
+      onTranslate={async (assetId, transcriptId, lang) => { const r = await invoke("media.translate", { courseId, assetId, transcriptId, language: lang }); if (!r.ok) throw new Error(r.error.message); return r.data; }}
       onFindMentions={async (assetId, transcriptId) => { const r = await invoke("media.findMentions", { courseId, assetId, transcriptId }); if (!r.ok) throw new Error(r.error.message); return r.data.candidates; }}
       onAddMentions={async (assetId, candidates) => { const r = await invoke("media.addMentions", { courseId, assetId, candidates }); if (!r.ok) throw new Error(r.error.message); return r.data.mentions.length; }}
       onMakeReadable={async (assetId, transcriptId) => { const r = await invoke("media.makeReadable", { courseId, assetId, transcriptId }); if (!r.ok) throw new Error(r.error.message); await refresh(); }} loadDoc={async (assetId, doc) => { const r = await invoke("media.importedDoc", { courseId, assetId, doc }); if (!r.ok) throw new Error(r.error.message); return r.data.text; }} view={view} selectedAssetId={selectedAssetId} place={place} engineReady={engine?.state === "ready"} onOpenOriginal={assetId => action(async () => { const r = await invoke("media.open", { courseId, assetId }); if (!r.ok) throw new Error(r.error.message); })} onRetry={async jobId => { const result = await invoke("media.retry", { courseId, jobId }); if (!result.ok) throw new Error(result.error.message); await refresh(); }}

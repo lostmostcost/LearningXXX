@@ -45,6 +45,8 @@ export function installFakeHost(courseTitle: string): void {
   let fakeRec: { id: string; courseId: string; bytes: number } | undefined;
   const fakeCorrections: (typeof SAMPLE_TRANSCRIPT)[] = [];
   let fakeReadable = false;
+  let fakeLanguage = "en";
+  const fakeTranslations = new Map<string, string[]>();
   const fakeMentions: Record<string, unknown>[] = [];
   // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
   let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
@@ -113,6 +115,11 @@ export function installFakeHost(courseTitle: string): void {
     "media.addMentions": (p) => { const added = (p.candidates as Record<string, unknown>[]).map((c) => ({ ...c, id: crypto.randomUUID(), courseId: String(p.courseId), assetId: String(p.assetId), confirmedAt: now() })); fakeMentions.push(...added); return ok({ mentions: added }); },
     "media.mentions": (p) => ok({ mentions: fakeMentions.filter((m) => m.courseId === String(p.courseId)) }),
     "media.removeMention": (p) => { const i = fakeMentions.findIndex((m) => m.id === p.mentionId); if (i >= 0) fakeMentions.splice(i, 1); return ok({}); },
+    // WBS-071: preferences and translations in memory (the fixture prefers English so the toggle shows).
+    "app.preferences": () => ok({ language: fakeLanguage }),
+    "app.setPreferences": (p) => { fakeLanguage = String(p.language); return ok({ language: fakeLanguage }); },
+    "media.translation": (p) => ok(fakeTranslations.has(`${String(p.transcriptId)}.${String(p.language)}`) ? { texts: fakeTranslations.get(`${String(p.transcriptId)}.${String(p.language)}`) } : {}),
+    "media.translate": async (p) => { await new Promise((r) => setTimeout(r, 500)); const t = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((x) => x.id === p.transcriptId)!; const texts = t.segments.map((seg) => `[${String(p.language)}] ${seg.text}`); fakeTranslations.set(`${t.id}.${String(p.language)}`, texts); return ok({ texts, untranslated: 0 }); },
     "media.makeReadable": async () => { await new Promise((r) => setTimeout(r, 700)); fakeReadable = true; return ok({ doc: "readable_app" }); },
     "media.importedDoc": (p) => ok({ text: `# 합성 ${String(p.doc)}\n\n합성 UI 예제 문서입니다.` }),
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),

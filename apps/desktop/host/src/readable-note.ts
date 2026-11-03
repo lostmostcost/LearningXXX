@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { AppError, MentionCandidate } from "@learningxxx/contracts";
+import { AppError, LANGUAGE_NAMES, MentionCandidate } from "@learningxxx/contracts";
+import type { PreferredLanguage } from "@learningxxx/contracts";
 import type { StartCli } from "./session-service.ts";
 
 /** Longest note kept; a lecture note is far shorter. */
@@ -113,4 +114,29 @@ export function parseMentions(answer: string, transcript: { id: string; segments
     if (parsed.success) out.push(parsed.data);
   }
   return out;
+}
+
+/** WBS-071: sentences per request, so a long lecture stays within one answer and a bad answer loses little. */
+export const TRANSLATE_BATCH = 120;
+
+/** Numbered sentences in, a JSON object of the same numbers out. */
+export function translatePrompt(language: PreferredLanguage, lines: readonly string[]): string {
+  return [
+    `다음 강의 전사 문장들을 ${LANGUAGE_NAMES[language]}(${language})로 번역해 주세요. 전문 용어는 그 언어에서 흔히 쓰는 말로, 뜻을 더하거나 빼지 않습니다.`,
+    "",
+    'JSON 객체 하나만 출력합니다(앞뒤 설명·코드 블록 없이): {"1": "번역", "2": "번역", ...}. 번호는 아래와 같게, 모든 번호를 넣습니다.',
+    "",
+    ...lines.map((line, i) => `${i + 1}\t${line.replace(/\s+/g, " ").trim()}`),
+  ].join("\n");
+}
+
+/** The answer → one translation per line, undefined where it is missing or not text. */
+export function parseTranslation(answer: string, count: number): (string | undefined)[] {
+  const from = answer.indexOf("{"), to = answer.lastIndexOf("}");
+  let raw: Record<string, unknown> = {};
+  if (from >= 0 && to > from) { try { raw = JSON.parse(answer.slice(from, to + 1)) as Record<string, unknown>; } catch { raw = {}; } }
+  return Array.from({ length: count }, (_, i) => {
+    const value = raw[String(i + 1)];
+    return typeof value === "string" && value.trim() ? value.trim().slice(0, 5000) : undefined;
+  });
 }

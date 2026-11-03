@@ -3,9 +3,10 @@ import { constants } from "node:fs";
 import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { AccountKey, AppError, Id, ImportedDocKind, LectureMention, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
-import type { MentionCandidate } from "@learningxxx/contracts";
+import type { MentionCandidate, PreferredLanguage } from "@learningxxx/contracts";
 import type { Course, TranscriptionJob } from "@learningxxx/contracts";
 import { downloadVideo } from "@learningxxx/collector";
+import { TRANSLATE_BATCH } from "./readable-note.ts";
 import type { VideoDownloadInput } from "@learningxxx/collector";
 import { EngineError, TranscriptionQueue } from "@learningxxx/transcriber";
 import type { Engine } from "@learningxxx/transcriber";
@@ -33,6 +34,8 @@ export interface MediaServiceOptions {
   readable?: (input: { title: string; text: string; signal: AbortSignal }) => Promise<string>;
   /** WBS-070: transcript text → assignment/exam candidates (parsed against the transcript). */
   mentions?: (input: { title: string; text: string; transcript: Transcript; signal: AbortSignal }) => Promise<MentionCandidate[]>;
+  /** WBS-071: sentences → translations in the same order (undefined where none came back). */
+  translate?: (input: { language: PreferredLanguage; lines: string[]; signal: AbortSignal }) => Promise<(string | undefined)[]>;
   openOriginal: (path: string) => Promise<void>;
   video: (course: Course, contentId: string) => Pick<VideoDownloadInput, "fetch" | "resolveSource" | "allowedOrigins">;
 }
@@ -317,6 +320,52 @@ export class MediaService {
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
     await this.#save(p);
     return {};
+  }
+
+  #translationFile(p: Partition, transcriptId: string, language: PreferredLanguage): string {
+    return join(p.root, "translations", `${Id.parse(transcriptId)}.${language}.json`);
+  }
+
+  /** WBS-071: a translation made before, or nothing. */
+  async translation(courseId: string, assetId: string, transcriptId: string, language: PreferredLanguage): Promise<{ texts?: string[] }> {
+    const { p } = await this.#course(courseId);
+    const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId);
+    if (!version) fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
+    try {
+      const texts = z.array(z.string()).parse(JSON.parse(await readFile(this.#translationFile(p, transcriptId, language), "utf8")));
+      return texts.length === version.segments.length ? { texts } : {};
+    } catch { return {}; }
+  }
+
+  /**
+   * WBS-071: on request, the version translated sentence by sentence through
+   * Claude Code, in batches. A sentence that did not come back keeps its
+   * original text (and is counted), so times and order always match. Saved
+   * for next time; the transcript itself is unchanged.
+   */
+  async translate(courseId: string, assetId: string, transcriptId: string, language: PreferredLanguage): Promise<{ texts: string[]; untranslated: number }> {
+    const run = this.#o.translate;
+    if (!run) fail("NOT_FOUND", "번역을 쓸 수 없습니다.");
+    if (this.#claudeRun) fail("RUN_ALREADY_ACTIVE", "Claude Code 요청이 이미 진행 중입니다. 끝난 뒤 다시 시도하세요.");
+    const { p } = await this.#course(courseId);
+    const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
+    const abort = new AbortController();
+    this.#claudeRun = abort;
+    try {
+      const texts: string[] = [];
+      let untranslated = 0;
+      for (let at = 0; at < version.segments.length; at += TRANSLATE_BATCH) {
+        const batch = version.segments.slice(at, at + TRANSLATE_BATCH).map((s) => s.text);
+        const blanks = batch.map((t) => !t.trim());
+        const out = batch.some((t) => t.trim()) ? await run({ language, lines: batch, signal: abort.signal }) : [];
+        batch.forEach((original, i) => { const t = blanks[i] ? original : out[i]; if (t === undefined) untranslated++; texts.push(t ?? original); });
+      }
+      if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+      const file = this.#translationFile(p, transcriptId, language);
+      await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+      await writeFile(file, JSON.stringify(texts), { mode: 0o600 });
+      return { texts, untranslated };
+    } finally { this.#claudeRun = undefined; }
   }
 
   async list(courseId: string) {

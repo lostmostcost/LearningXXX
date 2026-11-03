@@ -45,3 +45,11 @@ test("no size known means no percentage, and a finished transcript says so", () 
   });
   assert.deepEqual(rows.map((r) => r.status), ["받음 · 전사 완료", "받는 중"]);
 });
+
+test("each week of the materials menu gets its lectures; ones matching no week go under 기타 자료", async () => {
+  const { rowsForWeek } = await import("../src/video-lectures.ts");
+  const rows = videoRows(videos, undefined);
+  assert.deepEqual(rowsForWeek(rows, "1주차", ["1주차", "2주차"]).map((r) => r.sourceId), ["v1", "v2"]);
+  assert.deepEqual(rowsForWeek(rows, "2주차", ["1주차", "2주차"]).map((r) => r.sourceId), ["v4"]);
+  assert.deepEqual(rowsForWeek(rows, undefined, ["1주차", "2주차"]).map((r) => r.sourceId), ["v3"]);
+});

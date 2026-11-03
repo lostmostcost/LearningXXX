@@ -7,29 +7,28 @@ import { videoRows, type VideoRow } from "./video-lectures.ts";
 type Videos = IpcResponse<"media.videos">["videos"];
 
 /**
- * Online lectures as part of the course's materials (WBS-028 self-test:
- * "동영상 강의는 녹음 탭이 아니라 학습 자료 안에"). Grouped by the LMS week;
- * each one can be downloaded once, then played in the viewer. Their
- * transcripts stay in the 전사 tab. The list asks the LMS only when the
- * section is opened, because that may need a school sign-in.
+ * Online lectures for the materials menu (WBS-028 self-test: "동영상 강의는
+ * 녹음 탭이 아니라 학습 자료 안에", shown under each week like the PDFs).
+ * The LMS is asked once per course, only when `active` first becomes true,
+ * because it may need a school sign-in; a failure waits for `reload`. While
+ * active, downloads and transcription are followed from this Mac only.
  */
-export function VideoLectures({ courseId, playing, onPlay }: { courseId: string; playing?: string | undefined; onPlay: (asset: MediaAsset) => void }) {
-  const [open, setOpen] = useState(false);
+export function useVideoLectures(courseId: string | undefined, active: boolean) {
   const [videos, setVideos] = useState<Videos>();
   const [media, setMedia] = useState<IpcResponse<"media.list">>();
   const [notice, setNotice] = useState<string>();
   const [loading, setLoading] = useState(false);
-  /** Asked once per opening; a failure waits for the refresh button instead of retrying in a loop. */
-  const asked = useRef(false);
+  const asked = useRef<string | undefined>(undefined);
   const generation = useRef(0);
 
   useEffect(() => {
     generation.current += 1;
-    asked.current = false;
-    setVideos(undefined); setMedia(undefined); setNotice(undefined);
+    asked.current = undefined;
+    setVideos(undefined); setMedia(undefined); setNotice(undefined); setLoading(false);
   }, [courseId]);
 
-  const loadVideos = useCallback(async () => {
+  const reload = useCallback(async () => {
+    if (!courseId) return;
     const current = generation.current;
     setLoading(true); setNotice(undefined);
     const result = await invoke("media.videos", { courseId });
@@ -39,73 +38,51 @@ export function VideoLectures({ courseId, playing, onPlay }: { courseId: string;
     else setNotice(result.error.message);
   }, [courseId]);
 
-  // While open, follow downloads and transcription without asking the LMS again.
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
+  const refresh = useCallback(async () => {
+    if (!courseId) return;
     const current = generation.current;
-    const refresh = async () => {
-      const result = await invoke("media.list", { courseId });
-      if (alive && current === generation.current && result.ok) setMedia(result.data);
-    };
+    const result = await invoke("media.list", { courseId });
+    if (current === generation.current && result.ok) setMedia(result.data);
+  }, [courseId]);
+
+  useEffect(() => {
+    if (!active || !courseId || asked.current === courseId) return;
+    asked.current = courseId;
+    void reload();
+  }, [active, courseId, reload]);
+
+  useEffect(() => {
+    if (!active || !courseId) return;
     void refresh();
     const timer = setInterval(() => void refresh(), 2000);
-    return () => { alive = false; clearInterval(timer); };
-  }, [open, courseId]);
+    return () => clearInterval(timer);
+  }, [active, courseId, refresh]);
 
-  useEffect(() => {
-    if (!open || asked.current) return;
-    asked.current = true;
-    void loadVideos();
-  }, [open, loadVideos]);
-
-  const act = async (work: () => Promise<{ ok: boolean; error?: { message: string } }>) => {
-    const result = await work();
+  const run = async (work: Promise<{ ok: boolean; error?: { message: string } }>) => {
+    const result = await work;
     if (!result.ok) setNotice(result.error?.message ?? "요청을 완료하지 못했습니다.");
-    const listed = await invoke("media.list", { courseId });
-    if (listed.ok) setMedia(listed.data);
+    await refresh();
   };
-
-  const rows = videos ? videoRows(videos, media) : [];
-  const weeks = [...new Set(rows.map((r) => r.week))];
-  const action = (row: VideoRow) => {
-    switch (row.state) {
-      case "downloaded":
-        return <>
-          <button className="icon-button" title="재생" aria-label={`${row.title} 재생`} aria-pressed={playing === row.asset!.id} onClick={() => onPlay(row.asset!)}><Icon name="play" /></button>
-          <button className="icon-button" title="시스템 플레이어로 열기" aria-label={`${row.title} 시스템 플레이어로 열기`} onClick={() => void act(() => invoke("media.open", { courseId, assetId: row.asset!.id }))}><Icon name="external" /></button>
-        </>;
-      case "downloading":
-        return <button className="icon-button" title="다운로드 취소" aria-label={`${row.title} 다운로드 취소`} onClick={() => void act(() => invoke("media.cancelDownload", { courseId, downloadId: row.downloadId! }))}><Icon name="stop" /></button>;
-      default:
-        return <button className="icon-button" title={row.state === "failed" ? "다시 받기" : "받기"} aria-label={`${row.title} ${row.state === "failed" ? "다시 받기" : "받기"}`} onClick={() => void act(() => invoke("media.download", { courseId, sourceId: row.sourceId }))}><Icon name="download" /></button>;
-    }
+  return {
+    rows: videos ? videoRows(videos, media) : [],
+    loaded: videos !== undefined,
+    loading,
+    notice,
+    reload,
+    download: (sourceId: string) => courseId && run(invoke("media.download", { courseId, sourceId })),
+    cancel: (downloadId: string) => courseId && run(invoke("media.cancelDownload", { courseId, downloadId })),
   };
+}
 
+/** One lecture in the week menu: play it when downloaded, otherwise download it. */
+export function VideoFile({ row, playing, onPlay, onDownload }: { row: VideoRow; playing: boolean; onPlay: (asset: MediaAsset) => void; onDownload: (sourceId: string) => void }) {
+  const label = row.state === "downloaded" ? "재생" : row.state === "downloading" ? "받는 중" : row.state === "failed" ? "다시 받기" : "받기";
   return (
-    <details className="video-lectures" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>동영상 강의</summary>
-      <div className="video-tools">
-        <button className="icon-button" title="강의 목록 새로 고침" aria-label="강의 목록 새로 고침" disabled={loading} onClick={() => void loadVideos()}><Icon name="refresh" /></button>
-        {loading ? <span className="meta">학교 서버에서 강의 목록을 확인하는 중…</span> : null}
-      </div>
-      {notice ? <p role="status" className="notice-box">{notice}</p> : null}
-      {videos && videos.length === 0 ? <p className="empty">이 과목에서 받을 수 있는 동영상 강의가 없습니다.</p> : null}
-      {weeks.map((week) => (
-        <div key={week} className="video-week">
-          <p className="meta">{week}</p>
-          <ul className="entries">
-            {rows.filter((r) => r.week === week).map((row) => (
-              <li key={row.sourceId} className={`video-row ${row.state}`}>
-                <span className="title">{row.title}</span>
-                <span className="meta">{row.status}</span>
-                {action(row)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </details>
+    <button className={`video-file ${row.state}`} aria-pressed={playing} disabled={row.state === "downloading"} title={`${row.title} · ${row.status}`} aria-label={`동영상 강의 ${row.title}, ${row.status}, ${label}`}
+      onClick={() => (row.asset ? onPlay(row.asset) : onDownload(row.sourceId))}>
+      <Icon name={row.state === "downloaded" ? "play" : row.state === "downloading" ? "video" : "download"} />
+      <span><span className="video-title">{row.title}</span><small>{row.status}</small></span>
+    </button>
   );
 }
 

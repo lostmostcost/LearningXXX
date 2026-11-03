@@ -202,18 +202,22 @@ export class TranscriptionQueue {
     for (const { job } of this.#entries) {
       if (job.status !== "running") continue;
       const wait = Date.parse(job.leaseExpiresAt!) - this.#now().getTime();
-      const requeue = () => {
+      // Left running by a crash: once nobody renews its lease it is marked interrupted.
+      // It is not started again on its own; the user retries it when they want it.
+      const interrupt = () => {
         if (this.job(job.id)?.status !== "running" || this.#running?.jobId === job.id) return;
-        this.#update(job.id, { status: "queued" }, ["leaseExpiresAt", "progress"]);
-        this.#kick();
+        this.#update(job.id, { status: "failed", errorCode: "RUN_INTERRUPTED" }, ["leaseExpiresAt", "progress"]);
       };
-      if (wait <= 0) requeue();
-      else this.#later(requeue, wait);
+      if (wait <= 0) interrupt();
+      else this.#later(interrupt, wait);
     }
     this.#kick();
   }
 
-  /** Stops taking work and waits for the running job to be cut off; it goes back to queued and runs first next time. */
+  /**
+   * Stops taking work and cuts off the running job, which is marked interrupted
+   * (RUN_INTERRUPTED) and runs again only when the user retries it.
+   */
   async stop(): Promise<void> {
     this.#started = false;
     for (const t of this.#timers) clearTimeout(t);
@@ -335,9 +339,11 @@ export class TranscriptionQueue {
       this.#update(jobId, { status: "succeeded", progress: 1, outputTranscriptId: transcript.id }, ["leaseExpiresAt", "errorCode"]);
     } catch (error) {
       if (abort.signal.aborted) {
-        // A clean shutdown hands the job back to the queue so the next start resumes it at once;
-        // only a crash leaves it running, for its lease to bring back. A user cancel ends it.
-        if (abort.signal.reason === "shutdown" || abort.signal.reason === "pause") this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
+        // Pause hands the job back to the queue for resume. Quitting the app marks it
+        // interrupted: it is not restarted on the next start, only when the user retries it.
+        // A user cancel ends it.
+        if (abort.signal.reason === "pause") this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
+        else if (abort.signal.reason === "shutdown") this.#update(jobId, { status: "failed", errorCode: "RUN_INTERRUPTED" }, ["leaseExpiresAt", "progress"]);
         else this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
         return;
       }

@@ -24,6 +24,8 @@ test("unknown progress never becomes a fabricated percentage", () => {
   const running = SAMPLE_JOBS.find((j) => j.status === "running")!;
   assert.deepEqual(jobView(running), { label: "전사 중 · 진행량 알 수 없음", retry: false });
   assert.equal(jobView({ ...running, progress: 0 }).progress, 0);
+  const { leaseExpiresAt: _lease, ...stopped } = running;
+  assert.deepEqual(jobView({ ...stopped, status: "failed", errorCode: "RUN_INTERRUPTED" }), { label: "전사 중단됨", retry: true }, "an interrupted job waits for the user's retry");
   assert.equal(jobView({ ...running, progress: 0.4 }).progress, 0.4);
   for (const progress of [NaN, Infinity, -1, 1.1]) assert.equal(jobView({ ...running, progress }).progress, undefined);
 });

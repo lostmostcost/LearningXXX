@@ -119,7 +119,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
         {props.paused && job.status === "queued" && props.onResume ? <button className="icon-button" title="전사 재개" aria-label="전사 재개" onClick={act(props.onResume, "전사를 재개하지 못했습니다.")}><Icon name="play" /></button> : null}
         {(job.status === "running" || job.status === "queued") && props.onCancel ? <button className="icon-button" title="이 전사 중지" aria-label="이 전사 중지" onClick={act(() => props.onCancel!(job.id), "전사를 중지하지 못했습니다.")}><Icon name="stop" /></button> : null}
         {job.status === "running" ? <progress aria-label="전사 진행" max={1} value={view.progress} /> : null}
-        {job.errorCode ? <small>{job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {job.errorCode ? <small>{job.errorCode === "RUN_INTERRUPTED" ? "앱이 꺼져 중단됐습니다. 재시도를 누르면 처음부터 다시 전사합니다." : job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
         {view.retry ? <button className="icon-button" title="전사 재시도" aria-label="전사 재시도" disabled={!props.onRetry || props.engineReady === false || retrying !== undefined} onClick={async () => {
           if (!props.onRetry || retrying !== undefined) return;
           setRetrying(job.id);

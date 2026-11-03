@@ -36,6 +36,7 @@ import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { AudioImporter } from "./audio-import.ts";
+import { ChatOutputs } from "./chat-outputs.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { Preferences } from "./preferences.ts";
@@ -338,6 +339,7 @@ app.whenReady().then(async () => {
   const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
   conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
+  const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
@@ -385,6 +387,10 @@ app.whenReady().then(async () => {
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
     // WBS-080: opens the macOS Settings pane for a permission the app needs; fixed addresses only.
     "app.openSettings": async ({ pane }) => { await shell.openExternal(PRIVACY_PANES[pane]); return {}; },
+    // WBS-081: files a conversation made, listed and opened by id only.
+    "chat.outputs": ({ appSessionId }) => chatOutputs.list(appSessionId),
+    "chat.readOutput": ({ appSessionId, id }) => chatOutputs.read(appSessionId, id),
+    "chat.showOutput": ({ appSessionId, id, how }) => chatOutputs.show(appSessionId, id, how),
     // WBS-072: translated copies of collected PDFs.
     "library.pdfTranslation": ({ courseId, assetId, language }) => pdfTranslations.get(courseId, assetId, language),
     "library.translatePdf": ({ courseId, assetId, language, from, to }) => pdfTranslations.make(courseId, assetId, language, from, to),

@@ -196,6 +196,16 @@ export class ConversationService {
   }
   #entry(id: string) { this.#o.getSession(id); const e = this.#entries.get(id); if (!e || e.closed) return fail('대화를 다시 연결하세요.'); return e; }
   state(id: string) { const e = this.#entry(id); return structuredClone(e.state); }
+  /** WBS-081: the conversation's folder and its messages (live while open, else the saved copy), for listing what it made. */
+  workspace(id: string): { cwd: string; messages: ChatMessage[] } {
+    if (!UUID.test(id)) fail('잘못된 대화 ID입니다.');
+    this.#o.getSession(id);
+    const open = this.#entries.get(id);
+    if (open && !open.closed) return { cwd: open.cwd, messages: structuredClone(open.state.messages) };
+    const cwd = join(this.#o.root, id);
+    try { return { cwd, messages: ConversationState.shape.messages.parse(JSON.parse(readFileSync(join(cwd, '.chat-ui.json'), 'utf8')).messages) }; }
+    catch { return { cwd, messages: [] }; }
+  }
   async send(id: string, text: string, requestId: string) {
     const e = this.#entry(id); if (e.state.messages.some(m => m.role === 'user' && m.id === requestId)) return this.state(id);
     if (!e.state.connected) fail('대화를 다시 연결하세요.');

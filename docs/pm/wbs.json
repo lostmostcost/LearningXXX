@@ -2430,11 +2430,15 @@
         "REQ-009"
       ],
       "acceptance": "채팅 화면에서 그 대화가 만든 파일(outputs) 목록을 보고, 앱 안에서 열거나(텍스트·PDF) Finder에서 보여 줄 수 있다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-081-chat-outputs",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd814eb89af35480a77245?pvs=204",
-      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견."
+      "scope_note": "이문찬 2026-11-04 WBS-029 직접 확인에서 발견.",
+      "review_evidence": [
+        "Host (chat-outputs.ts, ConversationService.workspace): lists regular files in the conversation folder (depth ≤4, ≤300; hidden bookkeeping like .chat-ui.json, the read-only `course` link, node_modules/.git etc. skipped; symlinks never followed) plus files Write/Edit/MultiEdit/NotebookEdit wrote elsewhere (paths from saved tool inputs; Read-only paths are not listed). Renderer names files by a hashed id only; read/open/reveal re-list and act only on a listed file. Review finding fixed before commit: 'open' would launch a .command/.app a chat wrote → open limited to a document/picture allowlist, others only 'Finder에서 보기'. In-app text view ≤1MB for text kinds. Checks: host 228 pass (3 new), ui 125 pass, contracts/host/ui typecheck, builds.",
+        "In app (worktree build, env -i, CDP): chat.outputs over the owner's 10 conversations finds the WBS-029 notes.md (outputs/notes.md) in 'Hospitality… 새 대화 4'; UI folder button → 만든 파일 panel → 보기 renders the markdown. 열기/Finder not clicked in the app (they open windows on the owner's screen); covered by tests. Limit: tool inputs older than the 200 kept messages are not known (folder files still listed)."
+      ]
     },
     {
       "id": "WBS-082",

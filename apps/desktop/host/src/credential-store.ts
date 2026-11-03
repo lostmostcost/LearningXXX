@@ -67,7 +67,10 @@ export class CredentialStore {
   }
 
   saveHeygen(heygenKey: string): void {
-    this.#write({ ...this.read(), heygenKey });
+    const next = this.read();
+    // A voice selected for another key must never be silently reused.
+    delete next.heygenVoiceId;
+    this.#write({ ...next, heygenKey });
   }
 
   saveHeygenVoice(heygenVoiceId: string): void {

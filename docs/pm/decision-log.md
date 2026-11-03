@@ -364,3 +364,10 @@
 | 받는 형식은 macOS가 전사용으로 풀 수 있는 것: mp3·m4a·aac·wav·aif/aiff·flac·caf·mp4·3gp·amr·ogg·oga·opus. 고를 때 `afinfo`로 읽기·길이를 확인하고, 안 되는 파일·빈 파일·2GB 초과는 이유와 함께 막음. 경로는 앱 밖으로 내보내지 않음(화면엔 이름만) | 실측: afconvert가 이 형식들을 읽음 | — |
 | 학기 폴더 가져오기(WBS-066) 화면·IPC·모듈 제거(개인 폴더 구조 의존). 이미 가져온 녹음·전사·문서는 그대로 보임 | 이문찬 요청: 개인 사용 사례가 아닌 범용 | — |
 
+## WBS-079 쓰지 않는 터미널 의존성 정리 (CR-074, 2026-11-04)
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| host `node-pty`, ui `@xterm/xterm`·`@xterm/addon-fit` 의존성, `setup:pty` 스크립트(`prepare-pty.cjs`), 빌드의 `--external:node-pty`, `pnpm-workspace.yaml`의 `node-pty` 빌드 설정, `NATIVE-TERMINAL.md` 제거. `pnpm-lock.yaml`은 고정 pnpm 12.14.0으로 다시 만듦(삭제만 35줄) | WBS-076 뒤 쓰이지 않음, 이문찬 승인 | PR revert |
+| `pnpm start`는 이제 빌드 후 바로 실행(pty 준비 단계 없음) | 준비할 것이 없음 | — |
+

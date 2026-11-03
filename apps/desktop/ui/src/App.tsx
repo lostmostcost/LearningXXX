@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Course, MediaAsset } from "@learningxxx/contracts";
+import type { Course, IpcResponse, MediaAsset } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
@@ -11,6 +11,7 @@ import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
 import { canRecordView, itemForResource } from "./learning.ts";
 import { viewTarget } from "./document.ts";
+import { buildDetail, buildLabel } from "./build-label.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
@@ -90,6 +91,11 @@ export function App() {
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
+  // WBS-061: which code this development run is, also in the window title.
+  const [build, setBuild] = useState<IpcResponse<"app.build">>();
+  useEffect(() => { void invoke("app.build", {}).then((r) => { if (r.ok) setBuild(r.data); }); }, []);
+  const devLabel = buildLabel(build);
+  useEffect(() => { document.title = devLabel ? `LearningXXX — ${devLabel}` : "LearningXXX"; }, [devLabel]);
   const selectedItem = selected ? itemForResource(learning.status, selected.resource) : undefined;
   // WBS-056: an LMS PDF whose page is actually drawn in the viewer is a view the LMS records
   // (once per item; retry on failure). A PDF that cannot be opened is not.
@@ -203,7 +209,7 @@ export function App() {
       <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={label} aria-label={label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/></button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
-        <strong className="wordmark">Learning<span>XXX</span></strong>
+        <strong className="wordmark">Learning<span>XXX</span>{devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}

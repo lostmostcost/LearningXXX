@@ -62,6 +62,21 @@ export const IpcChannels = {
     request: z.object({}),
     response: z.object({ lastSucceeded: SyncRun.optional(), current: SyncRun.optional() }),
   },
+  /**
+   * CR-061 / WBS-061: the code a development run was built from (branch,
+   * commit, WBS task, worktree folder). A packaged app answers `dev: false`.
+   */
+  "app.build": {
+    request: z.object({}),
+    response: z.object({
+      dev: z.boolean(),
+      branch: z.string().max(200).optional(),
+      commit: z.string().regex(/^[0-9a-f]{4,40}$/).optional(),
+      task: z.string().regex(/^WBS-\d{3}$/).optional(),
+      dirty: z.boolean().optional(),
+      folder: z.string().max(200).optional(),
+    }),
+  },
   /** Whether sign-in details are saved on this Mac; values are never sent back (WBS-040). */
   "credentials.status": {
     request: z.object({}),

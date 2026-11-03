@@ -2149,6 +2149,32 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b78b1cf0998e869bb4?pvs=204",
       "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+    },
+    {
+      "id": "WBS-073",
+      "title": "작업 큐 보기 화면(전사·받기)",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "진행 중인 전사와 대기 중인 모든 작업(전사·동영상 받기)을 한 화면에서 과목·항목·상태·진행률·순서로 보고, 앞선 작업 때문에 대기 중임을 알 수 있다. 중지·재시도는 기존 동작을 쓴다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-073-job-queue",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8158b0bddea18f72fd14?pvs=204",
+      "scope_note": "이문찬 요청(2026-11-03, WBS-065 확인 중 새 녹음이 다른 과목 동영상 전사 뒤에서 \"전사 대기\"로 보임). 녹음 우선 전사는 결정 필요."
     }
   ],
   "qaPolicy": {

@@ -23,7 +23,15 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  * The host re-validates every request with the same schema; renderer-side
  * validation is a convenience, not a security boundary.
  */
+const TerminalId = z.string().uuid();
+const TerminalSize = { cols: z.number().int().min(2).max(500), rows: z.number().int().min(2).max(500) };
 export const IpcChannels = {
+  "terminal.stage": { request: z.object({ appSessionId: TerminalId, attachmentId: TerminalId }), response: z.object({ text: z.string() }) },
+  "terminal.open": { request: z.object({ appSessionId: TerminalId, ...TerminalSize }), response: z.object({ terminalId: TerminalId }) },
+  "terminal.read": { request: z.object({ terminalId: TerminalId, after: z.number().int().nonnegative() }), response: z.object({ chunks: z.array(z.object({ seq: z.number().int(), data: z.string() })), state: z.enum(['running', 'exited']), gap: z.boolean(), exitCode: z.number().optional() }) },
+  "terminal.write": { request: z.object({ terminalId: TerminalId, data: z.string().min(1).max(65536) }), response: z.object({}) },
+  "terminal.resize": { request: z.object({ terminalId: TerminalId, ...TerminalSize }), response: z.object({}) },
+  "terminal.close": { request: z.object({ terminalId: TerminalId }), response: z.object({}) },
   "collection.run": {
     request: z.object({ scope: z.enum(["course", "all_courses"]), courseId: Id.optional() }),
     response: z.object({ syncRunId: Id }),
@@ -70,9 +78,9 @@ export const IpcChannels = {
   },
   "session.create": {
     request: z.discriminatedUnion("mode", [
-      z.object({ mode: z.literal("course"), courseId: Id, title: z.string().min(1).max(200) }),
+      z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native"]).optional(), title: z.string().min(1).max(200) }),
       // No courseId field at all: the browsing course cannot be passed in.
-      z.strictObject({ mode: z.literal("independent"), title: z.string().min(1).max(200) }),
+      z.strictObject({ mode: z.literal("independent"), engine: z.enum(["structured", "native"]).optional(), title: z.string().min(1).max(200) }),
     ]),
     response: z.object({ session: Session }),
   },

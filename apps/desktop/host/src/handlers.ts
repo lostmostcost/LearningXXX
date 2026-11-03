@@ -1,3 +1,4 @@
+import type { NativeTerminalService } from "./native-terminal.ts";
 import type { AppModifier } from "@learningxxx/app-modifier";
 import type { AttachmentService } from "./attachment-service.ts";
 import type { CredentialService } from "./credential-service.ts";
@@ -8,13 +9,23 @@ import type { MediaService } from "./media-service.ts";
 import type { Handlers } from "./router.ts";
 import type { SessionService } from "./session-service.ts";
 
-export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService): Handlers {
+export function createHandlers(sessions: SessionService, library: LibraryService, files: FileService, attachments?: AttachmentService, credentials?: CredentialService, modifier?: AppModifier, recordings?: RecordingService, media?: MediaService, terminals?: NativeTerminalService): Handlers {
   const inputs = () => { if (!attachments) throw new Error("Attachment service unavailable"); return attachments; };
   const signIn = () => { if (!credentials) throw new Error("Credential service unavailable"); return credentials; };
   const modify = () => { if (!modifier) throw new Error("App modifier unavailable"); return modifier; };
   const recorder = () => { if (!recordings) throw new Error("Recording service unavailable"); return recordings; };
   const libraryMedia = () => { if (!media) throw new Error("Media service unavailable"); return media; };
+  const terminal = () => { if (!terminals) throw new Error('Terminal service unavailable'); return terminals; };
   return {
+    "terminal.stage": async ({ appSessionId, attachmentId }) => {
+      if (sessions.get(appSessionId).engine !== 'native') throw new Error('Not a native session');
+      return inputs().forNative(appSessionId, attachmentId);
+    },
+    "terminal.open": request => terminal().open(request),
+    "terminal.read": async request => terminal().read(request),
+    "terminal.write": async request => terminal().write(request),
+    "terminal.resize": async request => terminal().resize(request),
+    "terminal.close": async request => terminal().close(request),
     "collection.run": (request) => library.run(request),
     "collection.status": () => library.status(),
     "credentials.status": async () => signIn().status(),
@@ -30,7 +41,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "session.create": async (request) => ({ session: sessions.create(request) }),
     "session.list": async (request) => ({ sessions: sessions.list(request) }),
     "session.rename": async (request) => ({ session: sessions.rename(request) }),
-    "session.archive": async (request) => ({ session: sessions.archive(request) }),
+    "session.archive": async (request) => { if (request.archived) terminals?.stopSession(request.appSessionId); return { session: sessions.archive(request) }; },
     "session.transcript": async ({ appSessionId }) => ({ turns: sessions.transcript(appSessionId) }),
     // Escape or closing the selection returns nothing: an empty answer, not an error.
     "captures.start": async (request) => {
@@ -41,7 +52,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "attachments.prepareAsset": async (request) => ({ attachment: await inputs().prepareAsset(request) }),
     "attachments.confirm": async (request) => ({ attachment: inputs().confirm(request) }),
     "attachments.remove": async (request) => inputs().remove(request),
-    "run.start": async (request) => ({ run: await sessions.startRun(request) }),
+    "run.start": async (request) => {
+      if (sessions.get(request.draft.targetSessionId).engine === 'native' || terminals?.isActive(request.draft.targetSessionId)) throw Object.assign(new Error('Native terminal active'), { appError: { code: 'INVALID_REQUEST', message: '이 세션의 Claude Code를 종료한 뒤 기존 채팅을 실행하세요.', retryable: false } });
+      return { run: await sessions.startRun(request) };
+    },
     "run.cancel": async (request) => ({ run: sessions.cancel(request) }),
     "files.chooseFolder": async (request) => ({ session: await files.chooseFolder(request) }),
     "files.removeFolder": async (request) => ({ session: files.removeFolder(request) }),

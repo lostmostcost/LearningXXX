@@ -174,3 +174,19 @@ test("after a restart unconfirmed captures are dropped; confirmed captures and f
   assert.equal(readdirSync(run.dirs[0]!).length, 1);
   restarted.confirm({ appSessionId: a, attachmentId: file.id });
 });
+
+
+test('native attachments require confirmation and survive service restart without copying current originals again', async t => {
+  const { service, options, state, a, local, dataRoot } = setup(t);
+  state.picked = local;
+  const item = (await service.chooseLocal({ appSessionId: a }))!;
+  assert.throws(() => service.forNative(a, item.id), errorCode('INVALID_REQUEST'));
+  service.confirm({ appSessionId: a, attachmentId: item.id });
+  const staged = service.forNative(a, item.id);
+  const dir = join(dataRoot, 'native-attachments', a);
+  const path = join(dir, readdirSync(dir)[0]!);
+  const before = readFileSync(path, 'utf8');
+  new AttachmentService(options);
+  assert.equal(readFileSync(path, 'utf8'), before);
+  assert.equal(service.forNative(a, item.id).text, staged.text);
+});

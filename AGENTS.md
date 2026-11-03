@@ -11,8 +11,8 @@
 ## Non-negotiable requirements
 - Personal macOS app, KHU LMS, initially one semester/course.
 - Official Claude Code CLI with each person's subscription login. No API-key fallback, shared credential server or token extraction.
-- G0 must prove execution, file access, resume and independent-session isolation.
-- Independent sessions have no automatic course/history/memory/filesystem context. Do not implement isolation with prompt wording alone.
+- CR-050 (2026-11-03): new native sessions run the official interactive Claude Code in its normal environment, including general/previously independent conversations. Do not claim they are isolated. Keep the previous G0 isolation proof and fixed flags for legacy structured sessions only.
+- New native sessions have separate starting directories but may use Claude Code global settings, memory, skills and permissions, explicitly approved by the owner in CR-050. Never silently migrate legacy sessions or automatically approve native permission dialogs. Subscription login and no API fallback still apply.
 - A then B. B recording, video originals and automatic transcription are part of full MVP.
 - User-run manual collection on each Mac with no server (CR-001, ADR-002); automatic transcription; manual summarization.
 - khu-ecampus-archive may be read as a reference for KHU LMS access flows (owner decision 2026-11-01, WBS-039); do not invoke it from the app, implement new modules.

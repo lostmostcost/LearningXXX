@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { chmodSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { basename, extname, isAbsolute, join, relative } from "node:path";
 import { AppError, Attachment, Id, PreparedAttachment } from "@learningxxx/contracts";
 import type { ErrorCode, Session } from "@learningxxx/contracts";
 import { z } from "zod";
@@ -142,6 +142,20 @@ export class AttachmentService {
       writeFileSync(join(this.#root, "manifests", `${runId}.json`), JSON.stringify(attachments));
       return { dirs: [dir], prompt: `사용자가 명시적으로 확인한 읽기 전용 첨부:\n${attachments.map((a, i) => `${JSON.stringify(records[i]!.attachment.name)}: ${JSON.stringify(join(this.#o.dataRoot, a.localKey))}`).join("\n")}` };
     } catch (error) { this.releaseRun(runId); throw error; }
+  }
+  /** Native CLI history can refer to these copies after the app restarts. */
+  forNative(appSessionId: string, attachmentId: string) {
+    const record = this.#read(appSessionId, attachmentId);
+    if (!record.attachment.confirmed) fail('INVALID_REQUEST', '첨부를 먼저 확인하세요.');
+    const dir = join(this.#o.dataRoot, 'native-attachments', Id.parse(appSessionId));
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const inside = relative(realpathSync(this.#o.dataRoot), realpathSync(dir));
+    if (inside.startsWith('..') || isAbsolute(inside)) fail('SCOPE_VIOLATION', '첨부 폴더가 앱 경계를 벗어났습니다.');
+    const target = join(dir, `${record.attachment.id}${record.extension}`);
+    if (existsSync(target)) {
+      if (!lstatSync(target).isFile() || lstatSync(target).isSymbolicLink() || hash(readFileSync(target)) !== record.attachment.contentHash) fail('CHECKSUM_MISMATCH', '전달 복사본이 바뀌었습니다. 다시 준비하세요.');
+    } else { copyFileSync(this.#source(record), target, constants.COPYFILE_EXCL); chmodSync(target, 0o400); }
+    return { text: `사용자가 확인한 첨부 ${JSON.stringify(record.attachment.name)}: ${JSON.stringify(target)}` };
   }
   releaseRun(runId: string) {
     const dir = join(this.#root, "runs", Id.parse(runId));

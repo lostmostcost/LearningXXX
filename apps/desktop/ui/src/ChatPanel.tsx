@@ -74,7 +74,7 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
 
   const reload = useCallback(async () => {
     const result = await invoke("session.list", { includeArchived: true });
-    if (result.ok) setSessions(result.data.sessions);
+    if (result.ok) setSessions(result.data.sessions.filter(s => s.engine !== 'native'));
     else setNotice(result.error.message);
   }, []);
 
@@ -86,6 +86,8 @@ export function ChatPanel({ courseId, courseTitle, activeId, onActiveId: setActi
       if (push.event.type === "run.completed" || push.event.type === "run.failed" || push.event.type === "run.cancelled") void reload();
     });
   }, [reload]);
+
+  useEffect(() => { void reload(); }, [activeId, reload]);
 
   // Earlier conversation of a session, once per session per window (it survives restarts on the host).
   const historyLoaded = useRef(new Set<string>());

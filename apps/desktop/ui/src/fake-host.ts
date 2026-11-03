@@ -25,14 +25,21 @@ export function installFakeHost(courseTitle: string): void {
   const event = (run: Run, seq: number, type: RunEvent["type"], payload: unknown) =>
     push({ kind: "run.event", event: { schemaVersion: 1, eventId: crypto.randomUUID(), runId: run.runId, seq, occurredAt: now(), type, payload } as RunEvent });
 
+  const terminalOutput = new Map<string, { seq: number; data: string; closed: boolean }>();
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
+    "terminal.open": p => { const id = String(p.appSessionId); if (!terminalOutput.has(id)) terminalOutput.set(id, { seq: 1, data: '\x1b[1mClaude Code · 합성 화면\x1b[0m\r\n실제 계정이나 CLI를 사용하지 않는 UI 예제입니다.\r\n\r\n❯ ', closed: false }); return ok({ terminalId: id }); },
+    "terminal.read": p => { const t = terminalOutput.get(String(p.terminalId))!; return ok({ chunks: Number(p.after) < t.seq ? [{ seq: t.seq, data: t.data }] : [], state: t.closed ? 'exited' : 'running', gap: false }); },
+    "terminal.write": p => { const t = terminalOutput.get(String(p.terminalId))!; t.data = String(p.data) === '/' ? '\r\n /help       도움말\r\n /model      모델 선택\r\n /compact    문맥 압축\r\n /resume     세션 선택\r\n /skills     스킬 목록\r\n❯ /' : String(p.data); t.seq++; return ok({}); },
+    "terminal.resize": () => ok({}),
+    "terminal.close": p => { terminalOutput.get(String(p.terminalId))!.closed = true; return ok({}); },
+    "terminal.stage": () => ok({ text: '합성 첨부 경로 예제' }),
     "session.list": () => ok({ sessions: [...sessions] }),
     "session.transcript": () => ok({ turns: [] }),
     "session.create": (p) => {
       const id = crypto.randomUUID();
       const session = {
-        appSessionId: id, mode: p.mode, ...(p.mode === "course" ? { courseId: p.courseId } : {}),
-        workspaceKey: p.mode === "course" ? `courses/${String(p.courseId)}/sessions/${id}` : `sessions/${id}`,
+        appSessionId: id, mode: p.mode, ...(p.engine ? { engine: p.engine } : {}), ...(p.mode === "course" ? { courseId: p.courseId } : {}),
+        workspaceKey: p.engine === "native" ? `native-sessions/${id}` : p.mode === "course" ? `courses/${String(p.courseId)}/sessions/${id}` : `sessions/${id}`,
         title: p.title, createdAt: now(), lastUsedAt: now(), status: "idle",
       } as Session;
       sessions.push(session);

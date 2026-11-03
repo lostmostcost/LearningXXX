@@ -99,6 +99,12 @@ describe("producer → consumer round trip", () => {
   it("every IPC channel round-trips a valid request through the host validator", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
+      'terminal.stage': { appSessionId: sid, attachmentId: sid },
+      'terminal.open': { appSessionId: sid, cols: 80, rows: 24 },
+      'terminal.read': { terminalId: sid, after: 0 },
+      'terminal.write': { terminalId: sid, data: '/help\r' },
+      'terminal.resize': { terminalId: sid, cols: 120, rows: 40 },
+      'terminal.close': { terminalId: sid },
       "collection.run": { scope: "course", courseId: sid },
       "collection.status": {},
       "library.manifest": { courseId: sid },

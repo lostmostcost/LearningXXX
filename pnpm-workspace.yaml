@@ -8,3 +8,4 @@ minimumReleaseAge: 20160
 allowBuilds:
   electron: false
   esbuild: false
+  node-pty: false

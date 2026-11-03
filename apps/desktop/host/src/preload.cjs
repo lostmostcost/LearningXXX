@@ -31,6 +31,8 @@ const CHANNELS = new Set([
   "learning.openQuiz",
   "library.courses",
   "library.asset",
+  "timetable.get",
+  "timetable.set",
   "materials.choose",
   "materials.add",
   "materials.change",

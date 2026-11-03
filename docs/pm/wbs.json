@@ -2032,11 +2032,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "화면 맨 왼쪽에 마우스를 대면 과목 사이드바가 기존 사이드바를 밀어내며 나타나고 벗어나면 들어간다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-068-edge-sidebar",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd810aae1bc11fe0b8e750?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed App edge state (open after a short rest on a 4px zone, close past drawer+rail, on leaving the window, Esc, choosing a course or pinning; disabled while pinned or opened by the menu button), timer cleanup, CSS (drawer at left 0, rail and page pushed by 240px, reduced-motion). Checks: pnpm -r run check pass; layout test for the close threshold. Fixture preview with real pointer moves: hovering x=1 opens (drawer at left, rail moved, page padding 298px), moving to x=500 closes. No defects found beyond test timing (transitions were slow in the background pane)."
+      ]
     },
     {
       "id": "WBS-069",

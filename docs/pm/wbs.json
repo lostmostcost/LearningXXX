@@ -1736,7 +1736,7 @@
       "priority": "P1",
       "deps": [
         "WBS-055",
-        "WBS-092"
+        "WBS-097"
       ],
       "areas": [
         "host",
@@ -1757,7 +1757,7 @@
       "branch": "feat/WBS-058-assignment-submit",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행. CR-093 작업 분리: 영상 앱 연결과 분리한 WBS-097 초안 도구 뒤 지정 과제 제출 검증."
     },
     {
       "id": "WBS-059",
@@ -2791,7 +2791,8 @@
       "title": "주차 설명 영상·과제 PDF/PPT 초안 앱 연결",
       "deps": [
         "WBS-091",
-        "WBS-083"
+        "WBS-083",
+        "WBS-097"
       ],
       "areas": [
         "host",
@@ -2812,7 +2813,7 @@
       "status": "Blocked",
       "branch": "feat/WBS-092-artifact-workflows",
       "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
-      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058."
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다."
     },
     {
       "phase": "MVP 검수",
@@ -2867,10 +2868,13 @@
         "REQ-003"
       ],
       "acceptance": "앱 표시명·창 제목·첫 화면·네이티브 아이콘을 YOLO UNIV로 적용하고 기존 자료·학교 로그인·세션이 유지됨을 확인한다. 루트 manifest 수정이 필요하면 shared claim 하 경로 추가 후 진행.",
-      "status": "Blocked",
+      "status": "Review",
       "branch": "feat/WBS-094-yolo-univ-brand",
       "url": "https://app.notion.com/p/40dbd7ec20cd81d9b03df0bae9c97b27",
-      "scope_note": "CR-093 사용자 직접 승인(2026-11-04). WBS-093 자산과 WBS-085 host/ui/shared claim 해제 대기."
+      "scope_note": "CR-093 사용자 직접 승인(2026-11-04). WBS-093 #112/00d60c4 및 WBS-085 #111/cf4560d live Done·claim 해제 후 host/ui/shared 선점. 앱 표시명·로고·Dock·개발 런처만 적용; 내부 저장/암호화 식별자는 유지.",
+      "review_evidence": [
+        "Reviewed branding diff and credential/session callers; Electron 44.9.0 uses internal app name in macOS Safe Storage, so package/productName/app.setName and data/session keys remain unchanged. UI 133/133 and host 249/249 checks/build pass. Native visual review found navy logo unreadable on dark background; fixed with ivory tile, rebuilt and rechecked. Moved worktree before reinstalling pnpm links caused user-visible missing SDK/core exception: fixed offline frozen install, verified actual SDK import, added launcher build/start dependency preflight and friendly abort. Rebuilt, codesign strict verification passed; actual native smoke shows legacy internal name, title YOLO UNIV, loaded brand, isolated renderer, no errors/overflow. Wide first screenshot is blank paint frame, so it is not treated as visual pass; narrow screenshot reviewed. Actual owner profile opened with existing six courses, storage list and automatic school login still on. No credential values read. Source-dependent development launcher limitations and commands in apps/desktop/host/BRANDING.md. Final docker compose run --rm tools exit 0: frozen install, tooling 20, all workspace checks/builds pass (host 246 pass/3 platform skips in container; Mac 249 pass). Actual owner-profile window/menu/logo, six courses and saved automatic-login-on state also verified via native AX. CI pending."
+      ]
     },
     {
       "id": "WBS-095",
@@ -2923,6 +2927,43 @@
       "branch": "feat/WBS-096-translated-pdf-colors",
       "url": "https://app.notion.com/p/40dbd7ec20cd81bbba9fe6c3779454eb?pvs=204",
       "scope_note": "WBS-072 후속(2026-11-04)."
+    },
+    {
+      "id": "WBS-097",
+      "title": "과제 AI 초안 미리보기·전체 주차 전용 채팅",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-091",
+        "WBS-094"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared",
+        "learning-artifacts"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "packages/learning-artifacts/",
+        "docs/pm/",
+        "pnpm-lock.yaml"
+      ],
+      "spec": "SPEC-006",
+      "requirements": [
+        "REQ-003",
+        "REQ-004",
+        "REQ-009",
+        "REQ-013"
+      ],
+      "acceptance": "과제 안내/AI 제출 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제 고정 전용 세션에서 모든 주차 읽기, 공식 Claude 구독으로 최초 초안·수정 결과 새 판 실시간 미리보기와 PDF 내보내기. 이전 판·원본 보존, 명시 실행·누락 입력 확인, 전환/취소/실패/재시작/동시 요청·파일 경계 회귀.",
+      "status": "Backlog",
+      "branch": "feat/WBS-097-assignment-workspace",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81a5a719d7305a8fa9c0",
+      "scope_note": "CR-093 사용자 승인 과제 요구를 WBS-092에서 독립 작업으로 분리. 영상 앱 연결은 WBS-092, 실제 지정 과제 제출은 WBS-058. WBS-094 뒤 task/area claim 확보 후 진행."
     }
   ],
   "qaPolicy": {

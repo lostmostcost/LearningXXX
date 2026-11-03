@@ -5,6 +5,7 @@ import { invoke, onHostPush } from "./host-api.ts";
 import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
+import brandLogo from "../../../../assets/branding/yolo-univ-logo.png";
 import { RichChatPanel } from "./RichChatPanel.tsx";
 import { CourseKnowledge } from "./CourseKnowledge.tsx";
 import { MemoPanel } from "./MemoPanel.tsx";
@@ -129,7 +130,7 @@ export function App() {
   const [build, setBuild] = useState<IpcResponse<"app.build">>();
   useEffect(() => { void invoke("app.build", {}).then((r) => { if (r.ok) setBuild(r.data); }); }, []);
   const devLabel = buildLabel(build);
-  useEffect(() => { document.title = devLabel ? `LearningXXX — ${devLabel}` : "LearningXXX"; }, [devLabel]);
+  useEffect(() => { document.title = devLabel ? `YOLO UNIV — ${devLabel}` : "YOLO UNIV"; }, [devLabel]);
   const selectedItem = selected ? itemForResource(learning.status, selected.resource) : undefined;
   // WBS-056: an LMS PDF whose page is actually drawn in the viewer is a view the LMS records
   // (once per item; retry on failure). A PDF that cannot be opened is not.
@@ -308,7 +309,7 @@ export function App() {
       <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
-        <strong className="wordmark">Learning<span>XXX</span>{devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
+        <strong className="wordmark"><img className="brand-logo" src={brandLogo} alt="YOLO UNIV"/>{devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
         {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => { setRightTab("recording"); setView("chat"); }} title="녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}

@@ -10,7 +10,7 @@ import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirect
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, Menu, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -56,13 +56,16 @@ const PRIVACY_PANES = {
   screen: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
   microphone: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
 } as const;
+// Keep the legacy internal app name: Electron uses it for userData and macOS Safe Storage.
+const brandIcon = join(__dirname, "../../../../assets/branding/yolo-univ-icon.png");
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...WINDOW_SIZE,
     show: false,
-    title: "LearningXXX",
+    title: "YOLO UNIV",
+    icon: brandIcon,
     webPreferences: { ...WEB_PREFERENCES, preload: join(__dirname, "../src/preload.cjs") },
   });
   // The window only ever shows the bundled UI.
@@ -543,6 +546,18 @@ app.whenReady().then(async () => {
     await runFilesSmoke(uiEntry, filesSmokeDir);
     app.quit();
     return;
+  }
+  app.setAboutPanelOptions({ applicationName: "YOLO UNIV", iconPath: brandIcon });
+  if (process.platform === "darwin") {
+    app.dock?.setIcon(brandIcon);
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      { label: "YOLO UNIV", submenu: [
+        { role: "about", label: "YOLO UNIV에 관하여" }, { type: "separator" },
+        { role: "hide", label: "YOLO UNIV 가리기" }, { role: "hideOthers" }, { role: "unhide" },
+        { type: "separator" }, { role: "quit", label: "YOLO UNIV 종료" },
+      ] },
+      { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+    ]));
   }
   const window = createWindow();
   const smokeDir = process.argv.find((arg) => arg.startsWith("--ui-smoke="))?.split("=")[1];

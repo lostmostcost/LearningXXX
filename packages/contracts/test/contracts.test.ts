@@ -120,6 +120,7 @@ describe("producer → consumer round trip", () => {
       "credentials.saveCanvasToken": { token: "synthetic-canvas-token" },
       "credentials.clear": { which: "school" },
       "library.asset": { courseId: sid, assetId: crypto.randomUUID() },
+      "timetable.get": {}, "timetable.set": { courseId: sid, meetings: [{ day: "월", start: "09:00", end: "10:15" }] },
       "media.storage": {}, "media.removeOriginals": { courseId: sid, assetIds: [sid] },
       "materials.choose": {}, "materials.add": { planId: sid, courseId: sid, files: [{ id: sid, title: "자료" }] }, "materials.change": { courseId: sid, resourceId: sid, weekId: null },
       "memo.get": { courseId: sid }, "memo.save": { courseId: sid, weekId: sid, text: "메모", base: null }, "memo.cleanup": { courseId: sid }, "memo.apply": { courseId: sid, action: "undo" }, "memo.pageText": { courseId: sid, assetId: sid, page: 1 },

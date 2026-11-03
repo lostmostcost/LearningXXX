@@ -18,6 +18,11 @@ export interface TranscriptPanelProps {
   targetSession?: { id: string; title: string } | undefined;
   onAttach?: ((excerpt: TranscriptExcerpt, targetSessionId: string) => Promise<void>) | undefined;
   onRetry?: ((jobId: string) => Promise<void>) | undefined;
+  /** Transcription is paused on this Mac (all jobs wait until resumed). */
+  paused?: boolean | undefined;
+  onPause?: (() => Promise<void>) | undefined;
+  onResume?: (() => Promise<void>) | undefined;
+  onCancel?: ((jobId: string) => Promise<void>) | undefined;
 }
 
 export function TranscriptPanel(props: TranscriptPanelProps) {
@@ -66,7 +71,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
       if (!alive) return;
       if (!blob) { setNotice("원본을 열 수 없습니다. 원본 저장 상태를 확인한 뒤 다시 열어 보세요."); return; }
       objectUrl = URL.createObjectURL(blob); setUrl(objectUrl);
-    }).catch(() => { if (alive) setNotice("원본을 불러오지 못했습니다. 다시 열어 보세요."); })
+    }).catch((error: unknown) => { if (alive) setNotice(error instanceof Error && error.message ? error.message : "원본을 불러오지 못했습니다. 다시 열어 보세요."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [asset.id, asset.sha256, props.loadOriginal, loadAttempt]);
@@ -108,7 +113,11 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     <ul className="transcription-jobs" aria-label="전사 작업">{(latest ? [latest] : []).map((job) => {
       const view = jobView(job);
-      return <li key={job.id}>{view.label}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
+      const act = (work: (() => Promise<void>) | undefined, failed: string) => async () => { try { await work?.(); } catch { setNotice(failed); } };
+      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 처음부터 다시 전사" : view.label}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
+        {job.status === "running" && props.onPause ? <button className="icon-button" title="전사 일시 정지" aria-label="전사 일시 정지" onClick={act(props.onPause, "전사를 일시 정지하지 못했습니다.")}><Icon name="pause" /></button> : null}
+        {props.paused && job.status === "queued" && props.onResume ? <button className="icon-button" title="전사 재개" aria-label="전사 재개" onClick={act(props.onResume, "전사를 재개하지 못했습니다.")}><Icon name="play" /></button> : null}
+        {(job.status === "running" || job.status === "queued") && props.onCancel ? <button className="icon-button" title="이 전사 중지" aria-label="이 전사 중지" onClick={act(() => props.onCancel!(job.id), "전사를 중지하지 못했습니다.")}><Icon name="stop" /></button> : null}
         {job.status === "running" ? <progress aria-label="전사 진행" max={1} value={view.progress} /> : null}
         {job.errorCode ? <small>{job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
         {view.retry ? <button className="icon-button" title="전사 재시도" aria-label="전사 재시도" disabled={!props.onRetry || props.engineReady === false || retrying !== undefined} onClick={async () => {

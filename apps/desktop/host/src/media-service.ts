@@ -149,7 +149,7 @@ export class MediaService {
         if (job.outputTranscriptId) { const t = p.queue.transcript(job.outputTranscriptId); if (t) transcripts.push({ ...t, sourceAssetId: asset.id }); }
       }
     }
-    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
+    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
   }
 
   async asset(courseId: string, assetId: string) {
@@ -170,6 +170,29 @@ export class MediaService {
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
     const current = p.queue.enqueue(asset);
     if (current.status === "failed" || current.status === "cancelled") p.queue.retry(current.id);
+    return {};
+  }
+
+  async pauseTranscription() {
+    const p = await this.#activate();
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    await p.queue.pause();
+    return { paused: p.queue.paused };
+  }
+
+  async resumeTranscription() {
+    const p = await this.#activate();
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    p.queue.resume();
+    return { paused: p.queue.paused };
+  }
+
+  /** Stops one job of this course; queued or running, it ends as cancelled and keeps its original. */
+  async cancelTranscription(courseId: string, jobId: string) {
+    const { p } = await this.#course(courseId), listed = await this.list(courseId);
+    if (!listed.jobs.some((j) => j.id === jobId)) fail("NOT_FOUND", "현재 과목의 전사 작업이 아닙니다.");
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    await p.queue.cancel(jobId);
     return {};
   }
 

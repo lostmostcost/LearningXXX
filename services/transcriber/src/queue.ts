@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   MediaAsset,
@@ -60,6 +60,8 @@ export class TranscriptionQueue {
   readonly #holdUntil = new Map<string, number>();
   #running: { jobId: string; abort: AbortController; done: Promise<void> } | undefined;
   #started = false;
+  /** The user paused transcription; kept on disk so a restart stays paused. */
+  #paused: boolean;
 
   constructor(options: QueueOptions) {
     this.#o = options;
@@ -67,6 +69,7 @@ export class TranscriptionQueue {
     this.#now = options.now ?? (() => new Date());
     this.#newId = options.newId ?? randomUUID;
     this.#entries = this.#load();
+    this.#paused = existsSync(join(options.root, "paused"));
   }
 
   #stamp(): string {
@@ -231,8 +234,36 @@ export class TranscriptionQueue {
     this.#timers.add(t);
   }
 
+  get paused(): boolean {
+    return this.#paused;
+  }
+
+  /**
+   * Stops transcribing until `resume`. The running job goes back to the queue
+   * and starts over from the beginning of its file then (the engine cannot
+   * continue mid-file). Survives a restart.
+   */
+  async pause(): Promise<void> {
+    if (this.#paused) return;
+    this.#paused = true;
+    mkdirSync(this.#o.root, { recursive: true });
+    writeFileSync(join(this.#o.root, "paused"), "");
+    const running = this.#running;
+    if (running) {
+      running.abort.abort("pause");
+      await running.done;
+    }
+  }
+
+  resume(): void {
+    if (!this.#paused) return;
+    this.#paused = false;
+    rmSync(join(this.#o.root, "paused"), { force: true });
+    this.#kick();
+  }
+
   #kick(): void {
-    if (!this.#started || this.#running) return;
+    if (!this.#started || this.#running || this.#paused) return;
     const now = this.#now().getTime();
     const next = this.#entries.find((e) => e.job.status === "queued" && (this.#holdUntil.get(e.job.id) ?? 0) <= now);
     if (!next) return;
@@ -258,7 +289,7 @@ export class TranscriptionQueue {
       return;
     }
     if (abort.signal.aborted) {
-      if (abort.signal.reason !== "shutdown") this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
+      if (abort.signal.reason !== "shutdown" && abort.signal.reason !== "pause") this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
       return;
     }
     this.#update(jobId, { status: "running", attempt: entry.job.attempt + 1, leaseExpiresAt: lease() }, ["progress"]);
@@ -306,7 +337,7 @@ export class TranscriptionQueue {
       if (abort.signal.aborted) {
         // A clean shutdown hands the job back to the queue so the next start resumes it at once;
         // only a crash leaves it running, for its lease to bring back. A user cancel ends it.
-        if (abort.signal.reason === "shutdown") this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
+        if (abort.signal.reason === "shutdown" || abort.signal.reason === "pause") this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
         else this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
         return;
       }

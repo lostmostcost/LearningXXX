@@ -104,7 +104,7 @@ export function VideoViewer({ courseId, asset }: { courseId: string; asset: Medi
   return (
     <section className="video-viewer" aria-label="동영상 강의">
       <h2>{asset.title}</h2>
-      {error ? <p role="alert" className="notice-box">{error}</p> : url ? <video controls src={url} /> : <p role="status">영상을 여는 중…</p>}
+      {error ? <p role="alert" className="notice-box">{error} <button className="link-button" onClick={() => void invoke("media.open", { courseId, assetId: asset.id }).then((r) => { if (!r.ok) setError(r.error.message); })}>시스템 플레이어로 열기</button></p> : url ? <video controls src={url} /> : <p role="status">영상을 여는 중…</p>}
       <p className="meta">전사문은 오른쪽 전사 탭에서 볼 수 있습니다.</p>
     </section>
   );

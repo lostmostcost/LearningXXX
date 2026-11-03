@@ -219,7 +219,7 @@ export const IpcChannels = {
   },
   "media.list": {
     request: z.object({ courseId: Id }),
-    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
+    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
   },
   /** Online lectures the account may download; `week` is the LMS module (주차) title, shown as given. */
   "media.videos": { request: z.object({ courseId: Id }), response: z.object({ videos: z.array(z.object({ sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200), week: z.string().min(1).max(200).optional() })) }) },
@@ -228,6 +228,11 @@ export const IpcChannels = {
   "media.original": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({ bytes: z.instanceof(Uint8Array), mediaType: z.string() }) },
   "media.open": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({}) },
   "media.retry": { request: z.object({ courseId: Id, jobId: Id }), response: z.object({}) },
+  /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
+  "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },
+  "media.resumeTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },
+  /** Stops one job; its original stays and "retry" can start it again. */
+  "media.cancelTranscription": { request: z.object({ courseId: Id, jobId: Id }), response: z.object({}) },
   /** REQ-011. Also tells a freshly restarted app that its renderer really came up. */
   "modify.status": {
     request: z.object({}),

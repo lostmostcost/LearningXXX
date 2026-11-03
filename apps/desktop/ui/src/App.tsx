@@ -8,6 +8,7 @@ import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
 import { CourseKnowledge } from "./CourseKnowledge.tsx";
 import { MemoPanel } from "./MemoPanel.tsx";
+import { AddMaterials, ManualControls } from "./AddMaterials.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
@@ -178,6 +179,10 @@ export function App() {
     const page = !knowledgeOpen && shownPage && selected?.assets.some((a) => a.id === shownPage.assetId) ? shownPage.page : undefined;
     return week || title ? { ...(week ? { week } : {}), ...(title ? { title } : {}), ...(page ? { page } : {}) } : undefined;
   }, [library, selected, weekIndex, knowledgeOpen, shownPage]);
+  // WBS-088: after the library is read again (e.g. a file moved week), keep showing the same material.
+  useEffect(() => {
+    setSelected((current) => current && library ? [...library.notices, ...library.weeks.flatMap((w) => w.entries), ...library.other].find((e) => e.resource.id === current.resource.id) ?? current : current);
+  }, [library]);
   const panels = visiblePanels(narrow, view);
   const weekList = useMemo(() => library?.weeks.map((w) => w.week) ?? [], [library]);
 
@@ -356,7 +361,7 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 정리 (course.md)</button><LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
+            {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 정리 (course.md)</button>{IN_APP&&!FIXTURE_MODE?<details className="add-materials-box"><summary>+ 내 자료 추가</summary><AddMaterials courseId={library.course.id} weeks={weekList} weekId={weekIndex>=0?library.weeks[weekIndex]?.week.id:undefined} onDone={()=>void refresh()}/></details>:null}<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
                 // WBS-075: by week, closed by default; to-do and submitted apart.
                 ?<TaskSidebar library={library} status={learning.status} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
                 :entriesOf(library).filter(e=>e.resource.kind==='notice').map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
@@ -374,7 +379,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selected?.resource.source==='manual'&&library ? <ManualControls key={selected.resource.id} courseId={library.course.id} resourceId={selected.resource.id} weeks={weekList} weekId={selected.resource.weekId} onDone={(removed)=>{if(removed)setSelected(undefined);void refresh();}}/> : selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {

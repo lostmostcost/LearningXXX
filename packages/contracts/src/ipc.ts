@@ -181,6 +181,11 @@ export const IpcChannels = {
   "memo.apply": { request: z.object({ courseId: Id, weekId: Id.optional(), action: z.enum(["use_cleaned", "undo", "discard_cleaned"]) }), response: Memo },
   /** The text of one page of a collected PDF, to put the page being read into a memo. */
   "memo.pageText": { request: z.object({ courseId: Id, assetId: Id, page: z.number().int().positive() }), response: z.object({ text: z.string() }) },
+  /** WBS-088: the student's own files for a course week or 기타 자료 (weekId absent). Picked in a file dialog, copied into the app. */
+  "materials.choose": { request: z.object({}), response: z.object({ planId: Id.optional(), files: z.array(z.object({ id: Id, name: z.string(), bytes: z.number().int().nonnegative(), problem: z.string().optional() })) }) },
+  "materials.add": { request: z.object({ planId: Id, courseId: Id, files: z.array(z.object({ id: Id, title: z.string().max(300), weekId: Id.optional() })).min(1).max(50) }), response: z.object({ added: z.number().int().nonnegative(), failed: z.array(z.object({ id: Id, message: z.string() })) }) },
+  /** Move to another week (null = 기타 자료), rename, or remove from the course (the app's copy only). */
+  "materials.change": { request: z.object({ courseId: Id, resourceId: Id, weekId: Id.nullable().optional(), title: z.string().max(300).optional(), remove: z.boolean().optional() }), response: z.object({}) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),

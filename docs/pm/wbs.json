@@ -2656,11 +2656,16 @@
         "REQ-003"
       ],
       "acceptance": "사용자가 가진 파일(PDF·문서·이미지 등)을 주차 또는 '기타 자료'에 추가해 LMS 자료와 같이 보고 채팅에서 쓴다. 원본은 읽기만 하고 앱 보관함에 사본.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-088-external-materials",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81aead21f83643879f1f?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "Host external-materials.ts: file dialog (multi) → plan with reasons (non-regular file/link, unsupported type, empty, >300MB); add copies each file into the library's content-addressed store (original only read; size re-checked before copy), records an index per account+course, each file fails alone; change moves week (null=기타 자료, unknown week refused), renames or removes the app entry (stored copy not deleted; storage card WBS-087 can reclaim). LibraryService.manifest() merges them as source 'manual' file resources (week dropped to 기타 if it disappears; invalid merge falls back to the collected manifest); the collector's manifest on disk is never changed, so collections keep them. Viewer, chat folder, course.md and memos see them through manifest(). Host 239 pass (2 new).",
+        "UI: '+ 내 자료 추가' under 과목 정리 in the materials list (title and week/기타 per file, default current week), manual items get week select + '목록에서 빼기' (confirm) in the viewer header; selection kept across reload. ui 129 pass, build.",
+        "In app (AI, env -i, CDP): native dialog not driven; a synthetic PDF was added through the same ExternalMaterials class into the app data → listed under 기타 자료, opens in the viewer (1/1쪽), moved to 3주차 via the header select (stays selected), removed via 목록에서 빼기 → gone from list and manifest."
+      ]
     },
     {
       "id": "WBS-089",

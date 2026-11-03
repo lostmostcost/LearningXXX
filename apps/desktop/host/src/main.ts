@@ -36,6 +36,7 @@ import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { AudioImporter } from "./audio-import.ts";
+import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
@@ -217,6 +218,16 @@ app.whenReady().then(async () => {
   });
   const startCli = createCliRunner();
   const claudeText = createClaudeTextRunner(startCli, join(dataRoot, "readable-runs"));
+  // WBS-072: the original is looked up through the manifest and re-hashed, like any viewer request.
+  const pdfTranslations = new PdfTranslationService({
+    root: join(dataRoot, "pdf-translations"), accountKey: () => library.accountKey(),
+    original: async (courseId, assetId) => {
+      const asset = (await library.manifest(courseId))?.items.flatMap((i) => i.assets).find((a) => a.id === assetId);
+      const { bytes, mediaType } = await library.asset({ courseId, assetId });
+      return { bytes, mediaType, sha256: asset?.sha256 ?? "" };
+    },
+    translate: async ({ language, lines, signal }) => parseTranslation(await claudeText({ prompt: pdfTranslatePrompt(language, lines), what: "PDF 번역", signal }), lines.length),
+  });
   const dockerPath = locateDocker();
   const modifier = new AppModifier({
     root: join(dataRoot, "app-modifier"),
@@ -372,9 +383,13 @@ app.whenReady().then(async () => {
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
-    // WBS-071: the preferred language, kept on this Mac.
     // WBS-080: opens the macOS Settings pane for a permission the app needs; fixed addresses only.
     "app.openSettings": async ({ pane }) => { await shell.openExternal(PRIVACY_PANES[pane]); return {}; },
+    // WBS-072: translated copies of collected PDFs.
+    "library.pdfTranslation": ({ courseId, assetId, language }) => pdfTranslations.get(courseId, assetId, language),
+    "library.translatePdf": ({ courseId, assetId, language, from, to }) => pdfTranslations.make(courseId, assetId, language, from, to),
+    "library.cancelPdfTranslation": async () => { pdfTranslations.cancel(); return {}; },
+    // WBS-071: the preferred language, kept on this Mac.
     "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {

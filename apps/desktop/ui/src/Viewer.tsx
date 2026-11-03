@@ -1,6 +1,7 @@
 import { extensionOf, viewTarget } from "./document.ts";
 import { deadline, externalUrl, formatSeoul, type Entry } from "./library.ts";
-import { PdfView, type AssetLoader, type PageSnapshot, type PdfOpener } from "./PdfView.tsx";
+import type { AssetLoader, PageSnapshot, PdfOpener } from "./PdfView.tsx";
+import { TranslatablePdf, type PdfTranslator } from "./PdfTranslation.tsx";
 import type { PageLocation, SelectedText, SelectionIntent } from "./selection.ts";
 import { useState } from "react";
 import type { Asset } from "@learningxxx/contracts";
@@ -16,6 +17,8 @@ const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined;
   ) : null;
 
 export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoader; open?: PdfOpener; now: Date; lms?: React.ReactNode;
+  /** WBS-072: makes and loads translated copies; absent where the host cannot. */
+  translator?: PdfTranslator | undefined;
   onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined; location?: PageLocation | undefined;
   onPage?: ((assetId: string, page: number) => void) | undefined;
   onSnapshot?: ((snapshot: PageSnapshot | undefined) => void) | undefined }) {
@@ -42,7 +45,7 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
         {resource.source === "manual" ? "직접 추가한 자료" : "LMS 자료"} · 갱신 {formatSeoul(resource.updatedAt)}
         {resource.revision > 1 ? ` · 변경 ${resource.revision - 1}회` : ""}
       </p>
-      {target.kind === "pdf" ? <PdfView key={target.asset.id} assetId={target.asset.id} onSelectionAction={props.onSelectionAction} location={props.location} onPage={props.onPage} onSnapshot={props.onSnapshot} {...(props.loadAsset ? { loadAsset: props.loadAsset } : {})} {...(props.open ? { open: props.open } : {})} /> : null}
+      {target.kind === "pdf" ? <TranslatablePdf key={target.asset.id} assetId={target.asset.id} translator={props.translator} onSelectionAction={props.onSelectionAction} location={props.location} onPage={props.onPage} onSnapshot={props.onSnapshot} loadAsset={props.loadAsset} open={props.open} /> : null}
       {target.kind === "unsupported" ? (
         <p role="note" className="notice-box">
           {extensionOf(target.asset.originalName)} 형식은 아직 앱에서 열 수 없습니다. 지금은 PDF만 지원합니다.
@@ -55,7 +58,7 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
       {target.kind === "assignment" && entry.assignment ? <AssignmentDetail entry={entry} now={props.now} /> : null}
       {target.kind === "notice" || target.kind === "assignment" ? <>
         {entry.body ? <RichText html={entry.body} /> : <p className="meta">{target.kind === "notice" ? "공지 본문이 아직 없습니다. 자료 수집을 다시 하거나 원문 열기로 확인하세요." : "과제 설명이 없습니다."}</p>}
-        <Attachments key={resource.id} assets={entry.assets} url={url} pdf={(asset) => <PdfView key={asset.id} assetId={asset.id} onSelectionAction={props.onSelectionAction} location={props.location} onPage={props.onPage} onSnapshot={props.onSnapshot} {...(props.loadAsset ? { loadAsset: props.loadAsset } : {})} {...(props.open ? { open: props.open } : {})} />} />
+        <Attachments key={resource.id} assets={entry.assets} url={url} pdf={(asset) => <TranslatablePdf key={asset.id} assetId={asset.id} translator={props.translator} onSelectionAction={props.onSelectionAction} location={props.location} onPage={props.onPage} onSnapshot={props.onSnapshot} loadAsset={props.loadAsset} open={props.open} />} />
       </> : null}
     </>
   );

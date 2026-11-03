@@ -7,6 +7,7 @@ import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
 import { CourseKnowledge } from "./CourseKnowledge.tsx";
+import { MemoPanel } from "./MemoPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
@@ -74,7 +75,7 @@ export function App() {
   },[edge]);
   useEffect(()=>()=>clearTimeout(edgeTimer.current),[]);
   const [section,setSection]=useState("book");
-  const [rightTab, setRightTab] = useState<"chat" | "recording" | "transcripts">("chat");
+  const [rightTab, setRightTab] = useState<"chat" | "memo" | "recording" | "transcripts">("chat");
   const [weekIndex,setWeekIndex]=useState(0);
   // WBS-082: the course summary (course.md) open in the viewer instead of a material.
   const [knowledgeOpen,setKnowledgeOpen]=useState(false);
@@ -101,7 +102,7 @@ export function App() {
   const [modifying, setModifying] = useState(false);
   // Asked from the LMS the first time the week menu opens for a course (IN_APP only: the fixture has no LMS).
   // Also when the recording tools are open: the recording picker lists the week's lectures (WBS-065).
-  const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray||(!home&&rightTab!=='chat'));
+  const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray||(!home&&rightTab!=='chat'&&rightTab!=='memo'));
   /** WBS-065: the recording or lecture whose original and transcript the right panel shows. */
   const [mediaAssetId, setMediaAssetId] = useState<string>();
   const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setRightTab('transcripts');setView('chat');setTray(false);setTrayDismissed(true);};
@@ -379,17 +380,24 @@ export function App() {
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
             event.preventDefault();
-            const tabs = ['chat', 'recording', 'transcripts'] as const;
-            const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[2] : tabs[(tabs.indexOf(rightTab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3]!;
+            const tabs = ['chat', 'memo', 'recording', 'transcripts'] as const;
+            const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[3] : tabs[(tabs.indexOf(rightTab) + (event.key === 'ArrowRight' ? 1 : 3)) % 4]!;
             setRightTab(next);
             document.getElementById(`tool-${next}`)?.focus();
           }}>
-            {([['chat', '채팅'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'recording' ? 'mic' : 'file'} />{label}{id === 'recording' ? recLight : null}</button>)}
+            {([['chat', '채팅'], ['memo', '메모'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : id === "memo" ? "tool-panel-memo" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'memo' ? 'edit' : id === 'recording' ? 'mic' : 'file'} />{label}{id === 'recording' ? recLight : null}</button>)}
           </div>
           <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
             {window.host ? <RichChatPanel viewing={viewing} selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
-          <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat"}>
+          <div className="tool-pane" id="tool-panel-memo" role="tabpanel" aria-labelledby="tool-memo" hidden={rightTab !== 'memo'}>
+            {/* WBS-086: the memo of the week being looked at. */}
+            {IN_APP && !FIXTURE_MODE && library ? <MemoPanel key={library.course.id} courseId={library.course.id} weeks={weekList}
+              weekId={(selected?.resource.weekId && library.weeks.some((w) => w.week.id === selected.resource.weekId) ? selected.resource.weekId : weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined)}
+              page={shownPage && selected && !knowledgeOpen ? (() => { const a = selected.assets.find((x) => x.id === shownPage.assetId); return a ? { assetId: a.id, title: a.originalName, page: shownPage.page } : undefined; })() : undefined} />
+              : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 메모할 수 있습니다.</p>}
+          </div>
+          <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat" || rightTab === "memo"}>
             {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState}
               weeks={weekList} lectures={lectures.rows} status={learning.status} selectedAssetId={mediaAssetId} onSelectAsset={setMediaAssetId} onChanged={recordingsChanged} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
           </div>

@@ -2594,11 +2594,16 @@
         "REQ-009"
       ],
       "acceptance": "채팅·녹음·전사 옆 메모 탭. 메모는 과목+주차에 속하고, 보고 있는 PDF 페이지를 한 번에 메모에 붙인다. 'AI로 정리' 버튼은 과목 정보와 그 주 자료를 바탕으로 메모를 정리한 새 판을 만든다(원래 메모 유지).",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-086-memo-tab",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81eba42de055f07a344a?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "Host memos.ts: one memo per course week (or 주차 없음) per account; week must exist in the manifest; saves serialized and refused when changed since the editor loaded (no silent overwrite); 'AI로 정리' sends the memo + course.md + that week's notes only (other weeks excluded) to the official CLI and keeps the answer as a separate tidied copy; use_cleaned keeps the old text for one undo; discard; memos join the course chat's week folders as '[내 메모]'. memo.pageText reads one page of a collected PDF (re-hashed original). Host 237 pass (4 new).",
+        "UI MemoPanel (new 메모 tab between 채팅 and 녹음): week follows the open material/week, autosave 0.8 s after typing and on blur/week switch/before tidy, '📄 보고 있는 쪽 추가' quotes the page (600 chars), AI 정리본 shown beside with 바꾸기/버리기/되돌리기. Review findings fixed: video lecture list loaded on the memo tab (only meant for recording tabs) → excluded; PDF private-use bullet glyphs shown as boxes in the quote → stripped. ui 129 pass (1 new).",
+        "In app (AI, env -i, CDP): 데이터베이스 4주차 with LAB2 p3 open → typed memo autosaved, page added with its text, AI로 정리 (real CLI) returned '# 4주차 메모' with (자료 보충) marks while the memo stayed unchanged; test memo cleared afterwards."
+      ]
     },
     {
       "id": "WBS-087",
@@ -2688,6 +2693,32 @@
       "review_evidence": [
         "Ran spikes/cli/isolation.py twice with installed CLI 2.1.317 (claude.ai Pro). First attempt refused because my agent shell carries the hosting session's ANTHROPIC_BASE_URL (the guard works); re-ran under env -i with only HOME/USER/LANG/TMPDIR/PATH, as an app the owner starts. Both PASS, all controls leaked, isolated sessions blocked every path; evidence 2026-11-04-isolation1/2.json checked for personal paths/emails (none). Changes: VERIFIED_CLI_VERSIONS ['2.1.316','2.1.317'] (older kept: other developer may still be on it, evidence exists), toolchain.json verified 2.1.317 (host_check WARN compares to newest), adapter test now checks the newest equals the toolchain pin, attachment-canary accepts both, ISOLATION.md re-verification line. Checks: cli-adapter check 50 pass, scripts/check.py PASS. In app (worktree build launched with env -i, CDP): real library.translatePdf on a collected English slide deck pages 2–3 → 7.4 s, 0 untranslated, table headers translated, SQL lines kept and fitting, page 4 original — this also completes WBS-072's real-translation check."
       ]
+    },
+    {
+      "id": "WBS-090",
+      "title": "LearningX 파일로 올라온 강의계획서가 수집되지 않는 원인 조사·수정",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-082"
+      ],
+      "areas": [
+        "collector"
+      ],
+      "paths": [
+        "packages/collector/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [
+        "REQ-002"
+      ],
+      "acceptance": "LearningX '파일' 항목으로 올라온 강의계획서(예: 외식메뉴상품기획론·웨스턴퀴진)가 왜 수집 목록에 없는지 밝히고, 받을 수 있는 형식이면 수집해 course.md·시간표 근거로 쓰인다.",
+      "status": "Backlog",
+      "branch": "fix/WBS-090-learningx-syllabus-files",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81e88fabf283a6607bba?pvs=204",
+      "scope_note": "WBS-082 앱 확인(2026-11-04)에서 발견."
     }
   ],
   "qaPolicy": {

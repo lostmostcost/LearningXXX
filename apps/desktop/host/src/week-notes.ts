@@ -8,12 +8,12 @@ import type { CollectionManifest, CourseLearningStatus, ImportedDocKind, Lecture
 export interface WeekNote {
   /** Manifest week; undefined for "주차 없음". */
   weekId?: string | undefined;
-  kind: "transcript" | "note" | "assignment" | "notice" | "mentions";
+  kind: "transcript" | "note" | "assignment" | "notice" | "mentions" | "memo";
   title: string;
   text: string;
 }
 
-const PREFIX: Record<WeekNote["kind"], string> = { transcript: "녹음 전사", note: "정리본", assignment: "과제", notice: "공지", mentions: "강의에서 언급된 과제·시험" };
+const PREFIX: Record<WeekNote["kind"], string> = { transcript: "녹음 전사", note: "정리본", assignment: "과제", notice: "공지", mentions: "강의에서 언급된 과제·시험", memo: "내 메모" };
 export const notePrefix = (kind: WeekNote["kind"]): string => PREFIX[kind];
 
 /** Rough but safe: tags out, common entities decoded, paragraphs kept. Only for the AI's reading copy. */

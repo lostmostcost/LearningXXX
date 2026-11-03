@@ -3,7 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { CourseLearningStatus, CourseMeeting } from "./learning.ts";
+import { CourseLearningStatus, CourseMeeting, Memo } from "./learning.ts";
 import { ImportedDocKind, LectureMention, LectureSourceId, PdfTranslationSkip, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
@@ -174,6 +174,13 @@ export const IpcChannels = {
     response: z.object({ markdown: z.string().optional(), generatedAt: z.string().optional(), stale: z.boolean(), meetings: z.array(CourseMeeting), running: z.boolean() }),
   },
   "course.cancelKnowledge": { request: z.object({ courseId: Id }), response: z.object({}) },
+  /** WBS-086: memos per course week (weekId absent = "주차 없음"). */
+  "memo.get": { request: z.object({ courseId: Id, weekId: Id.optional() }), response: Memo },
+  "memo.save": { request: z.object({ courseId: Id, weekId: Id.optional(), text: z.string().max(200_000), base: z.string().nullable() }), response: Memo },
+  "memo.cleanup": { request: z.object({ courseId: Id, weekId: Id.optional() }), response: Memo },
+  "memo.apply": { request: z.object({ courseId: Id, weekId: Id.optional(), action: z.enum(["use_cleaned", "undo", "discard_cleaned"]) }), response: Memo },
+  /** The text of one page of a collected PDF, to put the page being read into a memo. */
+  "memo.pageText": { request: z.object({ courseId: Id, assetId: Id, page: z.number().int().positive() }), response: z.object({ text: z.string() }) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),

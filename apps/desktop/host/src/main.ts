@@ -33,6 +33,7 @@ import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
+import { LegacyImporter, importStore } from "./legacy-import.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -268,6 +269,17 @@ app.whenReady().then(async () => {
       return { fetch, resolveSource: createCommonsVideoResolver({ contentId, fetch }), allowedOrigins };
     },
   });
+  // WBS-066: the user's own earlier recordings and transcripts, copied on request.
+  const importer = new LegacyImporter({
+    chooseFolder: async () => {
+      const picked = await dialog.showOpenDialog({ title: "가져올 학기 폴더 선택 (예: 2026년 2학기)", properties: ["openDirectory"] });
+      return picked.canceled ? undefined : picked.filePaths[0];
+    },
+    courses: async () => { const key = library.accountKey(); return (await library.courses()).filter((c) => c.accountKey === key); },
+    weeks: async (courseId) => (await library.manifest(courseId))?.weeks ?? [],
+    recordings: (courseId) => recordings.list({ courseId }).recordings,
+    store: importStore({ adoptImport: (courseId, input) => media.adoptImport(courseId, input), importOriginal: (input) => recordings.importOriginal(input), register: (asset) => media.register(asset) }),
+  });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
   await recordings.recover().catch(() => undefined);
   // A corrupt media catalog must not prevent the UI from opening to show its error.
@@ -324,7 +336,7 @@ app.whenReady().then(async () => {
   }
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
-  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning), "app.build": async () => build });
+  const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals, conversations, stt, learning, importer), "app.build": async () => build });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

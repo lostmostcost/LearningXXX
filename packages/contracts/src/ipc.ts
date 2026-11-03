@@ -4,7 +4,7 @@ import { Id, SchemaVersion } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { LectureSourceId, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportItem, ImportedDocKind, LectureSourceId, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -257,7 +257,7 @@ export const IpcChannels = {
   },
   "media.list": {
     request: z.object({ courseId: Id }),
-    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
+    response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), importedDocs: z.record(Id, z.array(ImportedDocKind)).optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
   },
   /** Online lectures the account may download; `week` is the LMS module (주차) title, shown as given. */
   "media.videos": { request: z.object({ courseId: Id }), response: z.object({ videos: z.array(z.object({ sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200), week: z.string().min(1).max(200).optional() })) }) },
@@ -266,6 +266,20 @@ export const IpcChannels = {
   "media.original": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({ bytes: z.instanceof(Uint8Array), mediaType: z.string() }) },
   "media.open": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({}) },
   "media.retry": { request: z.object({ courseId: Id, jobId: Id }), response: z.object({}) },
+  /**
+   * WBS-066: the user picks their semester folder; the host lists what it can
+   * import (only 녹음·강의영상 audio and their transcripts/notes, never code files).
+   * No folder chosen → no plan.
+   */
+  "media.importScan": { request: z.object({}), response: z.object({ planId: Id.optional(), folder: z.string().max(200).optional(), items: z.array(ImportItem) }) },
+  /** Copies the chosen items; the user's files are only read. One import at a time. */
+  "media.importRun": {
+    request: z.object({ planId: Id, itemIds: z.array(z.string().regex(/^[a-f0-9]{16,64}$/)).min(1).max(2000) }),
+    response: z.object({ imported: z.number().int().nonnegative(), skipped: z.number().int().nonnegative(), failed: z.array(z.object({ itemId: z.string(), message: z.string() })) }),
+  },
+  "media.importStatus": { request: z.object({}), response: z.object({ running: z.boolean(), done: z.number().int().nonnegative(), total: z.number().int().nonnegative() }) },
+  /** A copied note (정리본·교정 기록·전사 md·srt) of an imported original, as text. */
+  "media.importedDoc": { request: z.object({ courseId: Id, assetId: Id, doc: ImportedDocKind }), response: z.object({ text: z.string() }) },
   /** Pauses all transcription on this Mac (the running job goes back to waiting and starts over on resume). */
   "media.pauseTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },
   "media.resumeTranscription": { request: z.object({}), response: z.object({ paused: z.boolean() }) },

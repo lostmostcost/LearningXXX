@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { MediaAsset, Recording, Transcript, TranscriptionJob } from "@learningxxx/contracts";
+import { IMPORTED_ENGINE, type ImportedDocKind, type MediaAsset, type Recording, type Transcript, type TranscriptionJob } from "@learningxxx/contracts";
 import { Icon } from "./StudyUI.tsx";
 import { excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
 
@@ -30,6 +30,27 @@ export interface TranscriptPanelProps {
   selectedAssetId?: string | undefined;
   /** Where the chosen original sits ("3주차 · 1차시") and, for recordings, a way to move it. */
   place?: ((asset: MediaAsset) => ReactNode) | undefined;
+  /** WBS-066: notes copied with an imported original, and how to read one. */
+  importedDocs?: Record<string, ImportedDocKind[]> | undefined;
+  loadDoc?: ((assetId: string, doc: ImportedDocKind) => Promise<string>) | undefined;
+}
+
+const DOC_LABEL: Record<ImportedDocKind, string> = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)" };
+
+/** Read-only notes that came with an imported recording (정리본·교정 기록 …). */
+function ImportedDocs({ assetId, docs, load }: { assetId: string; docs: ImportedDocKind[]; load: (assetId: string, doc: ImportedDocKind) => Promise<string> }) {
+  const [open, setOpen] = useState<{ doc: ImportedDocKind; text?: string; error?: string }>();
+  const show = async (doc: ImportedDocKind) => {
+    if (open?.doc === doc) return setOpen(undefined);
+    setOpen({ doc });
+    try { const text = await load(assetId, doc); setOpen((o) => (o?.doc === doc ? { doc, text } : o)); }
+    catch (error) { setOpen((o) => (o?.doc === doc ? { doc, error: error instanceof Error ? error.message : "열지 못했습니다." } : o)); }
+  };
+  return <div className="imported-docs">
+    <span className="meta">가져온 문서</span>
+    {docs.map((doc) => <button key={doc} aria-pressed={open?.doc === doc} onClick={() => void show(doc)}>{DOC_LABEL[doc]}</button>)}
+    {open ? <pre className="imported-doc" aria-label={DOC_LABEL[open.doc]}>{open.error ?? open.text ?? "여는 중…"}</pre> : null}
+  </div>;
 }
 
 export function TranscriptPanel(props: TranscriptPanelProps) {
@@ -38,6 +59,7 @@ export function TranscriptPanel(props: TranscriptPanelProps) {
   return <section className="media-library" aria-label="녹음과 전사">
     <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3>{asset ? <span className="media-title" title={asset.title}>{asset.title}</span> : null}</div>
     {asset && props.place ? <div className="media-place">{props.place(asset)}</div> : null}
+    {asset && props.loadDoc && props.importedDocs?.[asset.id]?.length ? <ImportedDocs key={asset.id} assetId={asset.id} docs={props.importedDocs[asset.id]!} load={props.loadDoc} /> : null}
     {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "주차 학습에서 녹음이나 강의를 고르세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음과 받은 동영상 강의는 위쪽 주차 메뉴의 각 주차·강의 아래에 있습니다." : "녹음하거나 온라인 강의를 가져오면 주차 학습의 해당 주차 아래에 표시됩니다."}</small></div>}
     {props.recordings.filter(r => r.courseId === props.courseId && !r.originalAssetId && r.status !== "recording").map(r => <p className="notice-box" key={r.id}>{r.title} · {r.status === "failed" ? "녹음을 저장하지 못했습니다" : "원본을 복구하고 있습니다"}</p>)}
   </section>;
@@ -135,7 +157,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     })}</ul>
     {version && props.view !== "recording" ? <>
       <div className="transcript-actions"><strong>전사 내용</strong><button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
-      <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{v.kind === "engine" ? "자동 전사 원본" : "요청한 보정본"} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
+      <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{v.engine.name === IMPORTED_ENGINE ? "가져온 전사" : v.kind === "engine" ? "자동 전사 원본" : "요청한 보정본"} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
 
       <ol className="segment-list">{version.segments.map((segment, index) => <li key={`${version.id}:${index}`}>
         {props.onAttach ? <input type="checkbox" aria-label={`${index + 1}번 전사 선택`} checked={selected.includes(index)} disabled={busy} onChange={(e) => setSelected(e.target.checked ? [...selected, index] : selected.filter((n) => n !== index))} /> : null}

@@ -46,13 +46,13 @@
 
 **검수 방법:** 실제 앱 데이터를 복제한 별도 userData로 앱을 하나 더 띄워(DevTools 포트 9334) 화면 조작으로 확인했다. 실제 앱 데이터는 바꾸지 않았다. 채팅은 소유자 지시대로 Sonnet 5.5·medium(일반 대화는 Haiku 5.5·low)으로 했고, Claude Code 기록에서 답변 모델이 모두 Sonnet/Haiku인 것을 확인했다. Claude가 요청한 명령 확인(자료 텍스트 읽기, `/tmp`의 가상환경에 pypdf 설치)은 AI가 "이번 요청 허용"으로 답했다. 화면 캡처는 저장하지 않았다.
 
-**결함 D-1 (REQ-004, 막는 결함):** 채팅 화면에서 시작한 대화는 재개용 세션 기록(`.learningxxx-session.json`)이 만들어지지 않는다. 이 기록은 `conversation-service.ts`의 SDK `SessionStart` 훅과 고급 터미널(`native-terminal.ts`)에서만 쓰는데, 지금 Claude Code(2.1.317)는 채팅 실행에서 이 훅을 부르지 않는다(대화 기록에 UserPromptSubmit 훅만 있음). 그래서 고급 터미널을 한 번도 열지 않은 대화는 재시작하면 모두 이어지지 않는다. 실제 앱 데이터에서도 채팅 대화 5개 중 4개에 이 기록이 없다. 소유자가 앞서 말한 "재실행 후 채팅 기록이 사라짐"과 같은 현상이다. 원본 Claude Code 기록과 `.chat-ui.json`은 남아 있어 고치면 다시 열 수 있다. 수정 방향: 스트림 메시지의 `session_id`를 받는 즉시 기록을 쓰고, 재개 판단은 `getSessionInfo(id, { dir })`로 한다. 수정은 **WBS-060**(P0)으로 분리했다. 수정 파일은 WBS-056이 선점한 host 영역이다.
+**결함 D-1 (REQ-004, 막는 결함):** 채팅 화면에서 시작한 대화는 재개용 세션 기록(`.learningxxx-session.json`)이 만들어지지 않는다. 이 기록은 `conversation-service.ts`의 SDK `SessionStart` 훅과 고급 터미널(`native-terminal.ts`)에서만 쓰는데, 지금 Claude Code(2.1.317)는 채팅 실행에서 이 훅을 부르지 않는다(대화 기록에 UserPromptSubmit 훅만 있음). 그래서 고급 터미널을 한 번도 열지 않은 대화는 재시작하면 모두 이어지지 않는다. 실제 앱 데이터에서도 채팅 대화 5개 중 4개에 이 기록이 없다. 소유자가 앞서 말한 "재실행 후 채팅 기록이 사라짐"과 같은 현상이다. 원본 Claude Code 기록과 `.chat-ui.json`은 남아 있어 고치면 다시 열 수 있다. 수정 방향: 스트림 메시지의 `session_id`를 받는 즉시 기록을 쓰고, 재개 판단은 `getSessionInfo(id, { dir })`로 한다. 수정은 **WBS-060**(P0)으로 분리했다.
 
 ## 3. MVP 범위에 남은 작업 (CR-054로 추가)
 
 | WBS | 내용 | 상태(2026-11-03) |
 |---|---|---|
-| WBS-056 | 앱에서 연 자료의 LMS 열람 기록 | 진행 중(다른 세션) |
+| WBS-056 | 앱에서 연 자료의 LMS 열람 기록 | Done(PR #68) |
 | WBS-057 | 공식 플레이어 시청과 출석 자동 추적 | 대기(056과 같은 host·ui·shared 영역) |
 | WBS-058 | 과제 수동·자동 제출 | 대기 |
 | WBS-059 | 퀴즈 상태·응시 열기 | 대기 |

@@ -2729,6 +2729,76 @@
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81e88fabf283a6607bba?pvs=204",
       "scope_note": "WBS-082 앱 확인(2026-11-04)에서 발견."
+    },
+    {
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "spec": "SPEC-006",
+      "requirements": [
+        "REQ-009",
+        "REQ-012",
+        "REQ-013"
+      ],
+      "qa_mode": "appropriate_checks_only",
+      "id": "WBS-091",
+      "title": "주차 영상·과제 초안 독립 생성 엔진",
+      "deps": [
+        "WBS-078",
+        "WBS-082"
+      ],
+      "areas": [
+        "learning-artifacts",
+        "pm"
+      ],
+      "paths": [
+        "packages/learning-artifacts/",
+        "docs/plans/PLAN-091-learning-artifacts.md",
+        "docs/specs/SPEC-006.md",
+        "docs/pm/wbs.json",
+        "docs/pm/decision-log.md"
+      ],
+      "acceptance": "주차·과제 자료와 출처·누락 검증, 구조화 생성 계획, HyperFrames 로컬 컴포지션과 HeyGen 명시 API, PDF 변환 어댑터·편집 가능한 PPTX, 합성 fixture 오류/취소/경계 검사.",
+      "status": "In Progress",
+      "branch": "feat/WBS-091-learning-artifacts",
+      "url": "https://app.notion.com/p/40dbd7ec20cd810ab88ae78c5c74fd52",
+      "scope_note": "CR-091 사용자 2026-11-04 직접 승인. WBS-083 host/ui/shared claim을 유지하고 별도 패키지·계획 문서만 병렬 개발. 루트 manifest/lockfile·앱 연결은 WBS-092."
+    },
+    {
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "spec": "SPEC-006",
+      "requirements": [
+        "REQ-009",
+        "REQ-012",
+        "REQ-013"
+      ],
+      "qa_mode": "appropriate_checks_only",
+      "id": "WBS-092",
+      "title": "주차 설명 영상·과제 PDF/PPT 초안 앱 연결",
+      "deps": [
+        "WBS-091",
+        "WBS-083"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared",
+        "learning-artifacts"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "packages/learning-artifacts/",
+        "docs/pm/",
+        "docs/specs/SPEC-006.md",
+        "pnpm-lock.yaml"
+      ],
+      "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증.",
+      "status": "Backlog",
+      "branch": "feat/WBS-092-artifact-workflows",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음."
     }
   ],
   "qaPolicy": {

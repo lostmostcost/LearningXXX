@@ -22,8 +22,8 @@ function fail(code: "NOT_FOUND" | "INVALID_REQUEST" | "RUN_ALREADY_ACTIVE" | "AU
 export function studyPrompt(kind: StudyKind, input: { course: string; week: string; summary?: string | undefined; materials: readonly string[]; notes: readonly WeekNote[] }): string {
   const notes = input.notes.map((n) => `### [${notePrefix(n.kind)}] ${n.title}\n${n.text}`).join("\n\n").slice(0, 40_000);
   const task = kind === "review"
-    ? ["이번 주 강의를 복습하는 노트를 써 주세요. 구성: \"## 핵심 요점\"(5~10개), \"## 꼭 기억할 용어\", \"## 확인 질문\"(3~5개, 답은 접어서 \"<details><summary>답</summary>…</details>\"), \"## 다음에 볼 것\"(과제·시험 언급이 있으면).",
-      "강의 전사가 있으면 그것이 가장 중요한 근거입니다. 근거의 자료 이름이나 전사 시각([mm:ss])을 괄호로 붙입니다."]
+    ? ["이번 주 강의를 복습하는 노트를 써 주세요. 구성: \"## 핵심 요점\"(5~10개), \"## 꼭 기억할 용어\", \"## 확인 질문\"(3~5개, 번호만), \"## 다음에 볼 것\"(과제·시험 언급이 있으면), 맨 끝에 \"## 확인 질문 답\"(같은 번호로).",
+      "강의 전사가 있으면 그것이 가장 중요한 근거입니다. 근거의 자료 이름이나 전사 시각([mm:ss], 범위는 [mm:ss]–[mm:ss])을 괄호로 붙입니다. HTML은 쓰지 않습니다."]
     : ["이번 주 수업을 듣기 전에 5분 안에 읽을 예습 노트를 써 주세요. 구성: \"## 이번 수업에서 다룰 것\", \"## 미리 알아 둘 용어\"(짧은 설명), \"## 지난 내용과의 연결\", \"## 수업 중에 들을 질문\"(2~3개).",
       "이번 주 강의 자료(PDF 텍스트·정리본)와 과목 정리를 근거로 하고, 근거 자료 이름을 괄호로 붙입니다."];
   return [

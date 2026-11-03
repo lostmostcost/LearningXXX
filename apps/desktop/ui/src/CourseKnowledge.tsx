@@ -3,6 +3,8 @@ import type { IpcResponse } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
 import { MarkdownAnswer } from './MarkdownAnswer.tsx';
 import { formatSeoul } from './library.ts';
+import { StudyNotes } from './StudyNotes.tsx';
+import type { Week } from '@learningxxx/contracts';
 
 type Knowledge = IpcResponse<'course.knowledge'>;
 
@@ -12,7 +14,7 @@ type Knowledge = IpcResponse<'course.knowledge'>;
  * transcripts; the course chat reads it first. Made again whenever the
  * student asks, e.g. after new material or recordings.
  */
-export function CourseKnowledge({ courseId, courseTitle }: { courseId: string; courseTitle: string }) {
+export function CourseKnowledge({ courseId, courseTitle, weeks = [], weekId }: { courseId: string; courseTitle: string; weeks?: readonly Week[]; weekId?: string | undefined }) {
   const [state, setState] = useState<Knowledge>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -41,5 +43,6 @@ export function CourseKnowledge({ courseId, courseTitle }: { courseId: string; c
     {state?.meetings.length ? <p className="meta">수업 시간: {state.meetings.map((m) => `${m.day} ${m.start}–${m.end}${m.place ? ` ${m.place}` : ''}`).join(' · ')}</p> : null}
     {state === undefined && !error ? <p className="meta" role="status">불러오는 중…</p> : state?.markdown ? <article className="knowledge-body"><MarkdownAnswer text={state.markdown} /></article>
       : state ? <p className="notice-box">아직 과목 정리가 없습니다. "과목 정리 만들기"를 누르면 강의계획서와 지금까지의 자료·전사로 만듭니다. 학교 LMS에는 아무것도 보내지 않습니다.</p> : null}
+      {weeks.length ? <StudyNotes courseId={courseId} weeks={weeks} weekId={weekId} /> : null}
   </div>;
 }

@@ -96,7 +96,7 @@ export class LibraryService {
       if (!signedOut) throw error;
       this.#o.openLogin?.();
       // The school cookie lasts only while the app runs, so each launch may need a new sign-in.
-      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 로그인 설정에 저장해 두면 다음부터 자동으로 로그인합니다.");
+      fail("AUTH_REQUIRED", "학교 로그인이 필요합니다. 열린 로그인 창에서 로그인한 뒤 수집 실행을 다시 누르세요. 설정(사람 아이콘)의 학교 로그인에 저장해 두면 다음부터 자동으로 로그인합니다.");
     }
     const id = (me as { id?: unknown } | null)?.id;
     if (typeof id !== "number" && typeof id !== "string") fail("SOURCE_CHANGED", "LMS 사용자 정보를 읽지 못했습니다.");

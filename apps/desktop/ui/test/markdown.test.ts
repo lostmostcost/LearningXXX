@@ -19,3 +19,9 @@ test('untrusted output cannot inject scripts, navigate local files, or request r
   assert.ok(html.includes('href="https://example.org"'));
   assert.ok(html.includes('noopener noreferrer'));
 });
+
+test("WBS-083: a single tilde is a range, not strikethrough", () => {
+  const html = renderToStaticMarkup(createElement(Markdown, markdownOptions, "[10:01]~[17:26], 10~12시, ~~취소~~"));
+  assert.ok(!html.includes("<del>[17:26]") && html.includes("[10:01]~[17:26]"));
+  assert.ok(html.includes("<del>취소</del>"));
+});

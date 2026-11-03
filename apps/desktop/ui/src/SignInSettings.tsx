@@ -44,9 +44,10 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
 
   return (
     <>
-      <button type="button" aria-label="로그인 설정" title={signInSummary(status)} onClick={() => { setMessage(""); dialog.current?.showModal(); }}><Icon name="account" /></button>
-      <dialog ref={dialog} className="signin" aria-label="로그인 설정">
-        <h2>로그인 설정</h2>
+      <button type="button" aria-label="설정" title={`설정 · ${signInSummary(status)}`} onClick={() => { setMessage(""); dialog.current?.showModal(); }}><Icon name="account" /></button>
+      <dialog ref={dialog} className="signin" aria-label="설정">
+        <h2>설정</h2>
+        <h3 className="settings-group">로그인</h3>
         <p>이 Mac에만 저장되며 키체인으로 암호화됩니다. 앱은 학교 로그인과 Canvas에만 보냅니다.</p>
         {status && !status.available ? <p role="alert">이 Mac에서는 안전한 저장소를 쓸 수 없어 저장할 수 없습니다.</p> : null}
 
@@ -71,9 +72,9 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
         </form>
 
         <p role="status">{message}</p>
-        <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
         <LanguageSetting />
         <AutomationSettings />
+        <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
       </dialog>
     </>
   );

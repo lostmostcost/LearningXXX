@@ -2502,11 +2502,16 @@
         "REQ-009"
       ],
       "acceptance": "설정에서 켜고 끌 수 있다: 녹음 직후 전사, 전사 직후 교정, 교정 개선, course.md 자동 갱신, 과제 공지 자동 추가, 수업 뒤 복습 자료 자동 생성, 수업 전 '이번 수업 따라가기' 짧은 자료 자동 생성. 기본값은 비용이 드는 AI 작업은 꺼짐.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-083-automation-settings",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd815e93b3d97e9548f326?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "Settings (preferences.json, AutomationSettings contract): transcribe on; correct/readable/mentions/courseMd/review/preview off by default (they use the subscription). Partial updates keep other values; only a change of 'transcribe' pauses/resumes the queue so a manual pause stays. Host automation.ts: one step at a time, de-duplicated, failures recorded and later steps still run; chain after a finished transcription: correct → 정리본 → mentions (find+add) → review note → course.md (≤ every 30 min per course, timer unref'd; also after a collection); preview note when class starts within 3 h for the latest open LMS week (meetings from course.md). Review finding: the queue reports a finished job only on its transition, never replays old jobs at startup, so enabling automation does not reprocess past lectures. media-service autoCorrect: 120-line batches with material titles as context, saved as a new 'claude-code-correction' version with the same times. study-notes.ts: review needs a transcript/정리본, preview uses that week's PDF text; saved per account/course/week, given to the course chat as week notes. Tests: host 248 (automation 5, study notes 2, auto-correct 1, preferences), ui 131.",
+        "UI: settings dialog now '설정' (login, language, '자동으로 할 일' with ✦ for subscription use, recent automatic work), close button moved to the bottom; 과목 정리 view lists weekly review/preview notes with make buttons. Found in app and fixed: single '~' ranges rendered as strikethrough everywhere (remark-gfm singleTilde off) and the review prompt asked for HTML <details> the app skips (now a '## 확인 질문 답' section).",
+        "In app (AI, env -i, CDP): toggles saved and restored (owner settings unchanged: transcribe only); 논리회로 3주차 review note made by real CLI with transcript timestamps. Automatic chains themselves were not triggered on the owner's data (would need a new recording with settings on) — covered by unit tests."
+      ]
     },
     {
       "id": "WBS-084",

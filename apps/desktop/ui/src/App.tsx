@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Course } from "@learningxxx/contracts";
+import type { Course, MediaAsset } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
 import { isNarrow, nextPanel, visiblePanels } from "./layout.ts";
@@ -10,6 +10,7 @@ import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
+import { VideoLectures, VideoViewer } from "./VideoLectures.tsx";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { SignInSettings } from "./SignInSettings.tsx";
 import { syncStatusText } from "./sync-status.ts";
@@ -57,6 +58,8 @@ export function App() {
   const [collecting, setCollecting] = useState(false);
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
   const [selected, setSelected] = useState<Entry>();
+  /** A downloaded online lecture playing in the viewer instead of a document. */
+  const [playing, setPlaying] = useState<MediaAsset>();
   const [courses, setCourses] = useState<Course[]>(FIXTURE_MODE ? [FIXTURE_MANIFEST.course] : []);
   const courseRef = useRef<string | undefined>(FIXTURE_MODE ? FIXTURE_MANIFEST.course.id : undefined);
   const [activeSessionId, setActiveSessionId] = useState<string>();
@@ -68,7 +71,7 @@ export function App() {
   const onSnapshot = useCallback((s: PageSnapshot | undefined) => { snapshot.current = s; }, []);
   const snapshotPage = useCallback(() => snapshot.current?.() ?? Promise.resolve(undefined), []);
   const [modifying, setModifying] = useState(false);
-  const selectEntry=(entry:Entry)=>{setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
+  const selectEntry=(entry:Entry)=>{setPlaying(undefined);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   const panels = visiblePanels(narrow, view);
@@ -204,7 +207,10 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
+            {section==='book'?<>
+              <LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} />
+              {IN_APP || FIXTURE_MODE ? <VideoLectures key={library.course.id} courseId={library.course.id} playing={playing?.id} onPlay={(asset)=>{setPlaying(asset);if(narrow)setView("materials");}} /> : null}
+            </>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{entriesOf(library).filter(e=>e.resource.kind===(section==='tasks'?'assignment':'notice')).map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}</>:null}
           </>
         ) : (
           <>
@@ -215,7 +221,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} {...(library ? { loadAsset } : {})} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {

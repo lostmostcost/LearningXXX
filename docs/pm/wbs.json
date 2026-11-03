@@ -2882,7 +2882,7 @@
       "phase": "MVP 검수",
       "priority": "P2",
       "spec": "PRD-001",
-      "status": "Backlog",
+      "status": "In Progress",
       "qa_mode": "appropriate_checks_only",
       "deps": [
         "WBS-087"
@@ -2891,7 +2891,11 @@
         "ui"
       ],
       "paths": [
-        "apps/desktop/ui/",
+        "apps/desktop/ui/src/TranscriptPanel.tsx",
+        "apps/desktop/ui/src/MediaLibrary.tsx",
+        "apps/desktop/ui/src/video-lectures.ts",
+        "apps/desktop/ui/src/styles.css",
+        "apps/desktop/ui/test/video-lectures.test.ts",
         "docs/pm/"
       ],
       "requirements": [
@@ -2900,7 +2904,11 @@
       "acceptance": "저장공간 정리로 원본을 지운 녹음·영상은 녹음·전사 탭에 '원본 지움 · 전사 보존'으로 보이고 재생·열기 버튼이 없으며, 온라인 강의는 다시 받기를 안내한다.",
       "branch": "feat/WBS-095-removed-original-label",
       "url": "https://app.notion.com/p/40dbd7ec20cd81028c4fe92c2d2fc62a?pvs=204",
-      "scope_note": "WBS-087 후속(2026-11-04)."
+      "scope_note": "WBS-087 후속(2026-11-04). 영역 예외(이문찬 2026-11-04 승인: 겹쳐도 병렬 진행): ui 영역은 WBS-097 선점 중이라 task + 'media-labels'만 선점, 위 파일만 수정.",
+      "review_evidence": [
+        "UI: TranscriptPanel takes media.list's removed ids; a removed original is not loaded (no failing request, no '열 수 없습니다' notice), the toolbar shows '원본 지움 · 전사 보존' instead of open/reload, and a line explains it (recording: cannot be restored; lecture: download again from the week menu); transcript, versions, readable note and translation stay usable. videoRows: an lms_video asset whose original was removed no longer counts as downloaded — the row reads '원본 지움 · 전사 보존 · 다시 받기' and clicking downloads again (host allows it since WBS-087); a newer kept asset counts as downloaded. ui 134 pass (1 new).",
+        "In app (worktree build on an APFS clone of the app data, so nothing real was deleted): removed one transcribed 논리회로 recording's original in the clone → its transcript tab shows the label, the explanation and the full transcript with no player; owner's data still has all 103 originals; clone removed afterwards."
+      ]
     },
     {
       "id": "WBS-096",

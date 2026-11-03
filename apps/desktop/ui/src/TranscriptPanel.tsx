@@ -31,6 +31,8 @@ export interface TranscriptPanelProps {
   selectedAssetId?: string | undefined;
   /** Where the chosen original sits ("3주차 · 1차시") and, for recordings, a way to move it. */
   place?: ((asset: MediaAsset) => ReactNode) | undefined;
+  /** WBS-095: originals deleted in 저장공간 (WBS-087); their transcripts stay and are shown, nothing is played. */
+  removed?: readonly string[] | undefined;
   /** WBS-066: notes copied with an imported original, and how to read one. */
   importedDocs?: Record<string, ImportedDocKind[]> | undefined;
   loadDoc?: ((assetId: string, doc: ImportedDocKind) => Promise<string>) | undefined;
@@ -127,9 +129,12 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     if (versionId === undefined && version) setVersionId(version.id);
   }, [version?.id, versionId]);
 
+  const gone = props.removed?.includes(asset.id) ?? false;
   useEffect(() => {
     let alive = true, objectUrl: string | undefined;
-    setUrl(undefined); setMediaReady(false); setLoading(true); setNotice(undefined); endAt.current = undefined;
+    setUrl(undefined); setMediaReady(false); setLoading(!gone); setNotice(undefined); endAt.current = undefined;
+    // A deleted original is not asked for: there is nothing to play, the transcript below is complete.
+    if (gone) return;
     void props.loadOriginal(asset).then((blob) => {
       if (!alive) return;
       if (!blob) { setNotice("원본을 열 수 없습니다. 원본 저장 상태를 확인한 뒤 다시 열어 보세요."); return; }
@@ -137,7 +142,7 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     }).catch((error: unknown) => { if (alive) setNotice(error instanceof Error && error.message ? error.message : "원본을 불러오지 못했습니다. 다시 열어 보세요."); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [asset.id, asset.sha256, props.loadOriginal, loadAttempt]);
+  }, [asset.id, asset.sha256, props.loadOriginal, loadAttempt, gone]);
 
   const saveEdits = async () => {
     if (!version || !editing || !props.onSaveCorrection || busy) return;
@@ -196,8 +201,9 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
   };
   const latest = props.jobs.filter(j => j.sourceAssetId === asset.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
   return <div className="media-detail">
-    <div className="original-toolbar"><span className="meta">{asset.mediaType.startsWith("video/") ? "영상" : "녹음"} · {asset.durationMs !== undefined ? mediaTime(asset.durationMs) : "길이 미확인"}</span><span>{props.onOpenOriginal ? <button className="icon-button" title="시스템 플레이어로 열기" aria-label="시스템 플레이어로 열기" onClick={() => void props.onOpenOriginal?.(asset.id)}><Icon name="folder" /></button> : null}<button className="icon-button" title="원본 다시 열기" aria-label="원본 다시 열기" disabled={loading} onClick={() => setLoadAttempt(n => n + 1)}><Icon name="refresh" /></button></span></div>
+    <div className="original-toolbar"><span className="meta">{asset.mediaType.startsWith("video/") ? "영상" : "녹음"} · {asset.durationMs !== undefined ? mediaTime(asset.durationMs) : "길이 미확인"}</span>{gone ? <span className="removed-original" title="저장공간 정리로 원본 파일을 지웠습니다">원본 지움 · 전사 보존</span> : <span>{props.onOpenOriginal ? <button className="icon-button" title="시스템 플레이어로 열기" aria-label="시스템 플레이어로 열기" onClick={() => void props.onOpenOriginal?.(asset.id)}><Icon name="folder" /></button> : null}<button className="icon-button" title="원본 다시 열기" aria-label="원본 다시 열기" disabled={loading} onClick={() => setLoadAttempt(n => n + 1)}><Icon name="refresh" /></button></span>}</div>
     {loading ? <p role="status">원본 여는 중…</p> : null}
+    {gone ? <p className="meta">{asset.source.type === "lms_video" ? "원본 영상은 지웠습니다. 다시 보려면 주차 메뉴의 동영상 강의에서 다시 받으세요. 전사는 그대로 있습니다." : "원본 녹음은 지웠습니다(되살릴 수 없음). 전사·정리본·번역은 그대로 있습니다."}</p> : null}
     {url ? <>
       {asset.mediaType.startsWith("video/") ? <video ref={(el) => { player.current = el; }} src={url} controls {...events} /> : <audio ref={(el) => { player.current = el; }} src={url} controls {...events} />}
 

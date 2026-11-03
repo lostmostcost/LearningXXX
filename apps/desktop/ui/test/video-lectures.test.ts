@@ -53,3 +53,12 @@ test("each week of the materials menu gets its lectures; ones matching no week g
   assert.deepEqual(rowsForWeek(rows, "2주차", ["1주차", "2주차"]).map((r) => r.sourceId), ["v4"]);
   assert.deepEqual(rowsForWeek(rows, undefined, ["1주차", "2주차"]).map((r) => r.sourceId), ["v3"]);
 });
+
+test("WBS-095: a lecture whose original was deleted can be fetched again; a new download counts as downloaded", () => {
+  const removed = videoRows(videos.slice(0, 1), { assets: [asset], recordings: [], transcripts: [], jobs: [job("succeeded")], downloads: [], removed: [asset.id] });
+  assert.deepEqual(removed.map((r) => [r.state, r.status, r.asset]), [["available", "원본 지움 · 전사 보존 · 다시 받기", undefined]]);
+  const again = MediaAsset.parse({ ...asset, id: "22222222-2222-4222-8222-000000000002" });
+  const back = videoRows(videos.slice(0, 1), { assets: [asset, again], recordings: [], transcripts: [], jobs: [job("succeeded")], downloads: [], removed: [asset.id] });
+  assert.equal(back[0]!.state, "downloaded");
+  assert.equal(back[0]!.asset?.id, again.id);
+});

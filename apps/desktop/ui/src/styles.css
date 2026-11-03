@@ -310,3 +310,11 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .rich-text pre{white-space:pre-wrap;}
 .attachments ul{list-style:none;padding:0;margin:4px 0 10px;display:flex;flex-direction:column;gap:6px;}
 .attachments button{text-align:left;}
+/* WBS-068: resting the pointer on the screen's left edge slides the course list in at the far left; it pushes the icon rail and the page aside. */
+.edge-zone{position:fixed;left:0;top:0;bottom:0;width:4px;z-index:50;}
+.study-app{transition:padding-left .18s;}
+.icon-rail{transition:transform .18s;}
+.sidebar-edge{padding-left:298px;}
+.sidebar-edge .icon-rail{transform:translateX(240px);}
+.sidebar-edge .course-drawer{left:0;transform:none;visibility:visible;z-index:45;}
+@media(prefers-reduced-motion:reduce){.study-app,.icon-rail{transition:none;}}

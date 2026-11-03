@@ -20,3 +20,13 @@ export function nextPanel(current: Panel | undefined, panels: Panel[], backwards
   const step = backwards ? panels.length - 1 : 1;
   return panels[(index + step) % panels.length] ?? first;
 }
+
+/**
+ * WBS-068: the course list that slides in from the screen's left edge pushes
+ * the icon rail aside (drawer then rail); it closes once the pointer moves
+ * past both, with a little slack.
+ */
+export const EDGE_DRAWER_WIDTH = 240;
+export const RAIL_WIDTH = 58;
+export const EDGE_OPEN_DELAY_MS = 120;
+export const edgeClosesAt = (x: number): boolean => x > EDGE_DRAWER_WIDTH + RAIL_WIDTH + 12;

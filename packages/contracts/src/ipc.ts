@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { RunChanges } from "./files.ts";
-import { Id, SchemaVersion } from "./common.ts";
+import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
 import { CourseLearningStatus } from "./learning.ts";
-import { ImportItem, ImportedDocKind, LectureMention, LectureSourceId, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
+import { ImportedDocKind, LectureMention, LectureSourceId, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
@@ -280,17 +280,21 @@ export const IpcChannels = {
   "media.open": { request: z.object({ courseId: Id, assetId: Id }), response: z.object({}) },
   "media.retry": { request: z.object({ courseId: Id, jobId: Id }), response: z.object({}) },
   /**
-   * WBS-066: the user picks their semester folder; the host lists what it can
-   * import (only 녹음·강의영상 audio and their transcripts/notes, never code files).
-   * No folder chosen → no plan.
+   * WBS-077: the user picks audio files (any common format). The host checks
+   * each (readable, size, duration) and keeps the paths; the screen gets names only.
    */
-  "media.importScan": { request: z.object({}), response: z.object({ planId: Id.optional(), folder: z.string().max(200).optional(), items: z.array(ImportItem) }) },
-  /** Copies the chosen items; the user's files are only read. One import at a time. */
-  "media.importRun": {
-    request: z.object({ planId: Id, itemIds: z.array(z.string().regex(/^[a-f0-9]{16,64}$/)).min(1).max(2000) }),
-    response: z.object({ imported: z.number().int().nonnegative(), skipped: z.number().int().nonnegative(), failed: z.array(z.object({ itemId: z.string(), message: z.string() })) }),
+  "media.chooseAudio": {
+    request: z.object({}),
+    response: z.object({
+      planId: Id.optional(),
+      files: z.array(z.object({ id: Id, name: z.string().max(200), bytes: z.number().int().nonnegative(), durationMs: z.number().int().positive().optional(), startedAt: UtcTimestamp, problem: z.string().max(200).optional() })),
+    }),
   },
-  "media.importStatus": { request: z.object({}), response: z.object({ running: z.boolean(), done: z.number().int().nonnegative(), total: z.number().int().nonnegative() }) },
+  /** Copies the chosen files as recordings of the course, each under the week (and lecture) the user set; then transcribed. */
+  "media.importAudio": {
+    request: z.object({ planId: Id, courseId: Id, files: z.array(z.object({ id: Id, title: z.string().trim().min(1).max(200), weekId: Id.optional(), lectureSourceId: LectureSourceId.optional() })).min(1).max(200) }),
+    response: z.object({ imported: z.number().int().nonnegative(), failed: z.array(z.object({ id: Id, message: z.string() })) }),
+  },
   /** A copied note (정리본·교정 기록·전사 md·srt) of an imported original, as text. */
   /**
    * WBS-069: saves the user's corrections of a transcript version as a new

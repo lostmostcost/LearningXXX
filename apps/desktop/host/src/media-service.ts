@@ -67,7 +67,7 @@ export class MediaService {
   #path(p: Partition, asset: MediaAsset): string {
     if (asset.role !== "original") fail("SCOPE_VIOLATION", "원본만 전사할 수 있습니다.");
     const recording = asset.source.type === "recording";
-    const pattern = recording ? /^media\/originals\/[a-f0-9]{64}\.(wav|m4a|opus)$/ : /^video-originals\/[a-f0-9]{2}\/[a-f0-9]{64}\.mp4$/;
+    const pattern = recording ? /^media\/originals\/[a-f0-9]{64}\.(wav|m4a|mp3|aac|aif|aiff|flac|caf|mp4|3gp|amr|ogg|oga|opus)$/ : /^video-originals\/[a-f0-9]{2}\/[a-f0-9]{64}\.mp4$/;
     if (!pattern.test(asset.storageKey)) fail("SCOPE_VIOLATION", "허용된 원본 저장 경로가 아닙니다.");
     return resolve(recording ? this.#o.dataRoot : p.root, asset.storageKey);
   }

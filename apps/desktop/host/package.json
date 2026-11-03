@@ -7,10 +7,9 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
-    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:@anthropic-ai/claude-agent-sdk --external:node-pty --external:electron --external:pdfjs-dist --outfile=dist/main.cjs",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --external:@anthropic-ai/claude-agent-sdk --external:electron --external:pdfjs-dist --outfile=dist/main.cjs",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build",
-    "start": "pnpm run setup:pty && pnpm run build && electron .",
-    "setup:pty": "node src/prepare-pty.cjs"
+    "start": "pnpm run build && electron ."
   },
   "devDependencies": {
     "@types/node": "24.19.2",
@@ -25,7 +24,6 @@
     "@learningxxx/collector": "workspace:*",
     "@learningxxx/contracts": "workspace:*",
     "@learningxxx/transcriber": "workspace:*",
-    "node-pty": "1.1.0",
     "pdfjs-dist": "6.4.299",
     "zod": "4.6.7"
   }

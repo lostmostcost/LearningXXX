@@ -371,3 +371,10 @@
 | 이문찬이 실제 앱에서 CR-074 다섯 항목(9주차 등 모든 주차 표시, 과제 주차별·제출 구분, 녹음 파일 가져오기·전사, "N주차 강의 요약"이 전사 바탕으로 답함, 고급 터미널 없음)을 확인, 정상 작동 | 사용자 확인 결과 기록 | — |
 | WBS-079 등록: 쓰지 않는 node-pty·@xterm 의존성과 pty 준비 스크립트 정리. 루트 pnpm-lock.yaml·pnpm-workspace.yaml 변경을 이문찬이 승인 | 요청·승인 | — |
 
+## WBS-079 쓰지 않는 터미널 의존성 정리 (CR-074, 2026-11-04)
+
+| 결정 | 이유 | 되돌리기 |
+|---|---|---|
+| host `node-pty`, ui `@xterm/xterm`·`@xterm/addon-fit` 의존성, `setup:pty` 스크립트(`prepare-pty.cjs`), 빌드의 `--external:node-pty`, `pnpm-workspace.yaml`의 `node-pty` 빌드 설정, `NATIVE-TERMINAL.md` 제거. `pnpm-lock.yaml`은 고정 pnpm 12.14.0으로 다시 만듦(삭제만 35줄) | WBS-076 뒤 쓰이지 않음, 이문찬 승인 | PR revert |
+| `pnpm start`는 이제 빌드 후 바로 실행(pty 준비 단계 없음) | 준비할 것이 없음 | — |
+

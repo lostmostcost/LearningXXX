@@ -1431,6 +1431,51 @@
       "branch": "feat/WBS-049-reading-chat",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40cbd7ec20cd811ebf62d4759e32402a"
+    },
+    {
+      "id": "WBS-050",
+      "title": "Claude Code 네이티브 대화형 실행 재구성",
+      "phase": "A 핵심경험",
+      "priority": "P0",
+      "deps": [
+        "WBS-049"
+      ],
+      "areas": [
+        "ui",
+        "shared",
+        "host",
+        "cli"
+      ],
+      "paths": [
+        "spikes/interactive-cli/",
+        "tests/tooling/test_interactive_pty.py",
+        "docs/pm/wbs.json",
+        "docs/specs/SPEC-002.md",
+        "docs/specs/SPEC-003.md",
+        "docs/decisions/ADR-002-runtime-placement.md",
+        "packages/cli-adapter/",
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        "AGENTS.md",
+        "docs/specs/PRD-001.md"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-001",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-009"
+      ],
+      "acceptance": "실제 대화형 CLI의 명령과 목록을 PTY로 전달하고 일반 Claude 환경·세션별 시작 폴더·구독 인증을 사용한다. 재연결·취소·종료를 검증한다.",
+      "status": "In Progress",
+      "branch": "feat/WBS-050-native-claude",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40cbd7ec20cd8132a434d03b47d611c8",
+      "scope_note": "CR-050 사용자 직접 승인: 일반 native Claude 환경으로 전환. 과거 대화 초기화/마이그레이션 생략 승인. 기존 structured 기록 UI를 제품에서 제거. shared 선점 하 AGENTS/PRD/실행 계약/lockfile 갱신."
     }
   ],
   "qaPolicy": {

@@ -1,3 +1,4 @@
+import { NativeTerminalService } from "./native-terminal.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CanvasClient, CollectionError, createCommonsVideoResolver, listActiveCourses } from "@learningxxx/collector";
@@ -222,11 +223,12 @@ app.whenReady().then(async () => {
   await recordings.recover().catch(() => undefined);
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
+  const terminals = new NativeTerminalService({ root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    void (async () => { try { await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
+    void (async () => { try { await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
   });
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
   powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
@@ -236,7 +238,7 @@ app.whenReady().then(async () => {
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
     callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
   });
-  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media));
+  const router = createRouter(createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, terminals));
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
     if (!event.senderFrame?.url.startsWith("file://")) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };

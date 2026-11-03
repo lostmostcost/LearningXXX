@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Snapshot: 2026-11-01 · v0.1.1 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.2.0 · Notion is authoritative; refresh after approved changes.
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.
@@ -37,3 +37,9 @@ idle → starting → streaming → awaiting_permission 또는 completed/failed/
 같은 세션 재개 시 테스트 사실을 회상하고 다른 세션에 섞이지 않는다. 독립 세션은 이전 과목의 고유 canary 문자열을 요청·파일 접근·답변 어디에서도 얻지 못해야 한다. 사용자가 canary 파일을 직접 첨부하면 그때만 참조 가능하다. 이는 모델 답변 한 번만 보는 테스트가 아니라 전달 payload·실제 도구 접근·작업 경로를 함께 관찰하는 검사다.
 API 환경변수가 존재하는 환경, 로그인 만료, usage limit, 취소 중 파일 변경, 앱 강제 종료를 테스트한다. 성공한 호출 횟수와 버전·권한 설정·미검증 범위를 남긴다.
 
+
+## CR-050 · 일반 Claude Code 대화형 실행 (이전 절보다 우선)
+사용자 직접 승인: 모든 명령 지원을 위해 새 native 세션은 -p 대신 공식 interactive CLI를 PTY로 실행한다. / 목록·스킬·권한·모델·문맥 압축·재개를 앱에서 흉내 내거나 필터하지 않는다. 독립 세션도 일반 Claude 환경으로 바꾸며 격리를 보장하지 않는다. 과거의 고정 격리 정책과 G0 증거는 기존 structured 세션에만 유지한다. 새 경로의 통과 증거로 승계하지 않는다.
+세션 engine=native를 분리 저장하고 과거 기록은 마이그레이션하지 않는다(사용자 초기화 승인). native 세션은 별도 시작 폴더를 갖지만 글로벌 Claude 설정/기억/플러그인과 CLI의 명시적 다른 세션 resume를 허용한다. 구독 인증 preflight·API 환경 거부·권한 우회 미사용을 유지하며 --permission-mode default로 시작한다. 이후 권한 선택은 CLI 화면에서 사용자가 한다. native 파일 조작에 과거 host 파일 UI의 폴더 제한·trash-only·자동 복구 보장을 적용한다고 표시하지 않는다.
+SessionStart 훅은 session_id UUID와 이력 파일 위치만 원자적으로 저장하여 /clear,/resume 변경 후 재연결에 사용한다. 대화 본문·토큰·자격증명을 훅 파일에 저장하지 않는다. 훅이 꺼져 매핑이 없으면 해당 시작 폴더 --continue를 사용한다. 처음부터 기존 structured 이력을 native에 자동 주입하지 않는다.
+PTY는 host가 고른 공식 실행 파일만 실행하고 renderer는 path/args/env를 지정하지 못한다. IPC 입력 크기·터미널 크기·동시 프로세스·재생 버퍼를 제한한다. 화면 전환은 연결만 분리하고 CLI는 유지한다. 명시 종료·앱 종료는 프로세스를 중단한다. 출력은 메모리의 제한된 재생 버퍼이며 실제 대화 이력은 Claude Code가 관리한다. 중단된 입력을 앱이 자동 재전송하지 않는다.

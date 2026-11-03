@@ -85,3 +85,7 @@ STT 엔진과 실행 위치는 WBS-021에서 정한다. 자동 수집은 MVP 이
 ## 되돌릴 조건
 
 앱 프로세스에서 구독 CLI 실행이 실패하면 Electron 선택을 포함해 이 ADR을 다시 연다.
+
+## 결정 6 · CR-050: 공식 대화형 Claude Code 중심
+사용자 직접 승인으로 새 대화는 node-pty(host) + xterm.js(renderer)로 공식 interactive CLI에 연결한다. 구독 인증은 기존 CLI preflight가 확인하며 API 키 대체·인증 추출은 없다. 새 일반 대화는 과거 independent 격리를 제공하지 않는다고 명시한다. 결정5는 legacy structured 경로에만 적용한다.
+PTY native addon은 Mac/Electron에서 실제 실행 검증한다. pnpm 자동 build script는 node-pty도 false로 유지한다. 공식 패키지에 동봉된 Mac spawn-helper의 실행 권한 준비만 명시 setup:pty에서 수행하며 임의 native addon을 다운로드하지 않는다. Python PTY 코드는 검증용 spike이며 제품 런타임 의존성이 아니다.

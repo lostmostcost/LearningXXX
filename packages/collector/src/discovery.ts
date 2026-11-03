@@ -49,12 +49,49 @@ export async function discoverCourse(input: DiscoveryInput): Promise<DiscoveredC
   const termId = source.enrollment_term_id;
   const courseId = stableId("course", accountKey, termId, source.id);
   const course = Course.parse({ id: courseId, accountKey, termId, sourceCourseId: source.id, title: source.name });
-  const weeks = modules
-    .toSorted((a, b) => a.position - b.position)
-    .map((m, order) =>
+  const weeks = fillWeekGaps(
+    courseId,
+    modules.toSorted((a, b) => a.position - b.position).map((m, order) =>
       Week.parse({ id: stableId("week", courseId, m.id), courseId, sourceWeekId: m.id, label: m.name, order }),
-    );
+    ),
+  );
   return { course, weeks };
+}
+
+/** WBS-074: `sourceWeekId` of a week the LMS does not have, added so every week of the term shows. */
+const PLACEHOLDER = "gap:";
+export const isPlaceholderWeek = (week: Week): boolean => week.sourceWeekId.startsWith(PLACEHOLDER);
+
+/** "3주차", "3주차 (9/15~)", "Week 3" → 3. */
+export function weekNumberOf(label: string): number | undefined {
+  const m = /(\d{1,2})\s*주차/.exec(label) ?? /\bweek\s*(\d{1,2})\b/i.exec(label);
+  const n = m ? Number(m[1]) : undefined;
+  return n !== undefined && n >= 1 && n <= 30 ? n : undefined;
+}
+
+/**
+ * WBS-074: some courses skip a week number in the LMS (e.g. no "9주차"
+ * module around exams). When the weeks are numbered, every missing number
+ * between the first and the last one gets an empty week of its own, placed
+ * after the week before it, so materials, recordings and the week menu always
+ * show the whole term. Unnumbered modules keep their place; LMS order wins.
+ */
+export function fillWeekGaps(courseId: string, weeks: readonly Week[]): Week[] {
+  const numbered = weeks.flatMap((w) => { const n = weekNumberOf(w.label); return n === undefined ? [] : [n]; });
+  if (numbered.length < 2) return [...weeks];
+  const have = new Set(numbered);
+  const out: Week[] = [];
+  for (const week of weeks) {
+    out.push(week);
+    const n = weekNumberOf(week.label);
+    if (n === undefined) continue;
+    // Fill the run after this week up to the next number the LMS has.
+    for (let gap = n + 1; gap <= Math.max(...numbered) && !have.has(gap); gap++) {
+      have.add(gap);
+      out.push(Week.parse({ id: stableId("week", courseId, `${PLACEHOLDER}${gap}`), courseId, sourceWeekId: `${PLACEHOLDER}${gap}`, label: `${gap}주차`, order: 0 }));
+    }
+  }
+  return out.map((w, order) => ({ ...w, order }));
 }
 
 const ListedCourse = z.object({

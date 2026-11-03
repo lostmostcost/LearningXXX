@@ -3,7 +3,7 @@ import type { AppError, CollectionManifest, Course, Week } from "@learningxxx/co
 import { z } from "zod";
 import type { AssetStore } from "./asset-store.ts";
 import type { CanvasClient } from "./canvas-client.ts";
-import { stableId } from "./discovery.ts";
+import { isPlaceholderWeek, stableId } from "./discovery.ts";
 import { CollectionError, collectionError } from "./errors.ts";
 import { LEARNINGX_FILE_TYPES, type LearningXClient } from "./learningx.ts";
 import { DEFAULT_RETRY, withRetry, type RetryPolicy } from "./retry.ts";
@@ -145,6 +145,7 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
   const assignmentWeek = new Map<string, string>();
   const quizWeek = new Map<string, string>();
   for (const week of [...weeks].sort((a, b) => a.order - b.order)) {
+    if (isPlaceholderWeek(week)) continue; // WBS-074: a week the LMS does not have holds nothing there
     const raw = await attempt(undefined, () => client.getList(`/api/v1/courses/${cid}/modules/${week.sourceWeekId}/items?per_page=100`));
     if (raw === undefined) {
       complete.file = complete.assignment = false;

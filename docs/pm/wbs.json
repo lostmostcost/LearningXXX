@@ -2202,6 +2202,126 @@
       "review_evidence": [
         "Reviewed media.queue (current account only, transcriptions in run order with running first, positions, progress, downloads, the Claude Code request label set/cleared around all three runs, import status added in the handler), media.list waiting info (jobs ahead and what is running, any course), UI job panel (polling, stop/cancel/pause actions), transcript tab waiting line, queue status text. Found and fixed: node tests cannot import .tsx, so the status helper moved to job-queue.ts. Checks: host test (running then waiting, ahead count, waiting info, after finishing, other account sees none), UI test (status lines), pnpm -r run check. Fixture preview: panel with running/waiting transcription and a download. Reordering (recordings first) not done; recorded as a separate decision."
       ]
+    },
+    {
+      "id": "WBS-074",
+      "title": "빈 주차도 항상 표시(LMS 주차 빠짐 채우기)",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "collector",
+        "ui"
+      ],
+      "paths": [
+        "packages/collector/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "LMS에 없는 주차 번호(예: 9주차)도 1주차부터 마지막 주차까지 빠짐없이 자료 목록·주차 메뉴에 보이고, 자료가 없어도 주차가 있다.",
+      "status": "Backlog",
+      "branch": "fix/WBS-074-all-weeks",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81248d75e6912945f47b?pvs=204",
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+    },
+    {
+      "id": "WBS-075",
+      "title": "과제 목록을 주차별·제출 여부로 나눠 보기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "과제 화면이 주차별 접힌 묶음으로 보이고(기본 닫힘, 누르면 펼침), 제출한 과제와 해야 할 과제가 구별된다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-075-tasks-by-week",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd8196a228dffd9a9b552e?pvs=204",
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+    },
+    {
+      "id": "WBS-076",
+      "title": "고급 터미널 기능 제거",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "채팅의 고급 터미널 진입과 터미널 IPC·서비스가 없어지고 채팅은 그대로 동작한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-076-remove-terminal",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81b8adb7d7fe1bd04096?pvs=204",
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+    },
+    {
+      "id": "WBS-077",
+      "title": "녹음 파일 직접 가져오기(범용)",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "녹음 탭에서 녹음 파일(mp3·m4a·wav 등)을 직접 골라 주차·강의를 정해 가져오고 자동 전사된다. 학기 폴더 가져오기(WBS-066)는 대체된다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-077-import-audio-files",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd814b886be4b63a8efda4?pvs=204",
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+    },
+    {
+      "id": "WBS-078",
+      "title": "주차별 녹음·전사·과제를 채팅 과목 자료에 포함",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "과목 채팅의 자료 폴더에 주차별 녹음 전사문·정리본·과제·공지 본문이 함께 있어 'N주차 강의 요약'이 PDF가 없어도 이것들을 읽고 답한다.",
+      "status": "Backlog",
+      "branch": "feat/WBS-078-week-context",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/40dbd7ec20cd81fcb443e6890dae929c?pvs=204",
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
     }
   ],
   "qaPolicy": {

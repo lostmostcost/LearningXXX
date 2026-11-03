@@ -181,3 +181,22 @@ test("active courses: only named, unrestricted student courses, in Canvas order 
   });
   assert.deepEqual(await listActiveCourses(client(fetch)), ["95899", "97001"]);
 });
+
+test("WBS-074: a week number the LMS skips gets an empty week in its place; unnumbered modules stay where they are", async () => {
+  const { fillWeekGaps, isPlaceholderWeek, weekNumberOf } = await import("../src/discovery.ts");
+  const courseId = "11111111-1111-4111-8111-000000000001";
+  const week = (sid: string, label: string, order: number) => Week.parse({ id: `22222222-2222-4222-8222-${sid.padStart(12, "0")}`, courseId, sourceWeekId: sid, label, order });
+  const filled = fillWeekGaps(courseId, [week("1", "오리엔테이션", 0), week("2", "1주차", 1), week("3", "2주차 (9/8~)", 2), week("4", "5주차", 3), week("5", "참고 자료", 4)]);
+  assert.deepEqual(filled.map((w) => [w.label, isPlaceholderWeek(w)]), [
+    ["오리엔테이션", false], ["1주차", false], ["2주차 (9/8~)", false], ["3주차", true], ["4주차", true], ["5주차", false], ["참고 자료", false],
+  ]);
+  assert.deepEqual(filled.map((w) => w.order), [0, 1, 2, 3, 4, 5, 6]);
+  assert.equal(new Set(filled.map((w) => w.id)).size, filled.length);
+  assert.equal(fillWeekGaps(courseId, filled.slice(0, 3)).length, 3, "nothing to fill");
+  assert.deepEqual(fillWeekGaps(courseId, [week("9", "Week 1", 0), week("8", "Week 3", 1)]).map((w) => w.label), ["Week 1", "2주차", "Week 3"]);
+  assert.equal(fillWeekGaps(courseId, [week("1", "Intro", 0)]).length, 1);
+  assert.equal(weekNumberOf("12주차 기말"), 12);
+  assert.equal(weekNumberOf("자료"), undefined);
+  // The same gap always gets the same id, so recordings filed under it stay there after the next collection.
+  assert.equal(fillWeekGaps(courseId, [week("2", "1주차", 0), week("4", "3주차", 1)])[1]!.id, fillWeekGaps(courseId, [week("2", "1주차", 0), week("4", "3주차", 1)])[1]!.id);
+});

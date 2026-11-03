@@ -187,11 +187,16 @@ export function transcriptionKeyInput(sourceSha256: string, engine: TranscriptEn
 }
 
 /** WBS-066: documents copied with an imported recording, shown read-only. */
-export const ImportedDocKind = z.enum(["readable", "corrections", "transcript_md", "live", "srt"]);
+export const ImportedDocKind = z.enum(["readable", "corrections", "transcript_md", "live", "srt", "readable_app"]);
 export type ImportedDocKind = z.infer<typeof ImportedDocKind>;
 
 /** Engine name of transcripts that came with an import; such originals are not transcribed again. */
 export const IMPORTED_ENGINE = "imported";
+/** WBS-069: engine name of a version the user corrected by hand (kind "corrected", based on the version they edited). */
+export const MANUAL_ENGINE = "manual";
+/** WBS-069: most segments / characters per segment a hand-corrected version may have. */
+export const MAX_CORRECTION_SEGMENTS = 20_000;
+export const MAX_SEGMENT_TEXT = 5_000;
 
 /** One audio file found in the chosen folder, with where it would go. Paths stay in the host. */
 export const ImportItem = z.object({

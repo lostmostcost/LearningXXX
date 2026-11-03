@@ -34,6 +34,7 @@ import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { LegacyImporter, importStore } from "./legacy-import.ts";
+import { createReadableRunner } from "./readable-note.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 
@@ -257,6 +258,8 @@ app.whenReady().then(async () => {
     originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
     engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => { input.signal.throwIfAborted(); return engine.transcribe(input); }) },
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
+    // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
+    readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),
     openOriginal: async (path) => { const error = await shell.openPath(path); if (error) throw new Error("원본을 여는 시스템 플레이어를 확인하세요."); },
     videos: async (course) => {
       await credentials.ensureSignedIn();

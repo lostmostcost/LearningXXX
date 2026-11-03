@@ -3,7 +3,7 @@ import type { ImportItem, IpcResponse } from "@learningxxx/contracts";
 import { invoke } from "./host-api.ts";
 import { importSummary } from "./imports.ts";
 
-const DOC_LABEL = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)" } as const;
+const DOC_LABEL = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)", readable_app: "앱 정리본" } as const;
 
 /**
  * WBS-066: copies recordings and lecture audio the user made before (with

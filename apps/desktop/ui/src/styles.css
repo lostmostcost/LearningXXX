@@ -326,3 +326,6 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .quiz-row{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--line);font-size:12px;}
 .quiz-row small{color:var(--muted);}
 .quiz-row button{align-self:flex-start;margin-top:4px;font-size:11px;}
+/* WBS-069: correcting a transcript in place. */
+.segment-list.editing li{display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:start;}
+.segment-list.editing textarea{width:100%;font:inherit;font-size:13px;resize:vertical;}

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
-import { AccountKey, AppError, Id, ImportedDocKind, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
+import { AccountKey, AppError, Id, ImportedDocKind, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
 import type { Course, TranscriptionJob } from "@learningxxx/contracts";
 import { downloadVideo } from "@learningxxx/collector";
 import type { VideoDownloadInput } from "@learningxxx/collector";
@@ -14,7 +14,9 @@ const Download = z.object({ id: Id, courseId: Id, resourceId: Id, sourceId: z.st
 export type MediaDownload = z.infer<typeof Download>;
 /** WBS-066: an original imported with its own transcript and notes; it is not transcribed again. */
 const Imported = z.object({ sha256: Sha256, transcriptId: Id.optional(), model: z.string().max(200).optional(), docs: z.array(ImportedDocKind), createdAt: z.string() });
-const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]) });
+/** WBS-069: a version the user corrected by hand, stored apart from engine output. */
+const Correction = z.object({ sha256: Sha256, transcriptId: Id });
+const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]), corrections: z.array(Correction).default([]) });
 type Catalog = z.infer<typeof Catalog>;
 interface Partition { key: string; root: string; catalog: Catalog; queue: TranscriptionQueue; writes: Promise<void> }
 export interface MediaServiceOptions {
@@ -26,10 +28,12 @@ export interface MediaServiceOptions {
   engine: Engine;
   contextFor?: (asset: MediaAsset) => Promise<string>;
   videos: (course: Course) => Promise<{ sourceId: string; title: string }[]>;
+  /** WBS-069: transcript text → readable note through the official CLI; absent, the button reports it is unavailable. */
+  readable?: (input: { title: string; text: string; signal: AbortSignal }) => Promise<string>;
   openOriginal: (path: string) => Promise<void>;
   video: (course: Course, contentId: string) => Pick<VideoDownloadInput, "fetch" | "resolveSource" | "allowedOrigins">;
 }
-function fail(code: "NOT_FOUND" | "SCOPE_VIOLATION" | "CHECKSUM_MISMATCH" | "AUTH_REQUIRED" | "MEDIA_UNREADABLE", message: string): never {
+function fail(code: "NOT_FOUND" | "SCOPE_VIOLATION" | "CHECKSUM_MISMATCH" | "AUTH_REQUIRED" | "MEDIA_UNREADABLE" | "INVALID_REQUEST" | "RUN_ALREADY_ACTIVE", message: string): never {
   throw Object.assign(new Error(message), { appError: AppError.parse({ code, message, retryable: false }) });
 }
 
@@ -142,7 +146,7 @@ export class MediaService {
       const root = join(this.#o.dataRoot, "media", "accounts", key);
       let catalog: Catalog;
       try { catalog = Catalog.parse(JSON.parse(await readFile(join(root, "catalog.json"), "utf8"))); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [] }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [], corrections: [] }; }
       const p = { key, root, catalog, writes: Promise.resolve() } as Partition;
       const engine: Engine = { info: this.#o.engine.info, parameters: this.#o.engine.parameters, transcribe: async (input) => {
         const asset = p.catalog.assets.find((a) => this.#path(p, a) === input.audioPath);
@@ -190,6 +194,73 @@ export class MediaService {
     for (const asset of p.catalog.assets) this.#enqueue(p, asset);
   }
 
+  readonly #correctionCache = new Map<string, Transcript | undefined>();
+  async #correction(p: Partition, transcriptId: string): Promise<Transcript | undefined> {
+    const key = `${p.key}/${transcriptId}`;
+    if (this.#correctionCache.has(key)) return this.#correctionCache.get(key);
+    let transcript: Transcript | undefined;
+    try { transcript = Transcript.parse(JSON.parse(await readFile(join(p.root, "corrections", `${Id.parse(transcriptId)}.json`), "utf8"))); }
+    catch { transcript = undefined; }
+    this.#correctionCache.set(key, transcript);
+    return transcript;
+  }
+
+  /**
+   * WBS-069: the user's own corrections of one transcript version, kept as a
+   * new "corrected" version with the same times. Nothing existing is changed.
+   */
+  async saveCorrection(courseId: string, assetId: string, basedOnTranscriptId: string, texts: string[]): Promise<{ transcriptId: string }> {
+    const { p } = await this.#course(courseId);
+    const asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    const base = (await this.list(courseId)).transcripts.find((t) => t.id === basedOnTranscriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "고칠 전사 판을 찾지 못했습니다.");
+    if (texts.length !== base.segments.length) fail("INVALID_REQUEST", "전사 문장 수가 바뀌었습니다. 다시 열어 고쳐 주세요.");
+    const transcript = Transcript.parse({
+      schemaVersion: SCHEMA_VERSION, id: randomUUID(), sourceAssetId: assetId, kind: "corrected",
+      engine: { name: MANUAL_ENGINE, version: "user" }, parametersHash: createHash("sha256").update(MANUAL_ENGINE).digest("hex"),
+      basedOnTranscriptId, language: base.language, createdAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      segments: base.segments.map((segment, i) => ({ startMs: segment.startMs, endMs: segment.endMs, text: texts[i]!.trim() })),
+    });
+    const dir = join(p.root, "corrections");
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    await writeFile(join(dir, `${transcript.id}.json`), JSON.stringify(transcript), { mode: 0o600 });
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    p.catalog.corrections.push({ sha256: asset.sha256, transcriptId: transcript.id });
+    await this.#save(p);
+    return { transcriptId: transcript.id };
+  }
+
+  #readable: AbortController | undefined;
+  /**
+   * WBS-069: on request, a readable note of one transcript version made by the
+   * official Claude Code with the user's subscription. Kept as the original's
+   * "readable_app" document (replacing an earlier one); the transcript stays.
+   */
+  async makeReadable(courseId: string, assetId: string, transcriptId: string): Promise<{ doc: "readable_app" }> {
+    if (!this.#o.readable) fail("NOT_FOUND", "정리본 만들기를 쓸 수 없습니다.");
+    if (this.#readable) fail("RUN_ALREADY_ACTIVE", "다른 정리본을 만드는 중입니다. 끝난 뒤 다시 시도하세요.");
+    const { p } = await this.#course(courseId);
+    const asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId) ?? fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
+    const stamp = (ms: number) => `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+    const text = version.segments.filter((s) => s.text.trim()).map((s) => `[${stamp(s.startMs)}] ${s.text.trim()}`).join("\n");
+    if (!text) fail("INVALID_REQUEST", "정리할 전사 내용이 없습니다.");
+    const abort = new AbortController();
+    this.#readable = abort;
+    try {
+      const note = (await this.#o.readable({ title: asset.title, text, signal: abort.signal })).trim();
+      if (!note) fail("INVALID_REQUEST", "정리본이 비어 있습니다. 다시 시도하세요.");
+      if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+      const dir = this.#importDir(p, asset.sha256);
+      await mkdir(dir, { recursive: true, mode: 0o700 });
+      await writeFile(join(dir, "readable_app.txt"), note, { mode: 0o600 });
+      const record = p.catalog.imports.find((i) => i.sha256 === asset.sha256);
+      if (record) { if (!record.docs.includes("readable_app")) record.docs.push("readable_app"); }
+      else p.catalog.imports.push(Imported.parse({ sha256: asset.sha256, docs: ["readable_app"], createdAt: new Date().toISOString() }));
+      await this.#save(p);
+      return { doc: "readable_app" };
+    } finally { this.#readable = undefined; }
+  }
+
   async list(courseId: string) {
     const { p } = await this.#course(courseId);
     const assets = p.catalog.assets.filter((a) => a.courseId === courseId);
@@ -201,6 +272,12 @@ export class MediaService {
         if (original?.sha256 !== asset.sha256) continue;
         jobs.push({ ...job, sourceAssetId: asset.id });
         if (job.outputTranscriptId) { const t = p.queue.transcript(job.outputTranscriptId); if (t) transcripts.push({ ...t, sourceAssetId: asset.id }); }
+      }
+    }
+    for (const asset of assets) {
+      for (const c of p.catalog.corrections.filter((x) => x.sha256 === asset.sha256)) {
+        const t = await this.#correction(p, c.transcriptId);
+        if (t) transcripts.push({ ...t, sourceAssetId: asset.id });
       }
     }
     const importedDocs: Record<string, ImportedDocKind[]> = {};
@@ -323,6 +400,7 @@ export class MediaService {
   }
   async stop() {
     this.#closing = true;
+    this.#readable?.abort();
     await this.#activation.catch(() => {});
     for (const d of this.#downloads.values()) d.abort.abort();
     await Promise.allSettled([...this.#downloads.values()].map((d) => d.done));

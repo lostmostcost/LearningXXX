@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { IMPORTED_ENGINE, type ImportedDocKind, type MediaAsset, type Recording, type Transcript, type TranscriptionJob } from "@learningxxx/contracts";
+import { IMPORTED_ENGINE, MANUAL_ENGINE, type ImportedDocKind, type MediaAsset, type Recording, type Transcript, type TranscriptionJob } from "@learningxxx/contracts";
 import { Icon } from "./StudyUI.tsx";
 import { excerptFor, jobView, mediaTime, playbackRange, versionsFor, type DownloadViewInput, type TranscriptExcerpt } from "./transcript-model.ts";
 
@@ -33,9 +33,17 @@ export interface TranscriptPanelProps {
   /** WBS-066: notes copied with an imported original, and how to read one. */
   importedDocs?: Record<string, ImportedDocKind[]> | undefined;
   loadDoc?: ((assetId: string, doc: ImportedDocKind) => Promise<string>) | undefined;
+  /** WBS-069: save the user's edits of a version as a new version; resolves with its id. */
+  onSaveCorrection?: ((assetId: string, basedOnTranscriptId: string, texts: string[]) => Promise<string>) | undefined;
+  /** WBS-069: ask Claude Code for a readable note of a version (kept as the "앱 정리본" document). */
+  onMakeReadable?: ((assetId: string, transcriptId: string) => Promise<void>) | undefined;
 }
 
-const DOC_LABEL: Record<ImportedDocKind, string> = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)" };
+const DOC_LABEL: Record<ImportedDocKind, string> = { readable: "정리본", corrections: "교정 기록", transcript_md: "전사(md)", live: "실시간 메모", srt: "자막(srt)", readable_app: "앱 정리본(Claude)" };
+
+/** WBS-069: how a version is named in the version picker. */
+export const versionLabel = (v: Transcript): string =>
+  v.engine.name === IMPORTED_ENGINE ? "가져온 전사" : v.engine.name === MANUAL_ENGINE ? "직접 고친 판" : v.kind === "engine" ? "자동 전사 원본" : "요청한 보정본";
 
 /** Read-only notes that came with an imported recording (정리본·교정 기록 …). */
 function ImportedDocs({ assetId, docs, load }: { assetId: string; docs: ImportedDocKind[]; load: (assetId: string, doc: ImportedDocKind) => Promise<string> }) {
@@ -47,7 +55,7 @@ function ImportedDocs({ assetId, docs, load }: { assetId: string; docs: Imported
     catch (error) { setOpen((o) => (o?.doc === doc ? { doc, error: error instanceof Error ? error.message : "열지 못했습니다." } : o)); }
   };
   return <div className="imported-docs">
-    <span className="meta">가져온 문서</span>
+    <span className="meta">문서</span>
     {docs.map((doc) => <button key={doc} aria-pressed={open?.doc === doc} onClick={() => void show(doc)}>{DOC_LABEL[doc]}</button>)}
     {open ? <pre className="imported-doc" aria-label={DOC_LABEL[open.doc]}>{open.error ?? open.text ?? "여는 중…"}</pre> : null}
   </div>;
@@ -83,6 +91,9 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
   const preview = storedPreview?.excerpt.transcriptId === version?.id ? storedPreview : undefined;
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState<string>();
+  /** WBS-069: edited texts while correcting this version (undefined when not editing). */
+  const [editing, setEditing] = useState<string[]>();
+  const [making, setMaking] = useState(false);
   const player = useRef<HTMLMediaElement | null>(null);
   const endAt = useRef<number | undefined>(undefined);
 
@@ -104,6 +115,20 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [asset.id, asset.sha256, props.loadOriginal, loadAttempt]);
 
+  const saveEdits = async () => {
+    if (!version || !editing || !props.onSaveCorrection || busy) return;
+    setBusy(true);
+    try { const id = await props.onSaveCorrection(asset.id, version.id, editing); setEditing(undefined); setVersionId(id); setNotice("고친 내용을 새 판으로 저장했습니다. 고치기 전 판도 그대로 있습니다."); }
+    catch (error) { setNotice(error instanceof Error && error.message ? error.message : "저장하지 못했습니다. 고친 내용은 화면에 남아 있습니다."); }
+    finally { setBusy(false); }
+  };
+  const makeReadable = async () => {
+    if (!version || !props.onMakeReadable || making) return;
+    setMaking(true); setNotice("Claude Code로 정리본을 만드는 중입니다. 몇 분 걸릴 수 있습니다…");
+    try { await props.onMakeReadable(asset.id, version.id); setNotice("정리본을 만들었습니다. 위 \"문서\"의 \"앱 정리본(Claude)\"에서 볼 수 있습니다."); }
+    catch (error) { setNotice(error instanceof Error && error.message ? error.message : "정리본을 만들지 못했습니다."); }
+    finally { setMaking(false); }
+  };
   const changeVersion = (id: string) => { player.current?.pause(); endAt.current = undefined; setVersionId(id); setSelected([]); setPreview(undefined); setNotice(undefined); };
   const play = async (index: number) => {
     const media = player.current, segment = version?.segments[index];
@@ -156,13 +181,21 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
         }}><Icon name="refresh" /></button> : null}</li>;
     })}</ul>
     {version && props.view !== "recording" ? <>
-      <div className="transcript-actions"><strong>전사 내용</strong><button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
-      <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{v.engine.name === IMPORTED_ENGINE ? "가져온 전사" : v.kind === "engine" ? "자동 전사 원본" : "요청한 보정본"} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
+      <div className="transcript-actions"><strong>전사 내용</strong>
+        {props.onSaveCorrection ? (editing
+          ? <><button disabled={busy} onClick={() => void saveEdits()}>새 판으로 저장</button><button disabled={busy} onClick={() => setEditing(undefined)}>고치기 취소</button></>
+          : <button disabled={busy} onClick={() => { setEditing(version.segments.map((s) => s.text)); setSelected([]); setPreview(undefined); }}>고치기</button>) : null}
+        {props.onMakeReadable && !editing ? <button disabled={making} title="Claude Code(구독)로 읽기 쉬운 정리본 만들기" onClick={() => void makeReadable()}>{making ? "정리본 만드는 중…" : "정리본 만들기"}</button> : null}<button className="icon-button" title="이 전사 복사" aria-label="이 전사 복사" onClick={() => void navigator.clipboard.writeText(version.segments.map(s => `[${mediaTime(s.startMs)}] ${s.text}`).join("\n")).then(() => setNotice("전사를 복사했습니다.")).catch(() => setNotice("클립보드 접근을 확인해 주세요."))}><Icon name="copy" /></button></div>
+      <label>전사 버전 <select aria-label="전사 버전" value={version.id} disabled={busy || editing !== undefined} onChange={(e) => changeVersion(e.target.value)}>{versions.map((v) => <option key={v.id} value={v.id}>{versionLabel(v)} · {v.engine.version} · {v.createdAt}</option>)}</select></label>
 
+      {editing ? <ol className="segment-list editing">{version.segments.map((segment, index) => <li key={`edit:${version.id}:${index}`}>
+        <button disabled={!mediaReady} aria-label={`${mediaTime(segment.startMs)} 구간 재생`} onClick={() => void play(index)}>{mediaTime(segment.startMs)}–{mediaTime(segment.endMs)}</button>
+        <textarea aria-label={`${index + 1}번 문장 고치기`} value={editing[index] ?? ""} maxLength={5000} rows={Math.min(6, Math.max(1, Math.ceil((editing[index] ?? "").length / 40)))} onChange={(e) => setEditing((old) => old?.map((t, i) => (i === index ? e.target.value : t)))} />
+      </li>)}</ol> :
       <ol className="segment-list">{version.segments.map((segment, index) => <li key={`${version.id}:${index}`}>
         {props.onAttach ? <input type="checkbox" aria-label={`${index + 1}번 전사 선택`} checked={selected.includes(index)} disabled={busy} onChange={(e) => setSelected(e.target.checked ? [...selected, index] : selected.filter((n) => n !== index))} /> : null}
         <button disabled={!mediaReady} aria-label={`${mediaTime(segment.startMs)} 구간 재생`} onClick={() => void play(index)}>{mediaTime(segment.startMs)}–{mediaTime(segment.endMs)}</button><span>{segment.text || "(발화 없음)"}</span>
-      </li>)}</ol>
+      </li>)}</ol>}
       {props.onAttach ? <button disabled={!selected.length || busy} onClick={prepare}>선택 전사 미리보기</button> : null}
       {preview ? <div className="notice-box">
         <p>대상: {preview.session?.title ?? "세션을 고른 뒤 다시 미리보기 하세요"}</p><pre>{preview.excerpt.text}</pre>

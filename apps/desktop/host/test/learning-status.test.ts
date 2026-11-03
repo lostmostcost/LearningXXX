@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { Course } from "@learningxxx/contracts";
-import { LearningStatusService, mapLearningX, mergeCanvas, utc, watchedSeconds, type LearningSources, type LearningStatusOptions } from "../src/learning-status.ts";
+import { LearningStatusService, lectureVideos, mapLearningX, mergeCanvas, utc, watchedSeconds, type LearningSources, type LearningStatusOptions } from "../src/learning-status.ts";
 
 /** Synthetic LearningX modules shaped like the WBS-054 measurement. */
 const MODULES = [
@@ -22,7 +22,7 @@ const MODULES = [
     ],
   },
   { title: "7주차", module_items: [
-    { module_item_id: 601, content_id: 9003, content_type: "attendance_item", title: "온라인 실시간", completed: null, completion_determinable: false, attendance_status: "absent",
+    { module_item_id: 601, content_id: 9003, content_type: "attendance_item", title: "Zoom 녹화 강의", completed: null, completion_determinable: false, attendance_status: "absent",
       content_data: { use_attendance: true, lecture_period_status: "not_open", item_content_data: { content_type: "zoom" } } },
   ] },
 ];
@@ -33,12 +33,12 @@ test("weekly-learning items carry the LMS badges, deadlines in UTC and a join ke
     ["video", "6주차", true, "attendance", "late_after", "commons:abc123"],
     ["material", "6주차", false, null, "open", "commons:pdf777"],
     ["assignment", "6주차", false, null, null, "assignment:77"],
-    ["live", "7주차", null, "absent", "not_open", undefined],
+    ["video", "7주차", null, "absent", "not_open", undefined],
   ]);
   assert.equal(items[0]!.dueAt, "2026-10-12T14:59:00Z");
   assert.equal(items[0]!.durationSec, 2452);
   assert.equal(items[0]!.moduleItemId, "501");
-  assert.deepEqual([...detailIds], [[0, "9001"]], "only videos need the watched-time detail");
+  assert.deepEqual([...detailIds], [[0, "9001"], [3, "9003"]], "only videos (Commons movies and Zoom recordings) need the watched-time detail");
 });
 
 test("watched seconds come from the item detail", () => {
@@ -151,4 +151,13 @@ test("a page that still wants the school sign-in is reported as a sign-in, not r
     const err = (e as { appError: { code: string; retryable: boolean } }).appError;
     return err.code === "AUTH_REQUIRED" && !err.retryable;
   });
+});
+
+test("recorded Zoom classes are lecture videos like Commons movies; unopened ones and documents are not (WBS-063)", () => {
+  const item = (type: string, id: string, opened = true) => ({ title: `강의 ${id}`, content_type: "attendance_item", content_data: { opened, item_content_data: { content_type: type, content_id: id } } });
+  const videos = lectureVideos([
+    { title: "6주차", module_items: [item("movie", "m1"), item("zoom", "z1"), item("ZOOM", "z2"), item("pdf", "p1"), item("zoom", "z3", false)] },
+    { title: "", module_items: [item("zoom", "bad id!"), { content_type: "sub_header" }] },
+  ]);
+  assert.deepEqual(videos.map((v) => [v.sourceId, v.week]), [["m1", "6주차"], ["z1", "6주차"], ["z2", "6주차"]]);
 });

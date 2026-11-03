@@ -31,7 +31,7 @@ import { SessionService } from "./session-service.ts";
 import { SessionStore } from "./session-store.ts";
 import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
-import { LearningStatusService, summarizeLearning } from "./learning-status.ts";
+import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -260,14 +260,7 @@ app.whenReady().then(async () => {
     videos: async (course) => {
       await credentials.ensureSignedIn();
       const modules = await createLearningXClient().modules(course.sourceCourseId);
-      const videos: { sourceId: string; title: string; week?: string }[] = [];
-      for (const module of modules) for (const item of (module as { module_items?: unknown[] }).module_items ?? []) {
-        const week = String((module as { title?: unknown }).title ?? "").trim().slice(0, 200);
-        const value = item as { title?: unknown; content_data?: { opened?: unknown; item_content_data?: { content_id?: unknown; content_type?: unknown } } };
-        const content = value.content_data?.item_content_data;
-        if (value.content_data?.opened === true && typeof content?.content_id === "string" && /^[\w-]{1,64}$/.test(content.content_id) && ["movie", "video", "mp4"].includes(String(content.content_type).toLowerCase())) videos.push({ sourceId: content.content_id, title: String(value.title ?? "온라인 강의").slice(0, 200) || "온라인 강의", ...(week ? { week } : {}) });
-      }
-      return videos;
+      return lectureVideos(modules);
     },
     video: (_course, contentId) => {
       const allowedOrigins = ["https://commons.khu.ac.kr"];

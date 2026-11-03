@@ -49,7 +49,7 @@ export async function schoolLogin(deps: SchoolLoginDeps, schoolId: string, passw
     trace(`submit ${response.status}`);
     if (SCHOOL_REJECTED.test(page)) return (trace("rejected"), "rejected");
     const callback = /https:\/\/khcanvas\.khu\.ac\.kr\/learningx\/login\/from_cc\?result=[^"'\s<>]+/.exec(page)?.[0];
-    if (!callback) return (trace("no callback in result page"), "failed");
+    if (!callback) return (trace(`no callback in result page (${pageShape(page)})`), "failed");
     const back = await deps.fetch(callback.replaceAll("&amp;", "&"), { headers: { Referer: `${SSO_ORIGIN}/` } });
     await back.text();
     trace(`callback ${back.status}`);
@@ -97,4 +97,16 @@ export async function pageSchoolLogin(deps: SchoolLoginDeps, page: SignInPage, s
     trace(`page: error ${(error as Error).name}`);
     return "failed";
   }
+}
+
+/**
+ * Diagnostics only: what kind of page the school answered with — its length,
+ * school addresses (host and path, numbers and long ids masked, no query) and
+ * form/script markers. Never text, names or values.
+ */
+export function pageShape(page: string): string {
+  const urls = [...new Set([...page.matchAll(/https?:\/\/([a-z0-9.-]+\.khu\.ac\.kr)(\/[^\s"'<>?#]*)?/gi)].map((m) => `${m[1]}${(m[2] ?? "").replace(/\d{2,}/g, "#").replace(/[A-Za-z0-9_-]{24,}/g, "<id>")}`))].slice(0, 12);
+  const relative = [...new Set([...page.matchAll(/(?:action|src|href|location(?:\.href)?)\s*=\s*["']?(\/[^\s"'<>?#]*)/gi)].map((m) => m[1]!.replace(/\d{2,}/g, "#")))].slice(0, 12);
+  const markers = ["<form", "<iframe", "location.href", "location.replace", "alert(", "history.back", "<meta http-equiv"].filter((m) => page.toLowerCase().includes(m.toLowerCase()));
+  return `len ${page.length}; urls ${urls.join(" ") || "-"}; paths ${relative.join(" ") || "-"}; ${markers.join(" ") || "no markers"}`;
 }

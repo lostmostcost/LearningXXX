@@ -2528,11 +2528,15 @@
         "REQ-002"
       ],
       "acceptance": "할 일 목록에서 과제를 '목록에서 빼기'(해당 없음·기한 지남)로 숨기고 되돌릴 수 있다. 아직 열리지 않은(시작 전) 과제는 할 일에 넣지 않고 '예정'으로 따로 보인다. LMS에는 아무것도 보내지 않는다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-084-todo-cleanup",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b29286eafd1ee5f15a?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "UI only (no host/LMS change). hidden-todos.ts: keys per course item (moduleItemId/sourceRef/title) or collected assignment id, stored per school account in this Mac's localStorage like 나의 할 일, bad stored data → empty, write failure shown; views kept in step by a window event. learning.ts: notOpenYet = LMS period not_open or unlockAt ahead (todos previously only checked period), upcoming() lists them apart. Dashboard: × on each 해야 할 일 and 과제 일정 row, '목록에서 뺀 항목 N개' with 되돌리기, '열리기 전 N개' collapsed, past-due 과제 일정 in a collapsed '마감 지난 과제' group (decided by recommendation: 28 September items were on top). Course 과제 sidebar: groups 해야 할 과제 / 열리기 전 / 제출한 과제 / 목록에서 뺀 과제 with 빼기·되돌리기. Review: hiding a 과제 일정 item with no LMS item can be undone in the course sidebar (dashboard lists only LMS to-dos as hidden) — acceptable, noted. Checks: ui 128 pass (3 new), typecheck, build.",
+        "In app (AI, env -i, CDP): dashboard 14 to-dos → hid first → 13 and '목록에서 뺀 항목 1개'; 되돌리기 → 14, stored list back to []; '열리기 전 77개'; 과제 일정 now starts at 10주차 items with '마감 지난 과제 28개' collapsed."
+      ]
     },
     {
       "id": "WBS-085",

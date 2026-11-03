@@ -1,4 +1,5 @@
 import { ConversationService } from "./conversation-service.ts";
+import { CourseWorkspaceService } from "./course-workspace.ts";
 import { NativeTerminalService } from "./native-terminal.ts";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -225,8 +226,10 @@ app.whenReady().then(async () => {
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
   let conversations: ConversationService;
-  const terminals = new NativeTerminalService({ canOpen: id => !conversations?.active(id), root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
-  conversations = new ConversationService({ root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: id => terminals.isActive(id) });
+  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id) });
+  const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
+  const terminals = new NativeTerminalService({ prepareCourse, courseHookPath: join(app.getAppPath(), 'src/native-course-hook.cjs'), canOpen: id => !conversations?.active(id), root: join(dataRoot, 'native-sessions'), hookPath: join(app.getAppPath(), 'src/native-session-hook.cjs'), getSession: id => sessions.get(id) });
+  conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: id => terminals.isActive(id) });
   let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk/core';
 import type { Session } from '@learningxxx/contracts';
-import { ConversationService } from '../src/conversation-service.ts';
+import { ConversationService, type ConversationOptions } from '../src/conversation-service.ts';
 class FakeQuery {
   stopped = false; wake?: (() => void) | undefined; frames: SDKMessage[] = []; changes: unknown[] = []; rejects = false;
   async *[Symbol.asyncIterator]() { while (!this.stopped) { const f = this.frames.shift(); if (f) yield f; else await new Promise<void>(r => this.wake = r); } }
@@ -17,10 +17,10 @@ class FakeQuery {
   async interrupt(options: unknown) { this.changes.push(options); return { still_queued: [], cancelled: [] }; }
   close() { this.stopped = true; this.wake?.(); }
 }
-function setup(t: { after: (f: () => void | Promise<void>) => void }) {
+function setup(t: { after: (f: () => void | Promise<void>) => void }, prepareCourse?: ConversationOptions['prepareCourse']) {
   const root = mkdtempSync(join(tmpdir(), 'rich-service-')), id = randomUUID(); const q = new FakeQuery(); let options: Options; let created = 0;
   const session = { appSessionId: id, engine: 'chat', mode: 'independent', status: 'idle' } as Session;
-  const service = new ConversationService({ root, getSession: () => session, rename() {}, nativeActive: () => false, prepare: async () => '/official/claude', createQuery: ((args: { options: Options }) => { options = args.options; return (++created === 1 ? q : new FakeQuery()) as unknown as Query; }) as never });
+  const service = new ConversationService({ ...(prepareCourse ? { prepareCourse } : {}), root, getSession: () => session, rename() {}, nativeActive: () => false, prepare: async () => '/official/claude', createQuery: ((args: { options: Options }) => { options = args.options; return (++created === 1 ? q : new FakeQuery()) as unknown as Query; }) as never });
   t.after(async () => { await service.stopAll(); rmSync(root, { recursive: true, force: true }); });
   return { id, q, service, options: () => options, created: () => created };
 }
@@ -103,4 +103,19 @@ test('the eighth session can reconnect without counting its own reservation twic
  t.after(async()=>{await service.stopAll();rmSync(root,{recursive:true,force:true});});
  await Promise.all(ids.slice(0,8).map(id=>service.open(id)));await assert.rejects(service.open(ids[8]!));
  queries[7]!.close();await tick();await service.open(ids[7]!);assert.equal(queries.length,9);
+});
+test('course identity is appended on startup and refreshed on every real prompt after compact',async t=>{
+ let revision=1,calls=0;
+ const f=setup(t,async()=>({brief:`COURSE_BOUND_REV_${revision}`,revision,readDirectory:'/fixture/course-versions'}));await f.service.open(f.id);
+ assert.deepEqual(f.options().additionalDirectories,['/fixture/course-versions']);assert.equal((f.options().systemPrompt as {append:string}).append,'COURSE_BOUND_REV_1');
+ const hook=f.options().hooks!.UserPromptSubmit![0]!.hooks[0]!;
+ await f.service.send(f.id,'/compact',randomUUID());f.q.emit({type:'system',subtype:'session_state_changed',state:'idle'});await tick();revision=2;
+ await f.service.send(f.id,'4주차 강의 요약해줘',randomUUID());const result=await hook({hook_event_name:'UserPromptSubmit'} as never,undefined,{signal:new AbortController().signal});
+ assert.equal((result as {hookSpecificOutput:{additionalContext:string}}).hookSpecificOutput.additionalContext,'COURSE_BOUND_REV_2');
+ assert.equal(f.service.state(f.id).messages.at(-1)?.text,'4주차 강의 요약해줘');
+});
+test('a failed course refresh does not enqueue or record the question; the same request can be retried',async t=>{
+ let blocked=false;const f=setup(t,async()=>{if(blocked)throw new Error('account changed');return undefined;});await f.service.open(f.id);blocked=true;const uuid=randomUUID();
+ await assert.rejects(f.service.send(f.id,'4주차 강의 요약해줘',uuid));assert.equal(f.service.state(f.id).busy,false);assert.equal(f.service.state(f.id).messages.length,0);
+ blocked=false;await f.service.send(f.id,'4주차 강의 요약해줘',uuid);assert.equal(f.service.state(f.id).messages.length,1);
 });

@@ -2571,11 +2571,16 @@
         "REQ-002"
       ],
       "acceptance": "수업계획서(또는 사용자가 직접 입력)로 과목 시간표를 만들고, 첫 화면은 지금 요일·시간에 맞는 과목(진행 중·다음 수업)을 맨 위에 보여 준다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-085-timetable-dashboard",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8147a18df7ec02f9c4eb?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "Host timetable.ts: per account, per course meetings; the student's times win, an empty list means 'no class', null goes back to course.md times (WBS-082); only courses of the signed-in account; account re-checked before writing; writes serialized. The preview note (WBS-083) now uses these effective times. Host 249 pass (1 new).",
+        "UI schedule.ts (Seoul time): nowAndNext gives the class in progress and the next start (within a week; at/after start counts as next week), orderByClass puts the course in class first, then by next class, keeping the rest in order. Dashboard: '지금 수업/다음 수업' banner (opens the course), course cards in that order, 시간표 section (week by day, per course source + '시간 편집' with day/start/end/room rows, add/remove, 저장, '과목 정리 값으로', time order validated). ui 133 pass (2 new).",
+        "In app (AI, env -i, CDP): all 6 courses had no times in course.md (KHU syllabi not collected → WBS-090); set a test time for 데이터베이스 → banner '다음 수업 · 7분 뒤' and its card first; editor shown; reverted to course.md values afterwards. Layout fixes after the screenshot (spacing, action row)."
+      ]
     },
     {
       "id": "WBS-086",

@@ -192,6 +192,10 @@ export const IpcChannels = {
   "materials.add": { request: z.object({ planId: Id, courseId: Id, files: z.array(z.object({ id: Id, title: z.string().max(300), weekId: Id.optional() })).min(1).max(50) }), response: z.object({ added: z.number().int().nonnegative(), failed: z.array(z.object({ id: Id, message: z.string() })) }) },
   /** Move to another week (null = 기타 자료), rename, or remove from the course (the app's copy only). */
   "materials.change": { request: z.object({ courseId: Id, resourceId: Id, weekId: Id.nullable().optional(), title: z.string().max(300).optional(), remove: z.boolean().optional() }), response: z.object({}) },
+  /** WBS-085: class times per course — the student's own, else those found in course.md. */
+  "timetable.get": { request: z.object({}), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  /** `meetings: null` drops the student's times and uses course.md again. */
+  "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),

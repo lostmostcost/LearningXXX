@@ -45,6 +45,7 @@ import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { correctionPrompt, createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { AutomationService } from "./automation.ts";
 import { StudyNotes } from "./study-notes.ts";
+import { Timetable } from "./timetable.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -404,6 +405,8 @@ app.whenReady().then(async () => {
     write: ({ prompt, signal }) => claudeText({ prompt, what: '복습·예습 노트', signal }),
   });
   const weekByLabel = async (courseId: string, label: string | undefined) => label ? (await library.manifest(courseId))?.weeks.find((w) => w.label === label)?.id : undefined;
+  // WBS-085: class times (the student's own, else from course.md).
+  const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => (await knowledge.get(courseId)).meetings });
   automation = new AutomationService({
     settings: () => preferences.get().automation,
     correct: ({ courseId, assetId, transcriptId, signal }) => media.autoCorrect(courseId, assetId, transcriptId, signal),
@@ -423,7 +426,7 @@ app.whenReady().then(async () => {
     },
     preview: {
       courses: () => library.courses(),
-      meetings: async (courseId) => (await knowledge.get(courseId)).meetings,
+      meetings: (courseId) => timetable.meetings(courseId),
       // The latest week whose LMS items are open now.
       currentWeek: async (courseId) => {
         const status = await learning.status(courseId).catch(() => undefined), manifest = await library.manifest(courseId);
@@ -503,6 +506,9 @@ app.whenReady().then(async () => {
     "materials.choose": () => externals!.choose(),
     "materials.add": (request) => externals!.add(request),
     "materials.change": (request) => externals!.change(request),
+    // WBS-085: class times.
+    "timetable.get": () => timetable.get(),
+    "timetable.set": ({ courseId, meetings }) => timetable.set(courseId, meetings),
     // WBS-083: automatic steps and study notes.
     "automation.status": async () => automation!.status(),
     "study.list": async ({ courseId }) => ({ notes: await study.list(courseId) }),

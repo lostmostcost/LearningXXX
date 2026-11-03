@@ -811,7 +811,8 @@
       ],
       "paths": [
         "docs/qa/",
-        "tests/acceptance/"
+        "tests/acceptance/",
+        "docs/pm/"
       ],
       "spec": "QA-001",
       "requirements": [
@@ -827,7 +828,7 @@
         "REQ-011"
       ],
       "acceptance": "기간·횟수 기준 없이 A+B와 REQ-011의 기능별 수용 시나리오를 실제 사용해 검수한다. blocker는 별도 bug WBS로 분리하고 다시 검수한다. 주요 기능 담당 개발자 본인의 자가 테스트 결과로 완료를 판단하며 상대방의 별도 QA·승인은 요구하지 않는다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-029-mvp-qa",
       "url": "https://app.notion.com/p/40bbd7ec20cd81bf91c9c309dfb4a0ca?pvs=204",
       "qa_mode": "appropriate_checks_only"

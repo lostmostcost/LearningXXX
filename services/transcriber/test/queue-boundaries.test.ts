@@ -66,7 +66,8 @@ test("late success after shutdown stays recoverable instead of committing a tran
   const queue = new TranscriptionQueue({ root: path, engine: engine.engine, pathOf: () => "unused" });
   queue.start(); const job = queue.enqueue(asset()); await tick();
   const stopping = queue.stop(); engine.resolve(); await stopping;
-  assert.equal(queue.job(job.id)!.status, "queued", "handed back for the next start");
+  assert.equal(queue.job(job.id)!.status, "failed", "marked interrupted, not committed");
+  assert.equal(queue.job(job.id)!.errorCode, "RUN_INTERRUPTED");
   assert.equal(queue.job(job.id)!.outputTranscriptId, undefined);
   engine.progress(0.9); assert.equal(queue.job(job.id)!.progress, undefined);
 });

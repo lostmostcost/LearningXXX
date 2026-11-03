@@ -92,7 +92,7 @@ test("jobs run one at a time in order", async () => {
   assert.equal(calls.length, 2);
 });
 
-test("a job left running by a crash is picked up again once its lease runs out", async () => {
+test("a job left running by a crash is marked interrupted once its lease runs out, and runs again only on retry", async () => {
   let now = new Date("2026-11-02T00:00:00Z");
   const first = setup({ now: () => now, leaseMs: 60_000 });
   first.queue.start();
@@ -112,8 +112,12 @@ test("a job left running by a crash is picked up again once its lease runs out",
   const later = first.make({ now: () => now, leaseMs: 60_000 });
   later.start();
   await tick();
-  assert.equal(first.calls.length, 2, "started again");
-  assert.equal(later.job(job.id)!.attempt, 2);
+  assert.equal(first.calls.length, 1, "not started again on its own");
+  assert.equal(later.job(job.id)!.status, "failed");
+  assert.equal(later.job(job.id)!.errorCode, "RUN_INTERRUPTED");
+  later.retry(job.id);
+  await tick();
+  assert.equal(first.calls.length, 2, "the user's retry runs it");
   first.calls[1]!.resolve(OUTPUT);
   await tick();
   assert.equal(later.job(job.id)!.status, "succeeded");
@@ -176,21 +180,24 @@ test("a re-run after a crash rewrites the same transcript instead of adding anot
   assert.equal(stored.entries[0]!.transcriptId, id, "the slot was fixed before the run");
 });
 
-test("a clean shutdown puts the running job back in the queue, and the next start runs it at once", async () => {
+test("quitting the app marks the running job interrupted; the next start leaves it until the user retries", async () => {
   const { queue, calls, make } = setup();
   queue.start();
   const job = queue.enqueue(asset());
+  const waiting = queue.enqueue(asset("not started yet"));
   await tick();
   await queue.stop();
   assert.equal(calls[0]!.input.signal.aborted, true);
   const stopped = queue.job(job.id)!;
-  assert.equal(stopped.status, "queued", "not cancelled, not left running");
+  assert.equal(stopped.status, "failed");
+  assert.equal(stopped.errorCode, "RUN_INTERRUPTED");
   assert.equal(stopped.leaseExpiresAt, undefined);
   const next = make();
   next.start();
   await tick();
-  assert.equal(calls.length, 2, "resumed without waiting for a lease");
-  assert.equal(next.job(job.id)!.status, "running");
+  assert.equal(calls.length, 2, "only the job that never started runs");
+  assert.equal(calls[1]!.input.audioPath.endsWith(waiting.sourceAssetId), true);
+  assert.equal(next.job(job.id)!.status, "failed", "the interrupted one waits for the user");
   await next.stop();
 });
 

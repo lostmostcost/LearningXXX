@@ -23,7 +23,9 @@ export function jobView(job: TranscriptionJob): { label: string; progress?: numb
   const labels = { queued: "전사 대기", running: "전사 중", succeeded: "전사 완료", failed: "전사 실패", cancelled: "전사 취소됨" };
   const p = job.progress;
   const measurable = job.status === "running" && p !== undefined && Number.isFinite(p) && p >= 0 && p <= 1;
-  return { label: job.status === "running" && !measurable ? "전사 중 · 진행량 알 수 없음" : labels[job.status],
+  // Quitting the app interrupts a transcription; it waits for the user's retry instead of restarting.
+  const interrupted = job.status === "failed" && job.errorCode === "RUN_INTERRUPTED";
+  return { label: interrupted ? "전사 중단됨" : job.status === "running" && !measurable ? "전사 중 · 진행량 알 수 없음" : labels[job.status],
     ...(measurable ? { progress: p } : {}), retry: job.status === "failed" || job.status === "cancelled" };
 }
 

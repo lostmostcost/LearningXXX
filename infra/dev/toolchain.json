@@ -13,7 +13,7 @@
     "version": "12.14.0"
   },
   "claude_cli": {
-    "verified": "2.1.316",
-    "note": "WBS-001/002 evidence version. A different version requires re-running spikes/cli/isolation.py (ADR-002 decision 5)."
+    "verified": "2.1.317",
+    "note": "Newest isolation-evidence version (2.1.316: WBS-001/002; 2.1.317: WBS-089, spikes/cli/evidence/2026-11-04-isolation*.json). A different version requires re-running spikes/cli/isolation.py (ADR-002 decision 5)."
   }
 }

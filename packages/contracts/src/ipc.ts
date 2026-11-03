@@ -3,7 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { CourseLearningStatus } from "./learning.ts";
+import { CourseLearningStatus, CourseMeeting } from "./learning.ts";
 import { ImportedDocKind, LectureMention, LectureSourceId, PdfTranslationSkip, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
@@ -49,7 +49,8 @@ export const IpcChannels = {
   'chat.showOutput': { request: z.object({ appSessionId: TerminalId, id: ChatOutput.shape.id, how: z.enum(["open", "reveal"]) }), response: z.object({}) },
   'chat.open': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   'chat.state': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
-  'chat.send': { request: z.object({ appSessionId: TerminalId, requestId: TerminalId, text: z.string().trim().min(1).max(100000) }), response: ConversationState },
+  /** `viewing` (WBS-082): what the user has open, so the course chat looks at that week's material first. */
+  'chat.send': { request: z.object({ appSessionId: TerminalId, requestId: TerminalId, text: z.string().trim().min(1).max(100000), viewing: z.object({ week: z.string().max(200).optional(), title: z.string().max(300).optional(), page: z.number().int().positive().optional() }).optional() }), response: ConversationState },
   'chat.configure': { request: z.object({ appSessionId: TerminalId, model: z.string().max(200).optional(), effort: z.string().max(30).optional(), mode: z.string().max(30).optional() }), response: ConversationState },
   'chat.answer': { request: z.object({ appSessionId: TerminalId, permissionId: TerminalId, allow: z.boolean(), answers: z.record(z.string(), z.string()).optional() }), response: ConversationState },
   'chat.interrupt': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
@@ -163,6 +164,16 @@ export const IpcChannels = {
     response: z.object({ bytes: z.instanceof(Uint8Array), pages: z.array(z.number().int().positive()), skipped: z.array(PdfTranslationSkip), untranslated: z.number().int().nonnegative(), stopped: z.boolean() }),
   },
   "library.cancelPdfTranslation": { request: z.object({}), response: z.object({}) },
+  /** WBS-082: the course's summary file (course.md) made by Claude Code on request; `stale` when material changed since. */
+  "course.knowledge": {
+    request: z.object({ courseId: Id }),
+    response: z.object({ markdown: z.string().optional(), generatedAt: z.string().optional(), stale: z.boolean(), meetings: z.array(CourseMeeting), running: z.boolean() }),
+  },
+  "course.makeKnowledge": {
+    request: z.object({ courseId: Id }),
+    response: z.object({ markdown: z.string().optional(), generatedAt: z.string().optional(), stale: z.boolean(), meetings: z.array(CourseMeeting), running: z.boolean() }),
+  },
+  "course.cancelKnowledge": { request: z.object({ courseId: Id }), response: z.object({}) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),

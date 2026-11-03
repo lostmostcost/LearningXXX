@@ -84,6 +84,9 @@ const CanvasAnnouncement = z.object({
   attachments: z.array(CanvasFile.partial({ size: true }).extend({ size: z.number().int().nonnegative() })).optional(),
 });
 
+/** WBS-082: only the syllabus field of the course object. */
+const CanvasSyllabus = z.object({ syllabus_body: z.string().nullish() });
+
 export interface ResourceCollectionInput {
   client: CanvasClient;
   store: AssetStore;
@@ -277,6 +280,24 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
         });
         if (!done) keepPrevious(id);
       }
+    }
+  }
+
+  // 2b. WBS-082: the course syllabus Canvas keeps (read only), as a course-level notice, so it can be
+  // read in the app and by the course chat. Its time moves only when its text changes.
+  const syllabusId = stableId("resource", course.id, "notice", "syllabus");
+  // Optional extra: a course that hides it, or a failed read, keeps the previous copy without marking the run partial.
+  let rawCourse: unknown;
+  try { rawCourse = await withRetry(() => client.getObject(`/api/v1/courses/${cid}?include[]=syllabus_body`), retry); }
+  catch (error) { if (!(error instanceof CollectionError) || error.appError.code === "AUTH_REQUIRED") throw error; }
+  if (rawCourse === undefined) keepPrevious(syllabusId);
+  else {
+    const html = CanvasSyllabus.safeParse(rawCourse).data?.syllabus_body ?? undefined;
+    const text = body(html ?? undefined).body;
+    if (text && text.replace(/<[^>]+>/g, "").trim()) {
+      const prev = prevItems.get(syllabusId);
+      const updatedAt = prev?.body === text ? prev.resource.updatedAt : utc(now());
+      items.set(syllabusId, withRevision({ resource: resource("notice", "syllabus", { title: "강의계획서 (LMS)", url: `${client.origin}/courses/${cid}/assignments/syllabus`, updatedAt }), assets: [], body: text }, prev));
     }
   }
 

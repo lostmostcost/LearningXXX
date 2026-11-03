@@ -33,7 +33,7 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     'chat.rewind': ({ appSessionId, messageId, preview }) => chat().rewind(appSessionId, messageId, preview),
     'chat.open': ({ appSessionId }) => chat().open(appSessionId),
     'chat.state': async ({ appSessionId }) => chat().state(appSessionId),
-    'chat.send': ({ appSessionId, text, requestId }) => chat().send(appSessionId, text, requestId),
+    'chat.send': ({ appSessionId, text, requestId, viewing }) => chat().send(appSessionId, text, requestId, viewing),
     'chat.configure': ({ appSessionId, ...change }) => chat().configure(appSessionId, change),
     'chat.answer': async ({ appSessionId, permissionId, allow, answers }) => chat().answer(appSessionId, permissionId, allow, answers),
     'chat.interrupt': ({ appSessionId }) => chat().interrupt(appSessionId),

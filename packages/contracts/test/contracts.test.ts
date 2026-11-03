@@ -120,6 +120,7 @@ describe("producer → consumer round trip", () => {
       "credentials.saveCanvasToken": { token: "synthetic-canvas-token" },
       "credentials.clear": { which: "school" },
       "library.asset": { courseId: sid, assetId: crypto.randomUUID() },
+      "course.knowledge": { courseId: sid }, "course.makeKnowledge": { courseId: sid }, "course.cancelKnowledge": { courseId: sid },
       "library.pdfTranslation": { courseId: sid, assetId: sid, language: "ko" },
       "library.translatePdf": { courseId: sid, assetId: sid, language: "en", from: 1, to: 3 },
       "library.cancelPdfTranslation": {},

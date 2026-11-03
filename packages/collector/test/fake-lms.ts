@@ -38,6 +38,8 @@ export function lms() {
       { id: 7002, name: "퀴즈 1", due_at: "2026-11-10T23:59:00", html_url: `${BASE}/courses/1001/assignments/7002`, updated_at: "2026-10-04T00:00:00Z", quiz_id: 8001 },
       { id: 7003, name: "기말 보고서", due_at: null, html_url: "http://insecure.example.test/a", updated_at: "2026-10-04T00:00:00Z" },
     ] as Record<string, unknown>[],
+    /** WBS-082: the course syllabus HTML; null when the course has none. */
+    syllabus: null as string | null,
     failing: new Set<string>(),
     /** path → remaining failures before it starts answering (transient outage). */
     flaky: new Map<string, { left: number; status: number; headers?: Record<string, string> }>(),
@@ -60,6 +62,7 @@ export function lms() {
       return file ? new Response(file.served ?? file.body) : new Response("", { status: 404 });
     }
     if (path === C) return json({ id: 1001, name: "합성 논리회로", enrollment_term_id: 77 });
+    if (path === `${C}?include[]=syllabus_body`) return json({ id: 1001, name: "합성 논리회로", enrollment_term_id: 77, syllabus_body: state.syllabus });
     if (path === `${C}/modules?per_page=100`) return json([{ id: 501, name: "1주차", position: 1 }, { id: 502, name: "2주차", position: 2 }]);
     let m = /^\/api\/v1\/courses\/1001\/modules\/(\d+)\/items\?per_page=100$/.exec(path);
     if (m) return json(state.modules.get(m[1]!) ?? []);

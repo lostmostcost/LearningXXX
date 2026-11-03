@@ -10,13 +10,17 @@ import type { CourseBinding } from './course-workspace.ts';
 export type ChatState = IpcResponse<'chat.state'>;
 export type ChatMessage = ChatState['messages'][number];
 export type ChatPermission = ChatState['permissions'][number];
+/** WBS-082: what the user has open when sending. */
+export type Viewing = { week?: string | undefined; title?: string | undefined; page?: number | undefined };
+/** One line for the course chat: look at this week's material first. */
+export const viewingLine = (v: Viewing | undefined): string => v && (v.week || v.title) ? `\n\n[지금 화면] 사용자가 보고 있는 것: ${[v.week ? `${JSON.stringify(v.week)} 주차` : '', v.title ? `자료 ${JSON.stringify(v.title)}` : '', v.page ? `${v.page}쪽` : ''].filter(Boolean).join(' · ')}. "이거", "이번 주", "지금 보는 자료" 같은 말은 이것을 뜻합니다. 이 주차 폴더의 자료·전사·정리본을 먼저 참고하세요.` : '';
 class Inputs {
   items: SDKUserMessage[] = []; wake?: () => void; ended = false;
   push(value: SDKUserMessage) { this.items.push(value); this.wake?.(); }
   close() { this.ended = true; this.wake?.(); }
   async *stream() { while (!this.ended) { const item = this.items.shift(); if (item) yield item; else await new Promise<void>(resolve => { this.wake = resolve; }); } }
 }
-interface Entry { state: ChatState; q: Query; input: Inputs; cwd: string; course?: CourseBinding | undefined; current?: ChatMessage | undefined; partial: string; replies: Map<string, (answer: PermissionResult) => void>; task: Promise<void>; closed: boolean; updating: boolean }
+interface Entry { state: ChatState; q: Query; input: Inputs; cwd: string; course?: CourseBinding | undefined; current?: ChatMessage | undefined; partial: string; replies: Map<string, (answer: PermissionResult) => void>; task: Promise<void>; closed: boolean; updating: boolean; viewing?: Viewing | undefined }
 export interface ConversationOptions {
   root: string; getSession: (id: string) => Session; rename: (id: string, title: string) => void;
   nativeActive: (id: string) => boolean; env?: NodeJS.ProcessEnv;
@@ -117,7 +121,7 @@ export class ConversationService {
       // runs of current Claude Code), so a conversation always reopens with its own session.
       hooks: { UserPromptSubmit: [{ hooks: [async info => {
         this.#remember(cwd, state, info.session_id, info.transcript_path);
-        return entry.course ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: entry.course.brief } } : {};
+        return entry.course ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: entry.course.brief + viewingLine(entry.viewing) } } : {};
       }] }], SessionStart: [{ hooks: [async info => {
         if (info.hook_event_name === 'SessionStart') this.#remember(cwd, state, info.session_id, info.transcript_path);
         return {};
@@ -206,7 +210,7 @@ export class ConversationService {
     try { return { cwd, messages: ConversationState.shape.messages.parse(JSON.parse(readFileSync(join(cwd, '.chat-ui.json'), 'utf8')).messages) }; }
     catch { return { cwd, messages: [] }; }
   }
-  async send(id: string, text: string, requestId: string) {
+  async send(id: string, text: string, requestId: string, viewing?: Viewing) {
     const e = this.#entry(id); if (e.state.messages.some(m => m.role === 'user' && m.id === requestId)) return this.state(id);
     if (!e.state.connected) fail('대화를 다시 연결하세요.');
     if (e.state.busy || e.updating) fail('진행 중인 작업이 끝난 뒤 보내세요.');
@@ -217,6 +221,7 @@ export class ConversationService {
       e.course = await this.#o.prepareCourse?.(id, e.cwd);
       if (e.closed || !e.state.connected || this.#stopped || this.#o.nativeActive(id)) fail('연결 상태가 바뀌었습니다. 다시 연결하세요.');
       e.state.error = ''; e.state.busy = true; e.current = undefined; e.partial = '';
+      e.viewing = viewing;
       this.#message(e, 'user', text).id = requestId; this.#save(e);
       e.input.push({ type: 'user', uuid: requestId as NonNullable<SDKUserMessage["uuid"]>, session_id: e.state.sessionId, parent_tool_use_id: null, message: { role: 'user', content: text } });
       return this.state(id);

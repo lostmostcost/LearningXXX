@@ -40,7 +40,7 @@ export function createHeygenNarrator({ apiKey, voiceId, language = 'ko', fetchIm
       const response = await fetchImpl('https://api.heygen.com/v3/voices/speech', {
         method: 'POST', redirect: 'error', signal: requestSignal,
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
-        body: JSON.stringify({ text, voice_id: voiceId, language, speed: 1 }),
+        body: JSON.stringify({ text, voice_id: voiceId, engine: 'starfish', language, speed: 1 }),
       });
       requireThat(response.ok, `VOICE_HTTP_${response.status}`, `HeyGen TTS request failed (HTTP ${response.status}); no automatic retry`);
       let payload;

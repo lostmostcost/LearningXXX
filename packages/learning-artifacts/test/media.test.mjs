@@ -10,7 +10,7 @@ test('HeyGen direct API sends only narration and no credentials to CDN', async (
   const talk = configured(async (url, init) => { calls.push({ url: String(url), init }); return calls.length === 1 ? Response.json({ data: { audio_url: 'https://resource.heygen.ai/audio.mp3' } }) : new Response(Buffer.alloc(40), { headers: { 'content-type': 'audio/mpeg' } }); });
   const output = await talk({ text: '합성 대본', signal: signal() });
   assert.equal(output.bytes.length, 40); assert.equal(calls.length, 2);
-  assert.deepEqual(JSON.parse(calls[0].init.body), { text: '합성 대본', voice_id: 'starfish-test', language: 'ko', speed: 1 });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { text: '합성 대본', voice_id: 'starfish-test', engine: 'starfish', language: 'ko', speed: 1 });
   assert.equal(calls[1].init.headers, undefined); assert.equal(calls[1].init.redirect, 'error');
 });
 test('missing credentials and pre-abort make no network call', async () => {

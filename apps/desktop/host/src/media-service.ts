@@ -97,7 +97,8 @@ export class MediaService {
         input.signal.throwIfAborted();
         return this.#o.engine.transcribe(input);
       } };
-      p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), ...(this.#o.contextFor ? { contextFor: this.#o.contextFor } : {}) });
+      // A short lease: after a crash the interrupted job runs again within about a minute.
+      p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), leaseMs: 60_000, ...(this.#o.contextFor ? { contextFor: this.#o.contextFor } : {}) });
       for (const d of catalog.downloads) if (d.status === "running" || d.status === "queued") { d.status = "failed"; d.errorCode = "RUN_INTERRUPTED"; }
       await this.#save(p);
       if (this.#closing) fail("SCOPE_VIOLATION", "앱이 종료 중입니다.");

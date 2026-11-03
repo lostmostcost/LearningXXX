@@ -76,3 +76,12 @@ export const CourseLearningStatus = z.object({
   errors: z.array(AppError),
 });
 export type CourseLearningStatus = z.infer<typeof CourseLearningStatus>;
+
+/** WBS-082/085: one weekly class meeting as a syllabus states it (Seoul time). */
+export const CourseMeeting = z.object({
+  day: z.enum(["월", "화", "수", "목", "금", "토", "일"]),
+  start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  place: z.string().max(100).optional(),
+}).refine((m) => m.start < m.end, { message: "end after start" });
+export type CourseMeeting = z.infer<typeof CourseMeeting>;

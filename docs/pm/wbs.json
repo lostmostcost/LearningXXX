@@ -2467,11 +2467,15 @@
         "REQ-009"
       ],
       "acceptance": "과목마다 수업계획서·주차별 자료 목록·전사 요약을 담은 course.md를 AI(공식 Claude Code)가 만들고 갱신한다. 과목 채팅은 course.md와 지금 보고 있는 주차의 자료를 함께 읽는다. 수업계획서는 LMS에서 읽기 전용으로 수집.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-082-course-knowledge",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd8115bc55da70fdf07b5e?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log. 후속: LearningX '파일' 형식 강의계획서 2건이 수집 목록에 없음(형식/공개 상태 조사 필요).",
+      "review_evidence": [
+        "Collector: syllabus read-only via GET /courses/:id?include[]=syllabus_body, kept as course notice '강의계획서 (LMS)' (sourceId syllabus), time/revision move only when text changes; review finding fixed: a failed/hidden syllabus would mark every run partial → optional, keeps previous copy, login expiry still stops the run. Collector 85 pass (2 new). Host course-knowledge.ts: prompt from syllabus notices + syllabus/orientation PDFs (text) + week material list with deadlines + transcript excerpts (2.5k each, 45k total) + notices/mentions; answer parsed into Markdown and validated meeting times (JSON block, for WBS-085); saved per account+course, stale when sources change (fixed: body text hashed, not only revisions), account re-checked before saving, one run per course, cancel. Chat: COURSE.md in the course snapshot (fingerprint includes it) + brief line to read it first; chat.send `viewing` (week/material/page) appended to the course hook context. Host 233 pass (5 new), ui 128, contracts typecheck.",
+        "In app (AI, env -i, CDP): new collection ran with the syllabus step — all 6 courses have empty Canvas syllabus (KHU puts 강의계획서 in LearningX files, two of which are not in the manifest → follow-up); orientation PDF used instead. course.md for 데이터베이스 made by real Claude Code in 82 s (9.9 KB, exam dates/rules quoted, missing items '자료에 없음', no meeting times in sources). 과목 정리 view renders it. Course chat (Haiku 5.5, low) asked what is open → '4주차 · LAB2-sql_2(Restricting and Sorting Data) · 3쪽' (correct). Test chat archived afterwards."
+      ]
     },
     {
       "id": "WBS-083",

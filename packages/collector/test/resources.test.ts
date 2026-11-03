@@ -254,3 +254,33 @@ describe("removal and login expiry", () => {
     assert.notEqual(stableId("resource", other, "file", "9001"), resId("file", "9001"));
   });
 });
+
+describe("WBS-082 syllabus", () => {
+  test("the LMS syllabus is kept as a course notice whose revision moves only with its text", async () => {
+    const { run, state } = setup();
+    assert.equal(item(await run(), "notice", "syllabus"), undefined, "no syllabus, no item");
+    state.syllabus = "<p>평가: 중간 30%, 기말 40%</p><p>수업: 월 10:30-12:00</p>";
+    const first = await run();
+    const s1 = item(first, "notice", "syllabus")!;
+    assert.equal(s1.resource.title, "강의계획서 (LMS)");
+    assert.equal(s1.resource.weekId, undefined);
+    assert.match(s1.body!, /중간 30%/);
+    assert.equal(s1.resource.sourceUrl, `${BASE}/courses/1001/assignments/syllabus`);
+    manifest(first);
+    const same = item(await run(manifest(first)), "notice", "syllabus")!;
+    assert.equal(same.resource.revision, s1.resource.revision);
+    state.syllabus = "<p>평가: 중간 35%</p>";
+    const changed = item(await run(manifest(first)), "notice", "syllabus")!;
+    assert.equal(changed.resource.revision, s1.resource.revision + 1);
+  });
+
+  test("a failed syllabus read keeps the previous one without making the run partial", async () => {
+    const { run, state } = setup();
+    state.syllabus = "<p>계획</p>";
+    const first = await run();
+    state.failing.add(`${C}?include[]=syllabus_body`);
+    const again = await run(manifest(first));
+    assert.equal(item(again, "notice", "syllabus")?.body, "<p>계획</p>");
+    assert.deepEqual(again.errors, []);
+  });
+});

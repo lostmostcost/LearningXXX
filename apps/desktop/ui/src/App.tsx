@@ -6,6 +6,7 @@ import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } 
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import { RichChatPanel } from "./RichChatPanel.tsx";
+import { CourseKnowledge } from "./CourseKnowledge.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
@@ -75,6 +76,8 @@ export function App() {
   const [section,setSection]=useState("book");
   const [rightTab, setRightTab] = useState<"chat" | "recording" | "transcripts">("chat");
   const [weekIndex,setWeekIndex]=useState(0);
+  // WBS-082: the course summary (course.md) open in the viewer instead of a material.
+  const [knowledgeOpen,setKnowledgeOpen]=useState(false);
   const [tray,setTray]=useState(false);
   const [trayDismissed, setTrayDismissed] = useState(false);
   const courseEpoch=useRef(0);
@@ -112,7 +115,7 @@ export function App() {
     document.addEventListener('mousedown',outside);document.addEventListener('keydown',escape);
     return()=>{document.removeEventListener('mousedown',outside);document.removeEventListener('keydown',escape);};
   },[drawer]);
-  const selectEntry=(entry:Entry)=>{setPlaying(undefined);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
+  const selectEntry=(entry:Entry)=>{setPlaying(undefined);setKnowledgeOpen(false);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
@@ -166,6 +169,14 @@ export function App() {
   useEffect(() => {
     if (shownPdf && canRecordView(selectedItem, new Date())) void recordView(selectedItem.moduleItemId);
   }, [shownPdf, selectedItem, recordView]);
+  // WBS-082: what is open, sent with each chat message so "이번 주"·"이 자료" mean this.
+  const viewing = useMemo(() => {
+    if (!library) return undefined;
+    const week = (selected?.resource.weekId ? library.weeks.find((w) => w.week.id === selected.resource.weekId) : weekIndex >= 0 ? library.weeks[weekIndex] : undefined)?.week.label;
+    const title = knowledgeOpen ? "과목 정리 (course.md)" : selected?.resource.title;
+    const page = !knowledgeOpen && shownPage && selected?.assets.some((a) => a.id === shownPage.assetId) ? shownPage.page : undefined;
+    return week || title ? { ...(week ? { week } : {}), ...(title ? { title } : {}), ...(page ? { page } : {}) } : undefined;
+  }, [library, selected, weekIndex, knowledgeOpen, shownPage]);
   const panels = visiblePanels(narrow, view);
   const weekList = useMemo(() => library?.weeks.map((w) => w.week) ?? [], [library]);
 
@@ -344,7 +355,7 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} />:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
+            {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 정리 (course.md)</button><LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
                 // WBS-075: by week, closed by default; to-do and submitted apart.
                 ?<TaskSidebar library={library} status={learning.status} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
                 :entriesOf(library).filter(e=>e.resource.kind==='notice').map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
@@ -362,7 +373,7 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
+          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : <Viewer entry={selected} lms={selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />
         ))}
         {panel("chat", "학습 도구", <>
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {
@@ -376,7 +387,7 @@ export function App() {
             {([['chat', '채팅'], ['recording', '녹음'], ['transcripts', '전사']] as const).map(([id, label]) => <button key={id} id={`tool-${id}`} role="tab" tabIndex={rightTab === id ? 0 : -1} aria-selected={rightTab === id} aria-controls={id === "chat" ? "tool-panel-chat" : "tool-panel-media"} onClick={() => setRightTab(id)}><Icon name={id === 'chat' ? 'chat' : id === 'recording' ? 'mic' : 'file'} />{label}{id === 'recording' ? recLight : null}</button>)}
           </div>
           <div className="tool-pane" id="tool-panel-chat" role="tabpanel" aria-labelledby="tool-chat" hidden={rightTab !== 'chat'}>
-            {window.host ? <RichChatPanel selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
+            {window.host ? <RichChatPanel viewing={viewing} selectedAssets={selected?.assets.map(a => ({ id: a.id, name: a.originalName })) ?? []} courseId={library?.course.id} courseTitle={library?.course.title} activeId={activeSessionId} onActiveId={setActiveSessionId} selectionRequest={selectionRequest} onSelectionUsed={selectionUsed} /> : <p className="empty-tool">앱 안에서 실행하면 채팅할 수 있습니다.</p>}
           </div>
           <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat"}>
             {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState}

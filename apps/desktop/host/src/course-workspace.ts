@@ -17,6 +17,8 @@ interface WorkspaceOptions {
   root: string; sessionsRoot: string; source: Source; getSession(id: string): Session;
   /** WBS-078: the course's lecture transcripts, notes, assignment and notice text by week. */
   notes?: (courseId: string) => Promise<WeekNote[]>;
+  /** WBS-082: the course summary file (course.md), when one was made. */
+  knowledge?: (courseId: string) => Promise<string | undefined>;
 }
 const hash = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 // Bump the format when exported files or bootstrap instructions change after release.
@@ -81,8 +83,9 @@ export class CourseWorkspaceService {
       if (lstatSync(outputs).isSymbolicLink() || !lstatSync(outputs).isDirectory()) fail('outputs 폴더의 위치가 바뀌었습니다.');
     } else mkdirSync(outputs);
     const notes = await this.#o.notes?.(courseId).catch(() => [] as WeekNote[]) ?? [];
+    const knowledge = await this.#o.knowledge?.(courseId).catch(() => undefined);
     this.#assert(id, courseId, account);
-    const fingerprint = hash(viewFingerprint(manifest) + noteFingerprint(notes)), receiptFile = join(folder, 'current.json');
+    const fingerprint = hash(viewFingerprint(manifest) + noteFingerprint(notes) + (knowledge ? hash(knowledge) : '')), receiptFile = join(folder, 'current.json');
     let receipt: Receipt | undefined;
     try {
       const stored = JSON.parse(readFileSync(receiptFile, 'utf8')) as Receipt;
@@ -132,6 +135,7 @@ export class CourseWorkspaceService {
       writeFileSync(join(snapshot, 'catalog.json'), JSON.stringify(catalog, null, 2), { mode: 0o444 });
       writeFileSync(join(snapshot, 'INDEX.md'), index, { mode: 0o444 });
       writeFileSync(join(snapshot, 'BOOTSTRAP.md'), brief, { mode: 0o444 });
+      if (knowledge) writeFileSync(join(snapshot, 'COURSE.md'), knowledge.slice(0, 300_000), { mode: 0o444 });
       const seal = (path: string) => { for (const name of readdirSync(path)) { const child = join(path, name), stat = lstatSync(child); if (stat.isSymbolicLink()) fail('과목 사본에 링크가 포함됐습니다.'); if (stat.isDirectory()) seal(child); else if (stat.isFile()) chmodSync(child, 0o444); else fail('지원하지 않는 사본 형식입니다.'); } chmodSync(path, 0o555); };
       seal(snapshot);
       receipt = { fingerprint, snapshot: snapshotId, files: this.#files(snapshot) };
@@ -149,7 +153,7 @@ export class CourseWorkspaceService {
     return [
       '[LearningXXX 과목 연결 · 앱이 제공한 기본 문맥]',
       `이 대화의 고정 과목: ${JSON.stringify(manifest.course.title)} · 학기 ${JSON.stringify(manifest.course.termId)} · LMS ${JSON.stringify(manifest.course.sourceCourseId)}.`,
-      `수업 관련 질문은 이 과목을 기준으로 해석하세요. 수집된 로컬 자료의 목록: ${join(cwd, 'course', 'INDEX.md')}. 상세 목록: ${join(cwd, 'course', 'catalog.json')}.`,
+      `과목 전체 요약(강의계획서·평가·일정·주차별 내용)이 ${join(cwd, 'course', 'COURSE.md')}에 있으면 먼저 읽으세요(없으면 건너뜀). 수업 관련 질문은 이 과목을 기준으로 해석하세요. 수집된 로컬 자료의 목록: ${join(cwd, 'course', 'INDEX.md')}. 상세 목록: ${join(cwd, 'course', 'catalog.json')}.`,
       `${version ? `현재 수집 버전 ${manifest.revision} · ${manifest.generatedAt}. ` : '최신 수집 버전은 질문 제출 때 갱신되는 INDEX.md에서 확인하세요. '}자료 질문은 먼저 현재 INDEX.md를 확인하세요. 버전이 달라졌다면 이전 메시지의 파일 경로/내용을 재사용하지 말고 최신 목록에서 찾으세요. 주차는 실제 label로 확인하고 PDF의 .txt를 먼저 읽으세요. 그림/표는 필요하면 PDF도 확인하고 파일명과 쪽으로 근거를 표시하세요.`,
       '주차 질문(예: "7주차 강의 요약")은 그 주차 폴더의 PDF만이 아니라 같은 폴더의 [녹음 전사]·[정리본]·[과제]·[공지]·[강의에서 언급된 과제·시험] 파일도 읽고 답하세요. PDF가 없어도 녹음 전사가 있으면 그것으로 요약하고, 전사의 시각([mm:ss])을 근거로 표시하세요. 그 주차에 아무 자료도 없을 때만 없다고 말하세요.',
       `이미 수집된 파일은 인터넷/Chrome/Notion 없이 읽을 수 있습니다. 필요한 자료가 없을 때만 수집/첨부를 안내하세요. 과목을 다시 묻거나 강의계획만으로 실제 자료 요약을 대신하지 마세요.`,

@@ -37,6 +37,8 @@ import { LearningStatusService, lectureVideos, summarizeLearning } from "./learn
 import { RecordingService } from "./recording-service.ts";
 import { AudioImporter } from "./audio-import.ts";
 import { ChatOutputs } from "./chat-outputs.ts";
+import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
+import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { Preferences } from "./preferences.ts";
@@ -336,7 +338,26 @@ app.whenReady().then(async () => {
       mentions: (await media.mentions(courseId).catch(() => undefined))?.mentions,
     });
   };
-  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor });
+  // WBS-082: course.md, made on request from the syllabus, the material list and the transcripts.
+  const knowledge = new CourseKnowledgeService({
+    root: join(dataRoot, 'course-knowledge'), accountKey: () => library.accountKey(),
+    sources: async (courseId) => {
+      const manifest = await library.manifest(courseId);
+      if (!manifest) return undefined;
+      const syllabusFiles: { title: string; text: string }[] = [];
+      for (const item of manifest.items) {
+        if (syllabusFiles.length >= 3) break;
+        for (const asset of item.assets) {
+          if (asset.mediaType !== 'application/pdf' || !(SYLLABUS_TITLE.test(item.resource.title) || SYLLABUS_TITLE.test(asset.originalName))) continue;
+          const pages = await library.asset({ courseId, assetId: asset.id }).then((a) => pdfPageTexts(a.bytes)).catch(() => undefined);
+          if (pages?.some((p) => p.trim())) syllabusFiles.push({ title: asset.originalName, text: pages.slice(0, 15).join('\n\n') });
+        }
+      }
+      return { manifest, notes: await notesFor(courseId), syllabusFiles };
+    },
+    write: ({ prompt, signal }) => claudeText({ prompt, what: '과목 정리 파일 만들기', signal }),
+  });
+  const courseWorkspaces = new CourseWorkspaceService({ root: join(dataRoot, 'course-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), source: library, getSession: id => sessions.get(id), notes: notesFor, knowledge: (courseId) => knowledge.markdown(courseId) });
   const prepareCourse = (id: string, cwd: string) => courseWorkspaces.prepare(id, cwd);
   conversations = new ConversationService({ prepareCourse, root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
@@ -391,6 +412,10 @@ app.whenReady().then(async () => {
     "chat.outputs": ({ appSessionId }) => chatOutputs.list(appSessionId),
     "chat.readOutput": ({ appSessionId, id }) => chatOutputs.read(appSessionId, id),
     "chat.showOutput": ({ appSessionId, id, how }) => chatOutputs.show(appSessionId, id, how),
+    // WBS-082: the course summary file.
+    "course.knowledge": ({ courseId }) => knowledge.get(courseId),
+    "course.makeKnowledge": ({ courseId }) => knowledge.make(courseId),
+    "course.cancelKnowledge": async ({ courseId }) => { knowledge.cancel(courseId); return {}; },
     // WBS-072: translated copies of collected PDFs.
     "library.pdfTranslation": ({ courseId, assetId, language }) => pdfTranslations.get(courseId, assetId, language),
     "library.translatePdf": ({ courseId, assetId, language, from, to }) => pdfTranslations.make(courseId, assetId, language, from, to),

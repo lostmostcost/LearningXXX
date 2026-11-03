@@ -17,9 +17,11 @@ type Note = { title: string; text: string; settings?: 'screen' | undefined };
 type Rewind = { id: string; result: IpcResponse<'chat.rewind'> };
 
 /** Session IDs are captured before every async action; switching views never retargets a send. */
-export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed }: {
+export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing }: {
   courseId: string | undefined; courseTitle: string | undefined; activeId: string | undefined; onActiveId: (id: string) => void;
   selectedAssets: { id: string; name: string }[]; selectionRequest: SelectionRequest | undefined; onSelectionUsed: (id: string) => void;
+  /** WBS-082: what is open in the viewer, sent with each message. */
+  viewing?: { week?: string; title?: string; page?: number } | undefined;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [snapshot, setSnapshot] = useState<{ id: string; state: State }>();
@@ -166,7 +168,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       }
       const key = JSON.stringify(content);
       if (requests.current.get(id)?.key !== key) requests.current.set(id, { key, requestId: crypto.randomUUID() });
-      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n') });
+      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n'), ...(viewing ? { viewing } : {}) });
       if (r.ok) { requests.current.delete(id); accept(id, r.data); setDraft(id, old => ({ text: old.text === draft.text ? '' : old.text, attachments: old.attachments.filter(a => !content.attachments.some(b => b.id === a.id)) })); nearBottom.current = true; }
       else tell(id, '전송 실패', r.error.message);
     });

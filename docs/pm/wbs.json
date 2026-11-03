@@ -1592,7 +1592,8 @@
       "scope_note": "CR-053 사용자 승인. ui/host/transcriber/shared 선점 내 변경, 선행 main855241b. 녹음·전사 정리와 앱 전용 엔진 준비·복구. 원본/기존 전사 보존.",
       "review_evidence": [
         "Backend stage: stt-runtime/main/handlers/preload/media-service and Python setup reviewed with callers. Fixed missing runtime diagnosis, swallowed warmup errors, restricted GUI sysctl path, snapshot readiness incorrectly requiring README, setup/shutdown race, repair during active transcription and installer descendant cleanup. Runtime/media targeted tests pass; actual setup and synthetic Korean Qwen transcription pass (19 timed words).",
-        "UI stage: App/RecordingPanel/MediaLibrary/TranscriptPanel and styles reviewed. Fixed duplicate lists/narrow nested columns, asset object polling restarting playback, swallowed retry errors, capture setup cleanup and late chunk responses affecting a newer capture. Browser fixture verified prepare-to-ready, timestamp playback, stable audio URL across polling and three tool tabs. Microphone/human lecture QA not claimed."
+        "UI stage: App/RecordingPanel/MediaLibrary/TranscriptPanel and styles reviewed. Fixed duplicate lists/narrow nested columns, asset object polling restarting playback, swallowed retry errors, capture setup cleanup and late chunk responses affecting a newer capture. Browser fixture verified prepare-to-ready, timestamp playback, stable audio URL across polling and three tool tabs. Microphone/human lecture QA not claimed.",
+        "Final integration review against main855241b: discovered ForcedAligner constructor is lazy, so first install would omit timestamp weights despite a pre-existing-cache test succeeding. Fixed by aligning synthetic silence during preparation; cold-cache regression and real Mac setup pass. Re-reviewed setup errors, process-group cancel and current-engine retry/account checks. No credentials/audio/private course data added."
       ]
     }
   ],

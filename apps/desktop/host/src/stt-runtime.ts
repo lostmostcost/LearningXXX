@@ -7,6 +7,7 @@ import { EngineError } from '@learningxxx/transcriber';
 import type { IpcResponse } from '@learningxxx/contracts';
 type Status = IpcResponse<'stt.status'>;
 interface Options { root: string; source: string; model: string; supported?: boolean; onReady?: () => Promise<void>; probe?: () => Promise<boolean>; install?: (signal: AbortSignal, stage: (value: string) => void) => Promise<void> }
+const setupErrors: Record<string, string> = { python: 'Python 실행 환경이 없습니다. 터미널에서 brew install uv 후 엔진을 다시 준비해 주세요.' };
 const stages: Record<string, string> = { environment: '실행 환경 준비 중', dependencies: '전사 프로그램 설치 중', models: '음성 모델 준비 중 · 처음에는 시간이 걸립니다', verify: '전사 엔진 확인 중' };
 export class SttRuntimeService {
   #o: Options; #state: Status = { state: 'missing', message: '전사 엔진을 준비해 주세요.' }; #checked = 0;
@@ -56,7 +57,7 @@ export class SttRuntimeService {
         if (!await (this.#o.probe?.() ?? this.#probe())) throw new Error('Not ready');
         abort.signal.throwIfAborted(); this.#state = { state: 'ready', message: '전사 엔진이 준비됐습니다. 대기 중인 전사를 다시 시작합니다.' }; this.#checked = Date.now();
         await this.#o.onReady?.().catch(() => undefined);
-      } catch { this.#state = { state: 'failed', message: abort.signal.aborted ? '엔진 준비를 중단했습니다. 다시 준비할 수 있습니다.' : '엔진 준비에 실패했습니다. 네트워크와 저장 공간을 확인한 뒤 다시 시도해 주세요.' }; this.#checked = Date.now(); }
+      } catch (error) { const reason = (error as { setupReason?: string })?.setupReason; this.#state = { state: 'failed', message: abort.signal.aborted ? '엔진 준비를 중단했습니다. 다시 준비할 수 있습니다.' : (reason ? setupErrors[reason] : undefined) ?? '엔진 준비에 실패했습니다. 네트워크와 저장 공간을 확인한 뒤 다시 시도해 주세요.' }; this.#checked = Date.now(); }
     })();
     this.#installTask = work;
     void work.finally(() => { if (this.#installTask === work) { this.#installTask = undefined; this.#abort = undefined; } });
@@ -65,13 +66,14 @@ export class SttRuntimeService {
   #install(signal: AbortSignal, stage: (value: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn('/bin/sh', [join(this.#o.source, 'setup.sh'), this.#o.root, this.#o.model], { env: this.#env(), stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      let failureReason: string | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const abort = () => { try { if (child.pid) process.kill(-child.pid, 'SIGTERM'); } catch {} timer = setTimeout(() => { try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch {} }, 1000); };
       signal.addEventListener('abort', abort, { once: true });
-      createInterface({ input: child.stdout }).on('line', line => { if (line.startsWith('STT_STAGE:')) stage(line.slice(10)); });
+      createInterface({ input: child.stdout }).on('line', line => { if (line.startsWith('STT_STAGE:')) stage(line.slice(10)); if (line.startsWith('STT_ERROR:') && setupErrors[line.slice(10)]) failureReason = line.slice(10); });
       child.stderr.resume();
       child.on('error', reject);
-      child.on('close', code => { if (signal.aborted && child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} } clearTimeout(timer); signal.removeEventListener('abort', abort); if (code === 0 && !signal.aborted) resolve(); else reject(new Error('Setup failed')); });
+      child.on('close', code => { if (signal.aborted && child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} } clearTimeout(timer); signal.removeEventListener('abort', abort); if (code === 0 && !signal.aborted) resolve(); else reject(Object.assign(new Error('Setup failed'), { setupReason: failureReason })); });
       if (signal.aborted) abort();
     });
   }

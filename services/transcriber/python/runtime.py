@@ -42,6 +42,10 @@ def main():
             model = engine.load_model(args.model)
             del model
             aligner = engine.ForcedAligner("Qwen/Qwen3-ForcedAligner-0.6B")
+            # The public constructor is lazy: actually align synthetic silence so
+            # a first install fetches/loads its weights before declaring ready.
+            import numpy as np
+            aligner.align(np.zeros(16000, dtype=np.float32), "테스트", "Korean")
             del aligner
         cached_model(args.model)
         cached_model("Qwen/Qwen3-ForcedAligner-0.6B")

@@ -15,7 +15,7 @@ if [ ! -x "$DIR/.venv/bin/python" ]; then
     uv venv -q --python 3.13 "$DIR/.venv"
   else
     PY="$(command -v python3.13 || command -v python3.12 || command -v python3.11 || command -v python3.10 || true)"
-    [ -n "$PY" ] || { echo "Python 3.10 이상 또는 uv가 필요합니다: brew install uv" >&2; exit 2; }
+    [ -n "$PY" ] || { echo "STT_ERROR:python"; echo "Python 3.10 이상 또는 uv가 필요합니다: brew install uv" >&2; exit 2; }
     "$PY" -m venv "$DIR/.venv"
   fi
 fi

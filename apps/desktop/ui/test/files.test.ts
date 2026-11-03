@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { RunChanges, Session } from "@learningxxx/contracts";
-import { canGrantFolders, canTrash, displayKey, hasRestorable, recordsFor, recoveryNote, restoreSummary } from "../src/files.ts";
+import { canGrantFolders, canTrash, displayKey, hasRestorable, outputSize, outputTime, recordsFor, recoveryNote, restoreSummary } from "../src/files.ts";
 
 const record = (over: Partial<RunChanges> = {}): RunChanges =>
   RunChanges.parse({
@@ -55,4 +55,12 @@ test("the recovery note states the real limit", () => {
 test("the restore result names what was skipped", () => {
   assert.equal(restoreSummary({ restored: ["a"], skipped: [] }), "1개를 되돌렸습니다.");
   assert.match(restoreSummary({ restored: [], skipped: ["notes.md"] }), /notes\.md/);
+});
+
+test("output size and time read naturally (WBS-081)", () => {
+  assert.equal(outputSize(900), "900 B");
+  assert.equal(outputSize(12 * 1024), "12 KB");
+  assert.equal(outputSize(1.4 * 1024 ** 2), "1.4 MB");
+  assert.match(outputTime("2026-11-03T18:12:00Z"), /11월 4일.*03:12/);
+  assert.equal(outputTime("nope"), "");
 });

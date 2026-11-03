@@ -25,6 +25,12 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  * validation is a convenience, not a security boundary.
  */
 const TerminalId = z.string().uuid();
+/** WBS-081: a file a conversation made (in its folder, or written elsewhere by its file tools). */
+export const ChatOutput = z.object({
+  id: z.string().regex(/^[0-9a-f]{32}$/), name: z.string(), location: z.string(), where: z.enum(["folder", "elsewhere"]),
+  bytes: z.number().int().nonnegative(), modifiedAt: z.string(), kind: z.enum(["text", "pdf", "image", "other"]), openable: z.boolean(),
+});
+export type ChatOutput = z.infer<typeof ChatOutput>;
 export const ConversationState = z.object({
   messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'assistant', 'system']), text: z.string(), tools: z.array(z.object({ id: z.string(), name: z.string(), input: z.string() })) })),
   busy: z.boolean(), connected: z.boolean(), error: z.string(), model: z.string(), effort: z.string(), mode: z.string(),
@@ -37,6 +43,10 @@ export const IpcChannels = {
   'stt.status': { request: z.object({ refresh: z.boolean().optional() }), response: SttStatus },
   'stt.prepare': { request: z.object({}), response: SttStatus },
   'stt.cancel': { request: z.object({}), response: SttStatus },
+  /** WBS-081: files the conversation made; a text one can be read in the app, any listed one shown in Finder or opened. */
+  'chat.outputs': { request: z.object({ appSessionId: TerminalId }), response: z.object({ files: z.array(ChatOutput), folder: z.string() }) },
+  'chat.readOutput': { request: z.object({ appSessionId: TerminalId, id: ChatOutput.shape.id }), response: z.object({ text: z.string() }) },
+  'chat.showOutput': { request: z.object({ appSessionId: TerminalId, id: ChatOutput.shape.id, how: z.enum(["open", "reveal"]) }), response: z.object({}) },
   'chat.open': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   'chat.state': { request: z.object({ appSessionId: TerminalId }), response: ConversationState },
   'chat.send': { request: z.object({ appSessionId: TerminalId, requestId: TerminalId, text: z.string().trim().min(1).max(100000) }), response: ConversationState },

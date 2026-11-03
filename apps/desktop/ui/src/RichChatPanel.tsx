@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { IpcResponse, PreparedAttachment, Session } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
 import { MarkdownAnswer } from './MarkdownAnswer.tsx';
+import { ChatOutputs } from './ChatOutputs.tsx';
 import { Icon } from './StudyUI.tsx';
 import type { SelectionRequest } from './selection.ts';
 import { INTENT_LABEL } from './selection.ts';
@@ -27,6 +28,8 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   const [pending, setPending] = useState<{ sessionId: string; item: PreparedAttachment }>();
   const [rewind, setRewind] = useState<{ sessionId: string; item: Rewind }>();
   const [showArchived, setShowArchived] = useState(false);
+  // WBS-081: the files panel, per conversation.
+  const [outputsFor, setOutputsFor] = useState<string>();
   const [menuOpen, setMenuOpen] = useState(false), [commandIndex, setCommandIndex] = useState(0), [commandsHidden, setCommandsHidden] = useState(false);
   const [locked, setLocked] = useState<Set<string>>(new Set()), [creating, setCreating] = useState(false);
   const requests = useRef(new Map<string, { key: string; requestId: string }>());
@@ -175,9 +178,10 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
     <div className="session-toolbar"><div className="session-menu" ref={menu}>
       <button className="session-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span>{active?.title ?? '대화 선택'}</span><Icon name="chevron" /></button>
       {menuOpen ? <div className="session-dropdown" role="menu"><button aria-pressed={showArchived} title="보관한 대화 포함" aria-label="보관한 대화 포함" onClick={() => setShowArchived(!showArchived)}><Icon name="archive" />보관한 대화</button>{sessions.filter(s => (!s.archivedAt || showArchived) && (s.mode === 'independent' || s.courseId === courseId)).map(s => <button key={s.appSessionId} role="menuitem" aria-current={s.appSessionId === activeId} onClick={async () => { if (s.archivedAt) { const r = await invoke('session.archive', { appSessionId: s.appSessionId, archived: false }); if (!r.ok) return tell(s.appSessionId, '보관 해제 실패', r.error.message); await reload(); } onActiveId(s.appSessionId); setMenuOpen(false); }}><Icon name={s.mode === 'course' ? 'book' : 'chat'} /><span>{s.title}{s.archivedAt ? " · 보관됨" : ""}</span></button>)}{!sessions.length ? <p>새 대화를 시작하세요.</p> : null}</div> : null}
-    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>
+    </div><button title="새 과목 대화" aria-label="새 과목 대화" disabled={creating} onClick={() => void create()}><Icon name="plus" /></button><button title="새 일반 대화 · 격리 없음" aria-label="새 일반 대화" disabled={creating} onClick={() => void create(true)}><Icon name="independent" /></button>{active ? <button title="이 대화가 만든 파일" aria-label="이 대화가 만든 파일" aria-pressed={outputsFor === active.appSessionId} onClick={() => setOutputsFor(o => (o === active.appSessionId ? undefined : active.appSessionId))}><Icon name="folder" /></button> : null}{active ? <button title="대화 보관" aria-label="대화 보관" disabled={busy || !!state?.busy} onClick={() => { const id = active.appSessionId; void action(id, async () => { const r = await invoke('session.archive', { appSessionId: id, archived: true }); if (r.ok) { await reload(); if (context.current.activeId === id) onActiveId(''); } else tell(id, '보관 실패', r.error.message); }); }}><Icon name="archive" /></button> : null}</div>
 
     {createError ? <p className="chat-error" role="alert">{createError}</p> : null}
+    {active && outputsFor === active.appSessionId ? <ChatOutputs key={active.appSessionId} appSessionId={active.appSessionId} busy={!!state?.busy} onClose={() => setOutputsFor(undefined)} /> : null}
     {<>
       <div className="conversation-scroll" ref={list} onScroll={() => { if (list.current) nearBottom.current = list.current.scrollHeight - list.current.scrollTop - list.current.clientHeight < 80; }} role="log" aria-label="대화 기록">
         {!state?.messages.length ? <div className="chat-welcome"><span className="claude-spark">✳</span><h3>함께 생각해볼까요?</h3><p>자료에 관해 묻거나, / 로 도구를 찾아보세요.</p>{!active ? <button onClick={() => void create()} disabled={creating}>대화 시작</button> : null}</div> : null}

@@ -5,6 +5,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 const CHANNELS = new Set([
   "chat.rewind",
   "chat.open",
+  "chat.outputs",
+  "chat.readOutput",
+  "chat.showOutput",
   "chat.state",
   "chat.send",
   "chat.configure",

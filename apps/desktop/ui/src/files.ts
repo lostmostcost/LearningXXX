@@ -36,3 +36,17 @@ export function restoreSummary({ restored, skipped }: { restored: string[]; skip
   const done = `${restored.length}개를 되돌렸습니다.`;
   return skipped.length ? `${done} ${skipped.length}개는 되돌리지 못했습니다: ${skipped.join(", ")}` : done;
 }
+
+/** WBS-081: "12 KB", "1.4 MB" for a file the chat made. */
+export function outputSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+/** WBS-081: when it was last written, in Seoul time ("11월 4일 03:12"). */
+export function outputTime(utc: string): string {
+  const d = new Date(utc);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+}

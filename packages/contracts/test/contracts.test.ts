@@ -100,6 +100,7 @@ describe("producer → consumer round trip", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
       'chat.rewind': { appSessionId: sid, messageId: sid, preview: true },
+      'chat.outputs': { appSessionId: sid }, 'chat.readOutput': { appSessionId: sid, id: 'a'.repeat(32) }, 'chat.showOutput': { appSessionId: sid, id: 'a'.repeat(32), how: 'reveal' },
       'chat.open': { appSessionId: sid }, 'chat.state': { appSessionId: sid },
       'chat.send': { appSessionId: sid, requestId: sid, text: 'fixture' }, 'chat.configure': { appSessionId: sid, mode: 'plan' },
       'chat.answer': { appSessionId: sid, permissionId: sid, allow: false }, 'chat.interrupt': { appSessionId: sid },

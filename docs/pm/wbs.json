@@ -2301,11 +2301,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "녹음 탭에서 녹음 파일(mp3·m4a·wav 등)을 직접 골라 주차·강의를 정해 가져오고 자동 전사된다. 학기 폴더 가져오기(WBS-066)는 대체된다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-077-import-audio-files",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd814b886be4b63a8efda4?pvs=204",
-      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준."
+      "scope_note": "CR-074 이문찬 요청(2026-11-04). 범용 대학생 기준.",
+      "review_evidence": [
+        "Measured afconvert read formats (incl. Ogg/Opus) on this Mac. Reviewed AudioImporter (file picker, extension allow-list case-insensitive, regular file, size 0/2GB limits, afinfo readability and duration, date from file name in Seoul time else mtime, paths kept in host, re-check same size at import, failures reported per file, one import at a time, status for the job queue), recording copy for all accepted formats and stored-original path pattern, registration → normal transcription, contracts (media.chooseAudio/importAudio, AUDIO_IMPORT_TYPES/AUDIO_MEDIA_TYPES; WBS-066 scan/run/status and ImportItem removed), UI import panel (title, estimated week per file, lecture, missing-week guard). Merge with WBS-076 resolved (handlers signature). Checks: host tests (choose/validate/import/changed file/stale plan/date names, real afinfo on macOS), pnpm -r run check; fixture preview: file list with estimated week and unsupported file, import notice. Real file import and transcription not run by the agent."
+      ]
     },
     {
       "id": "WBS-078",

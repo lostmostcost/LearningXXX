@@ -63,7 +63,9 @@ test("host code never reads session cookies or credentials", () => {
   const session = read("../src/lms-session.ts");
   const cookieUses = session.match(/cookies\.\w+\([^)]*\)/g) ?? [];
   // WBS-040: the saved-details sign-in reads one cookie by name (the SSO CSRF token, see school-login.ts).
-  assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.get({ url, name })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)"]);
+  // WBS-056: the LMS page's own window for the sign-in reads the same CSRF cookie by name.
+  assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.get({ url, name })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)",
+    "cookies.get({ url, name })"]);
   assert.match(session, /const LEARNINGX_TOKEN = "xn_api_token";/);
   for (const [name, source] of [["lms-session.ts", session], ["lms-probe.ts", read("../src/lms-probe.ts")]] as const) {
     assert.doesNotMatch(source, /document\.cookie|executeJavaScript|password/i, name);

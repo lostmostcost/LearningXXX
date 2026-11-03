@@ -72,4 +72,19 @@ export class CredentialService {
     if (await this.#o.signedIn()) return;
     if ((await this.#o.login(schoolId, schoolPassword)) === "rejected") this.#o.store.markSchoolRejected();
   }
+
+  /**
+   * WBS-056: the LMS web pages asked for the school sign-in although the
+   * LearningX token is still there (the web session ended when the app quit).
+   * Signs in once with the saved details, by default the same way as
+   * ensureSignedIn or through `login` (an LMS page's own window); false when
+   * none are saved, they were rejected before, or this attempt did not succeed.
+   */
+  async signInAgain(login: CredentialServiceOptions["login"] = this.#o.login): Promise<boolean> {
+    const { schoolId, schoolPassword, schoolRejected } = this.#o.store.read();
+    if (!schoolId || !schoolPassword || schoolRejected) return false;
+    const result = await login(schoolId, schoolPassword);
+    if (result === "rejected") this.#o.store.markSchoolRejected();
+    return result === "signed_in";
+  }
 }

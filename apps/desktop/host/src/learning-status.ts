@@ -160,10 +160,11 @@ export interface LearningStatusOptions {
   maxAgeMs?: number;
   /**
    * WBS-056: open the LMS item page out of sight in the sign-in session and
-   * resolve true once the LMS viewer itself has reported the view, false when
-   * it did not within the time limit. Absent, view records are not offered.
+   * resolve "recorded" once the LMS viewer itself has reported the view,
+   * "sign_in" when the LMS wants a school sign-in the app could not do, and
+   * "failed" otherwise. Absent, view records are not offered.
    */
-  openItemPage?: (page: { sourceCourseId: string; moduleItemId: string }) => Promise<boolean>;
+  openItemPage?: (page: { sourceCourseId: string; moduleItemId: string }) => Promise<"recorded" | "sign_in" | "failed">;
 }
 
 function fail(code: ErrorCode, message: string, retryable = false): never {
@@ -244,7 +245,9 @@ export class LearningStatusService {
         return open({ sourceCourseId: course.sourceCourseId, moduleItemId });
       });
       this.#viewQueue = turn.catch(() => undefined);
-      if (!(await turn)) fail("DOWNLOAD_FAILED", "LMS가 열람을 기록하지 않았습니다. 학교 로그인을 확인하고 다시 시도하세요.", true);
+      const result = await turn;
+      if (result === "sign_in") fail("AUTH_REQUIRED", "LMS 페이지가 학교 로그인을 요구합니다. 설정에서 학교 로그인을 다시 한 뒤 시도하세요.");
+      if (result !== "recorded") fail("DOWNLOAD_FAILED", "LMS가 열람을 기록하지 않았습니다. 잠시 후 다시 시도하세요.", true);
       // The account may have changed while the page was open.
       if (this.#o.accountKey() !== account) return undefined;
       return this.status(courseId, true);

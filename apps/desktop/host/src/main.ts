@@ -18,11 +18,11 @@ import { SttRuntimeService } from "./stt-runtime.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
-import { runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
+import { lmsSessionReport, runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage } from "./lms-session.ts";
-import { schoolLogin } from "./school-login.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, windowSignInPage } from "./lms-session.ts";
+import { pageSchoolLogin, schoolLogin } from "./school-login.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
 import { RunHistory } from "./run-history.ts";
@@ -59,7 +59,7 @@ function createWindow(): BrowserWindow {
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else if (!diagnostic) {
@@ -90,13 +90,15 @@ app.whenReady().then(async () => {
   const dataRoot = join(app.getPath("userData"), "data");
   let sessions: SessionService;
   let loginWindow: BrowserWindow | undefined;
+  // Sign-in steps and HTTP statuses go to the terminal (never IDs, passwords or cookie values).
+  const schoolDeps = () => schoolLoginDeps((step) => console.warn("[school-login]", step));
   const credentials = new CredentialService({
     store: new CredentialStore(join(app.getPath("userData"), "credentials.bin"), {
       available: () => safeStorage.isEncryptionAvailable(),
       encrypt: (plain) => safeStorage.encryptString(plain),
       decrypt: (data) => safeStorage.decryptString(data),
     }),
-    login: (schoolId, password) => schoolLogin(schoolLoginDeps(), schoolId, password),
+    login: (schoolId, password) => schoolLogin(schoolDeps(), schoolId, password),
     signedIn: async () => (await learningxToken()) !== undefined,
     checkCanvasToken: async (token) => {
       try {
@@ -123,6 +125,19 @@ app.whenReady().then(async () => {
     },
   });
   await library.init();
+  // WBS-056 check: the sign-in session before and after one sign-in with the saved details.
+  // Writes cookie names and HTTP statuses only.
+  const loginCheck = process.argv.find((arg) => arg.startsWith("--school-login-check="))?.split("=")[1];
+  if (loginCheck !== undefined) {
+    const before = await lmsSessionReport();
+    const hidden = new BrowserWindow({ show: false, webPreferences: { partition: "persist:lms", sandbox: true, contextIsolation: true } });
+    const ok = await credentials.signInAgain((id, pw) => pageSchoolLogin(schoolDeps(), windowSignInPage(hidden.webContents), id, pw));
+    hidden.destroy();
+    const after = await lmsSessionReport();
+    writeFileSync(loginCheck, `${JSON.stringify({ before, signInAgain: ok, after }, null, 2)}\n`);
+    app.quit();
+    return;
+  }
   // WBS-054 read-only measurement modes; see lms-status-probe.ts.
   const statusProbeOut = process.argv.find((arg) => arg.startsWith("--lms-status-probe="))?.split("=")[1];
   const watchOut = process.argv.find((arg) => arg.startsWith("--lms-watch="))?.split("=")[1];
@@ -299,7 +314,7 @@ app.whenReady().then(async () => {
     ensureSignedIn: () => credentials.ensureSignedIn(),
     courses: () => library.courses(),
     accountKey: () => library.accountKey(),
-    openItemPage: (page) => openLmsItemPage(page),
+    openItemPage: (page) => openLmsItemPage(page, (contents) => credentials.signInAgain((id, pw) => pageSchoolLogin(schoolDeps(), windowSignInPage(contents), id, pw))),
   });
   // WBS-055 check: reads every course's learning status once and writes counts (no titles) to a file.
   const learningDump = process.argv.find((arg) => arg.startsWith("--learning-status-dump="))?.split("=")[1];

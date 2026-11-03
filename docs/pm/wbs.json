@@ -1685,11 +1685,16 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "앱에서 실제로 연 자료만 같은 LMS 세션의 항목 페이지를 열어 LMS 뷰어가 열람 완료를 보내게 하고, 열지 않은 자료는 기록하지 않는다.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-056-view-record",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81f394b2e86cae965252?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지.",
+      "review_evidence": [
+        "Host stage: learning-status recordView/lms-session openLmsItemPage/handlers/contracts reviewed with callers. Found and fixed: server redirects not limited to school hosts (added will-redirect), loadURL rejection on aborted navigations treated as failure. Tests: recordView scope (material only, completed/not_open/locked skipped, dedupe, retryable failure).",
+        "UI stage: viewer meta line hidden in the current layout so badges moved to the viewer header; encrypted/broken PDFs would have been recorded, now only when a PDF page is drawn (onPage). Fixture flow verified: 미완료 → 기록 중 → 완료; encrypted PDF and PPTX not recorded.",
+        "Real LMS (owner opened a PDF in the app, 2026-11-03): hidden page landed on the school sign-in page (web session ends at quit). Request-only sign-in gives a LearningX token but no Canvas web session (users/self 404); sign-in posted in the page's own window gives it (200). Final run: sign-in in window → item page → LTI view → LMS status 완료. Boundary test kept: no page scripts, no password in lms-session, cookie reads by name only."
+      ]
     },
     {
       "id": "WBS-057",

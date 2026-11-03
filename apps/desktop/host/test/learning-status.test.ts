@@ -114,7 +114,7 @@ test("a view record opens only an open, unfinished LMS material and reads the st
   const opened: string[] = [];
   let viewed = false;
   const modules = async () => viewed ? [{ ...MODULES[0]!, module_items: MODULES[0]!.module_items.map((i) => i.module_item_id === 502 ? { ...i, completed: true } : i) }] : MODULES;
-  const { s, course, calls } = service({ modules: async () => { calls.modules += 1; return modules(); } }, undefined, async (page) => { opened.push(`${page.sourceCourseId}/${page.moduleItemId}`); viewed = true; return true; });
+  const { s, course, calls } = service({ modules: async () => { calls.modules += 1; return modules(); } }, undefined, async (page) => { opened.push(`${page.sourceCourseId}/${page.moduleItemId}`); viewed = true; return "recorded" as const; });
   const after = (await s.recordView(course.id, "502"))!;
   assert.deepEqual(opened, ["95899/502"]);
   assert.equal(after.items.find((i) => i.moduleItemId === "502")!.completed, true, "status is read again after the record");
@@ -129,13 +129,13 @@ test("a view record opens only an open, unfinished LMS material and reads the st
 });
 
 test("a view the LMS did not record fails retryably; the same item is opened once at a time", async () => {
-  let release!: (ok: boolean) => void;
+  let release!: (r: "recorded" | "failed") => void;
   let opens = 0;
-  const { s, course } = service({}, undefined, () => { opens += 1; return new Promise<boolean>((r) => { release = r; }); });
+  const { s, course } = service({}, undefined, () => { opens += 1; return new Promise<"recorded" | "failed">((r) => { release = r; }); });
   const a = s.recordView(course.id, "502");
   const b = s.recordView(course.id, "502");
   await new Promise((r) => setTimeout(r, 10));
-  release(false);
+  release("failed");
   for (const p of [a, b]) await assert.rejects(p, (e) => (e as { appError: { code: string; retryable: boolean } }).appError.retryable === true);
   assert.equal(opens, 1);
 });
@@ -143,4 +143,12 @@ test("a view the LMS did not record fails retryably; the same item is opened onc
 test("without a page opener view records are not offered", async () => {
   const { s, course } = service({});
   await assert.rejects(s.recordView(course.id, "502"), (e) => (e as { appError: { code: string } }).appError.code === "NOT_FOUND");
+});
+
+test("a page that still wants the school sign-in is reported as a sign-in, not retried", async () => {
+  const { s, course } = service({}, undefined, async () => "sign_in" as const);
+  await assert.rejects(s.recordView(course.id, "502"), (e) => {
+    const err = (e as { appError: { code: string; retryable: boolean } }).appError;
+    return err.code === "AUTH_REQUIRED" && !err.retryable;
+  });
 });

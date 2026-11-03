@@ -1809,11 +1809,14 @@
         "REQ-004"
       ],
       "acceptance": "채팅으로만 쓴 과목·일반 대화를 앱 재시작 후 열면 이전 메시지가 보이고 같은 문맥으로 이어진다. 기록이 빠진 기존 대화도 원본 Claude Code 기록이 있으면 다시 열린다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "fix/WBS-060-chat-resume",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81d3a848fdf4a9beccab?pvs=204",
-      "scope_note": "WBS-029 AI 앱 안 검수 결함 D-1에서 분리(2026-11-03). WBS-056 Done 뒤 진행."
+      "scope_note": "WBS-029 AI 앱 안 검수 결함 D-1에서 분리(2026-11-03). WBS-056 Done 뒤 진행.",
+      "review_evidence": [
+        "Reviewed conversation-service resume: record written on every UserPromptSubmit (valid UUID only, transcript path kept when it names the session), SessionStart kept, resume decision (record + transcript file, or SDK getSessionInfo in the conversation folder), recovery from the conversation folder's own sessions (listSessions with dir, cwd must match, newest first, record saved), old error kept when nothing exists; SDK access injectable for tests. Checks: chat tests 17 pass incl. 4 new (record on prompt and bad id ignored, resume without path loads messages, recovery picks own folder newest and saves, no sessions still errors), pnpm -r run check. Not tried in the real app by the agent (needs Claude Code chats on the owner's account). Found and fixed after the first full run: an existing chat test became flaky because opening now looked up real Claude Code sessions (SDK, home folder), which changed the order of parallel opens; tests now inject a fake session store and the service only looks up sessions for conversations that have history or a saved record (five clean full runs). Remaining: a recovered conversation opened first in the advanced terminal starts fresh until one chat prompt saves the transcript path."
+      ]
     },
     {
       "id": "WBS-061",

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { Icon } from './StudyUI.tsx';
 import { terminalInputChunks } from './terminal-input.ts';
 import { invoke } from './host-api.ts';
 
@@ -62,5 +63,5 @@ export function NativeTerminal({ appSessionId }: { appSessionId: string }) {
     return () => { alive = false; clearTimeout(timer); resize.disconnect(); onData.dispose(); term.dispose(); id.current = undefined; };
     // Changing visible session detaches its view; the host keeps that CLI alive.
   }, [appSessionId, retry]);
-  return <div className="native-terminal"><div className="native-terminal-screen" ref={box} aria-label="Claude Code 대화형 터미널" />{notice ? <div className="terminal-notice" role="status">{notice}<button onClick={() => setRetry(n => n + 1)}>다시 연결</button></div> : null}<button className="terminal-stop" title="이 Claude Code 종료" aria-label="이 Claude Code 종료" onClick={async () => { if (id.current) await invoke('terminal.close', { terminalId: id.current }); }}>■</button></div>;
+  return <div className="native-terminal"><div className="native-terminal-screen" ref={box} aria-label="Claude Code 대화형 터미널" />{notice ? <div className="terminal-notice" role="status">{notice}<button onClick={() => setRetry(n => n + 1)}>다시 연결</button></div> : null}<button className="terminal-stop" title="이 Claude Code 종료" aria-label="이 Claude Code 종료" onClick={async () => { if (id.current) await invoke('terminal.close', { terminalId: id.current }); }}><Icon name="stop" /></button></div>;
 }

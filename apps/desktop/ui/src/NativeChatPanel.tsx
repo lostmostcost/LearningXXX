@@ -24,7 +24,7 @@ export function NativeChatPanel({ courseId, courseTitle, activeId, onActiveId, s
     createLock.current = true; setCreating(true);
     const origin = { courseId, activeId };
     try {
-      const r = await invoke('session.create', independent || !courseId ? { mode: 'independent', engine: 'native', title: '일반 Claude Code 대화' } : { mode: 'course', engine: 'native', courseId, title: `${courseTitle ?? '과목'} · Claude Code` });
+      const r = await invoke('session.create', independent || !courseId ? { mode: 'independent', engine: 'native', title: `일반 Claude Code 대화 ${sessions.filter(s => s.mode === 'independent').length + 1}` } : { mode: 'course', engine: 'native', courseId, title: `${(courseTitle ?? '과목').slice(0, 150)} · Claude Code ${sessions.filter(s => s.courseId === courseId).length + 1}` });
       if (r.ok) { await reload(); if (context.current.courseId === origin.courseId && context.current.activeId === origin.activeId) onActiveId(r.data.session.appSessionId); } else setNotice(r.error.message);
     } catch { setNotice('새 대화를 만들지 못했습니다. 다시 시도하세요.'); }
     finally { createLock.current = false; setCreating(false); }

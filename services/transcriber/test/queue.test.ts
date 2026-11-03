@@ -176,12 +176,20 @@ test("a re-run after a crash rewrites the same transcript instead of adding anot
   assert.equal(stored.entries[0]!.transcriptId, id, "the slot was fixed before the run");
 });
 
-test("shutdown leaves the running job for the next start, without marking it cancelled", async () => {
-  const { queue, calls } = setup();
+test("a clean shutdown puts the running job back in the queue, and the next start runs it at once", async () => {
+  const { queue, calls, make } = setup();
   queue.start();
   const job = queue.enqueue(asset());
   await tick();
   await queue.stop();
   assert.equal(calls[0]!.input.signal.aborted, true);
-  assert.equal(queue.job(job.id)!.status, "running");
+  const stopped = queue.job(job.id)!;
+  assert.equal(stopped.status, "queued", "not cancelled, not left running");
+  assert.equal(stopped.leaseExpiresAt, undefined);
+  const next = make();
+  next.start();
+  await tick();
+  assert.equal(calls.length, 2, "resumed without waiting for a lease");
+  assert.equal(next.job(job.id)!.status, "running");
+  await next.stop();
 });

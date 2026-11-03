@@ -210,7 +210,7 @@ export class TranscriptionQueue {
     this.#kick();
   }
 
-  /** Stops taking work and waits for the running job to be cut off (it is picked up next time). */
+  /** Stops taking work and waits for the running job to be cut off; it goes back to queued and runs first next time. */
   async stop(): Promise<void> {
     this.#started = false;
     for (const t of this.#timers) clearTimeout(t);
@@ -304,8 +304,10 @@ export class TranscriptionQueue {
       this.#update(jobId, { status: "succeeded", progress: 1, outputTranscriptId: transcript.id }, ["leaseExpiresAt", "errorCode"]);
     } catch (error) {
       if (abort.signal.aborted) {
-        // Shutdown leaves it running: the lease brings it back next start. A user cancel ends it.
-        if (abort.signal.reason !== "shutdown") this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
+        // A clean shutdown hands the job back to the queue so the next start resumes it at once;
+        // only a crash leaves it running, for its lease to bring back. A user cancel ends it.
+        if (abort.signal.reason === "shutdown") this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
+        else this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
         return;
       }
       const engineError = error instanceof EngineError ? error : new EngineError("TRANSCRIBE_FAILED", "전사 중 오류가 났습니다.", true);

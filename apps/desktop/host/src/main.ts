@@ -19,7 +19,7 @@ import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps } from "./lms-session.ts";
+import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch } from "./lms-session.ts";
 import { schoolLogin } from "./school-login.ts";
 import { captureRegion } from "./native-capture.ts";
 import { createRouter } from "./router.ts";
@@ -220,8 +220,9 @@ app.whenReady().then(async () => {
       return videos;
     },
     video: (_course, contentId) => {
-      const fetch = schoolLoginDeps().fetch;
-      return { fetch, resolveSource: createCommonsVideoResolver({ contentId, fetch }), allowedOrigins: ["https://commons.khu.ac.kr"] };
+      const allowedOrigins = ["https://commons.khu.ac.kr"];
+      const fetch = allowedRedirectFetch(allowedOrigins);
+      return { fetch, resolveSource: createCommonsVideoResolver({ contentId, fetch }), allowedOrigins };
     },
   });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
@@ -243,8 +244,13 @@ app.whenReady().then(async () => {
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally { await stt.stop(); await media.stop(); } })().catch(() => undefined).finally(() => app.quit());
+    void (async () => { try { await conversations.stopAll(); await terminals.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
+      // Transcription first, so the running job is handed back to the queue before the engine goes away.
+      await media.stop(); await stt.stop();
+    } })().catch(() => undefined).finally(() => app.quit());
   });
+  // Ctrl-C in a terminal or a plain `kill` quits the same way as Cmd-Q, so recordings and transcription are saved.
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => app.quit());
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
   powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
   // The renderer may use the microphone (audio only) for recording; no camera, no screen.

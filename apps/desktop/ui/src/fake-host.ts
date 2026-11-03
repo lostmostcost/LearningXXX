@@ -120,6 +120,12 @@ export function installFakeHost(courseTitle: string): void {
     "app.setPreferences": (p) => { fakeLanguage = String(p.language); return ok({ language: fakeLanguage }); },
     "media.translation": (p) => ok(fakeTranslations.has(`${String(p.transcriptId)}.${String(p.language)}`) ? { texts: fakeTranslations.get(`${String(p.transcriptId)}.${String(p.language)}`) } : {}),
     "media.translate": async (p) => { await new Promise((r) => setTimeout(r, 500)); const t = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((x) => x.id === p.transcriptId)!; const texts = t.segments.map((seg) => `[${String(p.language)}] ${seg.text}`); fakeTranslations.set(`${t.id}.${String(p.language)}`, texts); return ok({ texts, untranslated: 0 }); },
+    // WBS-073: a synthetic queue — one transcription running, one waiting behind it, one download.
+    "media.queue": () => ok({ transcriptionPaused: false, items: [
+      { kind: "transcription", id: "11111111-1111-4111-8111-0000000000c1", courseId: FIXTURE_MANIFEST.course.id, courseTitle: "합성 다른 과목", title: "합성 동영상 강의", status: "running", progress: 0.49 },
+      { kind: "transcription", id: "11111111-1111-4111-8111-0000000000c2", courseId: FIXTURE_MANIFEST.course.id, courseTitle: FIXTURE_MANIFEST.course.title, title: "합성 새 녹음", status: "queued", ahead: 1 },
+      { kind: "download", id: "11111111-1111-4111-8111-0000000000c3", courseId: FIXTURE_MANIFEST.course.id, courseTitle: FIXTURE_MANIFEST.course.title, title: "합성 2차시 강의", status: "running", progress: 0.2 },
+    ] }),
     "media.makeReadable": async () => { await new Promise((r) => setTimeout(r, 700)); fakeReadable = true; return ok({ doc: "readable_app" }); },
     "media.importedDoc": (p) => ok({ text: `# 합성 ${String(p.doc)}\n\n합성 UI 예제 문서입니다.` }),
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),

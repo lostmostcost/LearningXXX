@@ -4,7 +4,7 @@ import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/prom
 import { dirname, join, relative, resolve } from "node:path";
 import { AccountKey, AppError, Id, ImportedDocKind, LectureMention, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
 import type { MentionCandidate, PreferredLanguage } from "@learningxxx/contracts";
-import type { Course, TranscriptionJob } from "@learningxxx/contracts";
+import type { Course, IpcResponse, TranscriptionJob } from "@learningxxx/contracts";
 import { downloadVideo } from "@learningxxx/collector";
 import { TRANSLATE_BATCH } from "./readable-note.ts";
 import type { VideoDownloadInput } from "@learningxxx/collector";
@@ -237,6 +237,8 @@ export class MediaService {
 
   /** One Claude Code request (readable note or announcement search) at a time. */
   #claudeRun: AbortController | undefined;
+  /** WBS-073: what the running Claude Code request is, for the queue screen. */
+  #claudeLabel: { what: string; courseId: string; title: string; startedAt: string } | undefined;
   /**
    * WBS-069: on request, a readable note of one transcript version made by the
    * official Claude Code with the user's subscription. Kept as the original's
@@ -253,6 +255,7 @@ export class MediaService {
     if (!text) fail("INVALID_REQUEST", "정리할 전사 내용이 없습니다.");
     const abort = new AbortController();
     this.#claudeRun = abort;
+    this.#claudeLabel = { what: "정리본 만들기", courseId, title: asset.title, startedAt: new Date().toISOString() };
     try {
       const note = (await this.#o.readable({ title: asset.title, text, signal: abort.signal })).trim();
       if (!note) fail("INVALID_REQUEST", "정리본이 비어 있습니다. 다시 시도하세요.");
@@ -265,7 +268,7 @@ export class MediaService {
       else p.catalog.imports.push(Imported.parse({ sha256: asset.sha256, docs: ["readable_app"], createdAt: new Date().toISOString() }));
       await this.#save(p);
       return { doc: "readable_app" };
-    } finally { this.#claudeRun = undefined; }
+    } finally { this.#claudeRun = undefined; this.#claudeLabel = undefined; }
   }
 
   /** WBS-070: candidates only; nothing is saved until the user confirms some. */
@@ -280,11 +283,12 @@ export class MediaService {
     if (!text) fail("INVALID_REQUEST", "찾을 전사 내용이 없습니다.");
     const abort = new AbortController();
     this.#claudeRun = abort;
+    this.#claudeLabel = { what: "과제·시험 안내 찾기", courseId, title: asset.title, startedAt: new Date().toISOString() };
     try {
       const candidates = await this.#o.mentions({ title: asset.title, text, transcript: version, signal: abort.signal });
       if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
       return { candidates };
-    } finally { this.#claudeRun = undefined; }
+    } finally { this.#claudeRun = undefined; this.#claudeLabel = undefined; }
   }
 
   /** WBS-070: the confirmed ones, with their evidence checked against the transcript again. */
@@ -351,6 +355,7 @@ export class MediaService {
     const version = (await this.list(courseId)).transcripts.find((t) => t.id === transcriptId && t.sourceAssetId === assetId) ?? fail("NOT_FOUND", "전사 판을 찾지 못했습니다.");
     const abort = new AbortController();
     this.#claudeRun = abort;
+    this.#claudeLabel = { what: "전사 번역", courseId, title: p.catalog.assets.find((a) => a.id === assetId)?.title ?? "전사", startedAt: new Date().toISOString() };
     try {
       const texts: string[] = [];
       let untranslated = 0;
@@ -365,7 +370,37 @@ export class MediaService {
       await mkdir(dirname(file), { recursive: true, mode: 0o700 });
       await writeFile(file, JSON.stringify(texts), { mode: 0o600 });
       return { texts, untranslated };
-    } finally { this.#claudeRun = undefined; }
+    } finally { this.#claudeRun = undefined; this.#claudeLabel = undefined; }
+  }
+
+  /**
+   * WBS-073: everything running or waiting on this Mac for the current
+   * account, in the order it will run: transcriptions (one at a time, oldest
+   * first), video downloads and the Claude Code request.
+   */
+  async queue(): Promise<IpcResponse<"media.queue">> {
+    const p = await this.#activate(), courses = await this.#o.courses();
+    const titleOf = (courseId: string) => courses.find((c) => c.id === courseId)?.title;
+    const items: IpcResponse<"media.queue">["items"] = [];
+    const active = p.queue.jobs().filter((j) => j.status === "running" || j.status === "queued").toSorted((a, b) => (a.status === "running" ? -1 : 0) - (b.status === "running" ? -1 : 0));
+    let position = 0;
+    for (const job of active) {
+      const asset = p.catalog.assets.find((a) => a.id === job.sourceAssetId);
+      if (!asset || !courses.some((c) => c.id === asset.courseId && c.accountKey === p.key)) continue;
+      const courseTitle = titleOf(asset.courseId);
+      items.push({ kind: "transcription", id: job.id, courseId: asset.courseId, ...(courseTitle ? { courseTitle } : {}), title: asset.title, status: job.status === "running" ? "running" : "queued",
+        ...(job.status === "running" && job.progress !== undefined ? { progress: job.progress } : {}), ...(job.status === "queued" ? { ahead: position } : {}) });
+      position++;
+    }
+    for (const d of p.catalog.downloads.filter((x) => x.status === "running" || x.status === "queued")) {
+      const courseTitle = titleOf(d.courseId);
+      items.push({ kind: "download", id: d.id, courseId: d.courseId, ...(courseTitle ? { courseTitle } : {}), title: d.title, status: d.status === "running" ? "running" : "queued",
+        ...(d.receivedBytes !== undefined && d.totalBytes ? { progress: Math.min(1, d.receivedBytes / d.totalBytes) } : {}) });
+    }
+    const claude = this.#claudeLabel;
+    if (claude) { const courseTitle = titleOf(claude.courseId); items.push({ kind: "claude", id: claude.startedAt, courseId: claude.courseId, ...(courseTitle ? { courseTitle } : {}), title: `${claude.what} · ${claude.title}`, status: "running" }); }
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    return { transcriptionPaused: p.queue.paused, items };
   }
 
   async list(courseId: string) {
@@ -398,7 +433,18 @@ export class MediaService {
       // Shown like a finished transcription, so the screen needs no special case.
       jobs.push({ schemaVersion: SCHEMA_VERSION, id: transcript.id, sourceAssetId: asset.id, engine: transcript.engine, parametersHash: transcript.parametersHash, idempotencyKey: asset.sha256, status: "succeeded", attempt: 1, outputTranscriptId: transcript.id, createdAt: transcript.createdAt, updatedAt: transcript.createdAt });
     }
-    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, importedDocs, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
+    // WBS-073: why a queued transcription waits — how many run before it, and what is running now (any course).
+    const order = p.queue.jobs().filter((j) => j.status === "running" || j.status === "queued").toSorted((a, b) => (a.status === "running" ? -1 : 0) - (b.status === "running" ? -1 : 0));
+    const runningJob = order.find((j) => j.status === "running");
+    const runningAsset = runningJob ? p.catalog.assets.find((a) => a.id === runningJob.sourceAssetId) : undefined;
+    const runningTitle = runningAsset ? `${(await this.#o.courses()).find((c) => c.id === runningAsset.courseId)?.title ?? ""} ${runningAsset.title}`.trim().slice(0, 300) : undefined;
+    const waiting: Record<string, { ahead: number; runningTitle?: string; runningProgress?: number }> = {};
+    for (const job of jobs.filter((j) => j.status === "queued")) {
+      const original = order.findIndex((j) => j.id === job.id);
+      if (original < 0) continue;
+      waiting[job.id] = { ahead: original, ...(runningTitle && runningJob?.id !== job.id ? { runningTitle } : {}), ...(runningJob?.progress !== undefined ? { runningProgress: runningJob.progress } : {}) };
+    }
+    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, importedDocs, waiting, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
   }
 
   async asset(courseId: string, assetId: string) {

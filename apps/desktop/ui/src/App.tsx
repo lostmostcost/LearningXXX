@@ -18,6 +18,7 @@ import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
+import { JobQueue } from "./JobQueue.tsx";
 import { unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
@@ -277,6 +278,7 @@ export function App() {
         {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => { setRightTab("recording"); setView("chat"); }} title="녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
+        {IN_APP || FIXTURE_MODE ? <JobQueue /> : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
         {courses.length > 1 && library ? (
           <label className="course-picker">과목{" "}

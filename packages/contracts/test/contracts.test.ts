@@ -149,6 +149,7 @@ describe("producer → consumer round trip", () => {
       "media.saveCorrection": { courseId: sid, assetId: sid, basedOnTranscriptId: sid, texts: ["고친 문장"] },
       "media.makeReadable": { courseId: sid, assetId: sid, transcriptId: sid },
       "media.findMentions": { courseId: sid, assetId: sid, transcriptId: sid },
+      "media.queue": {},
       "media.translation": { courseId: sid, assetId: sid, transcriptId: sid, language: "en" },
       "media.translate": { courseId: sid, assetId: sid, transcriptId: sid, language: "en" },
       "app.preferences": {},

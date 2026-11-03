@@ -158,6 +158,12 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "media.makeReadable": ({ courseId, assetId, transcriptId }) => libraryMedia().makeReadable(courseId, assetId, transcriptId),
     "media.translation": ({ courseId, assetId, transcriptId, language }) => libraryMedia().translation(courseId, assetId, transcriptId, language),
     "media.translate": ({ courseId, assetId, transcriptId, language }) => libraryMedia().translate(courseId, assetId, transcriptId, language),
+    // WBS-073: the media queue plus a running import of earlier recordings.
+    "media.queue": async () => {
+      const queue = await libraryMedia().queue();
+      const imp = importer?.status();
+      return imp?.running ? { ...queue, items: [...queue.items, { kind: "import" as const, id: "import", title: `기존 녹음 가져오기 ${imp.done}/${imp.total}`, status: "running" as const, ...(imp.total ? { progress: imp.done / imp.total } : {}) }] } : queue;
+    },
     "media.findMentions": ({ courseId, assetId, transcriptId }) => libraryMedia().findMentions(courseId, assetId, transcriptId),
     "media.addMentions": ({ courseId, assetId, candidates }) => libraryMedia().addMentions(courseId, assetId, candidates),
     "media.mentions": ({ courseId }) => libraryMedia().mentions(courseId),

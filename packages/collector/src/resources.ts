@@ -1,4 +1,4 @@
-import { Asset, AssignmentMetadata, ManifestItem, Resource } from "@learningxxx/contracts";
+import { Asset, AssignmentMetadata, MAX_BODY_CHARS, ManifestItem, Resource } from "@learningxxx/contracts";
 import type { AppError, CollectionManifest, Course, Week } from "@learningxxx/contracts";
 import { z } from "zod";
 import type { AssetStore } from "./asset-store.ts";
@@ -71,6 +71,7 @@ const CanvasAssignment = z.object({
   updated_at: Text,
   created_at: Text,
   quiz_id: SourceId.optional(),
+  description: Text,
 });
 
 const CanvasAnnouncement = z.object({
@@ -79,6 +80,7 @@ const CanvasAnnouncement = z.object({
   html_url: Text,
   posted_at: Text,
   created_at: Text,
+  message: Text,
   attachments: z.array(CanvasFile.partial({ size: true }).extend({ size: z.number().int().nonnegative() })).optional(),
 });
 
@@ -295,7 +297,7 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
       const res = resource("notice", a.id, { title: a.title, url: a.html_url, updatedAt: posted });
       const assets = [];
       for (const file of a.attachments ?? []) assets.push(await assetFor(id, { ...file, display_name: file.display_name ?? file.filename ?? "첨부" }));
-      items.set(id, withRevision({ resource: res, assets }, prevItems.get(id)));
+      items.set(id, withRevision({ resource: res, assets, ...body(a.message) }, prevItems.get(id)));
       return true;
     });
     if (!done) keepPrevious(id);
@@ -324,7 +326,7 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
       timezoneBasis: due?.assumed ? "assumed_asia_seoul" : "source_explicit",
       ...(sameOriginHttps(a.html_url, client) ? { submissionUrl: a.html_url } : {}),
     });
-    items.set(id, withRevision({ resource: res, assets: [], assignment }, prevItems.get(id)));
+    items.set(id, withRevision({ resource: res, assets: [], assignment, ...body(a.description) }, prevItems.get(id)));
   }
 
   // 5. Tombstones only for kinds whose listing completed, so a failed listing never "deletes" anything.
@@ -350,12 +352,21 @@ export async function collectResources(input: ResourceCollectionInput): Promise<
  * Revision rises only when content changes: file bytes (hash), a notice's post
  * time or attachments, an assignment's deadline. Title edits keep the revision.
  */
+/** WBS-067: the body as the LMS sent it (empty bodies left out), cut at the contract limit. */
+function body(html: string | undefined): { body?: string } {
+  const text = html?.trim();
+  return text ? { body: text.slice(0, MAX_BODY_CHARS) } : {};
+}
+
 function withRevision(item: Omit<Item, "resource"> & { resource: Omit<Resource, "revision"> }, prev: Item | undefined): Item {
-  const fingerprint = (i: { resource: { kind: string; updatedAt: string }; assets: { sha256: string }[]; assignment?: { dueAt: string | null } | undefined }) =>
+  // A body counts as a change only when both sides have one, so the first collection that adds bodies is not "changed".
+  const bodies = prev?.body !== undefined && item.body !== undefined;
+  const fingerprint = (i: { resource: { kind: string; updatedAt: string }; assets: { sha256: string }[]; assignment?: { dueAt: string | null } | undefined; body?: string | undefined }) =>
     JSON.stringify([
       i.assets.map((a) => a.sha256).sort(),
       i.resource.kind === "notice" ? i.resource.updatedAt : null,
       i.assignment?.dueAt ?? null,
+      bodies ? i.body ?? null : null,
     ]);
   const revision = prev === undefined ? 1 : fingerprint(prev) === fingerprint(item) ? prev.resource.revision : prev.resource.revision + 1;
   return { ...item, resource: Resource.parse({ ...item.resource, revision }) };

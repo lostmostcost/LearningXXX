@@ -2,6 +2,10 @@ import { extensionOf, viewTarget } from "./document.ts";
 import { deadline, externalUrl, formatSeoul, type Entry } from "./library.ts";
 import { PdfView, type AssetLoader, type PageSnapshot, type PdfOpener } from "./PdfView.tsx";
 import type { PageLocation, SelectedText, SelectionIntent } from "./selection.ts";
+import { useState } from "react";
+import type { Asset } from "@learningxxx/contracts";
+import { SUPPORTED_MEDIA_TYPES } from "./document.ts";
+import { RichText } from "./RichText.tsx";
 
 /** https links only; the host hands them to the default browser and never navigates the app window. */
 const OpenSource = ({ url, label = "원문 열기" }: { url: string | undefined; label?: string }) =>
@@ -48,8 +52,11 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
       {target.kind === "no_original" ? (
         <p role="note" className="notice-box">이 자료의 원본 파일이 아직 이 Mac에 없습니다. 수집을 다시 실행하거나 원문 열기로 확인하세요.</p>
       ) : null}
-      {target.kind === "notice" ? <p>공지 본문은 LMS에서 확인합니다. 원문 열기를 누르면 브라우저에서 열립니다.</p> : null}
       {target.kind === "assignment" && entry.assignment ? <AssignmentDetail entry={entry} now={props.now} /> : null}
+      {target.kind === "notice" || target.kind === "assignment" ? <>
+        {entry.body ? <RichText html={entry.body} /> : <p className="meta">{target.kind === "notice" ? "공지 본문이 아직 없습니다. 자료 수집을 다시 하거나 원문 열기로 확인하세요." : "과제 설명이 없습니다."}</p>}
+        <Attachments key={resource.id} assets={entry.assets} url={url} pdf={(asset) => <PdfView key={asset.id} assetId={asset.id} onSelectionAction={props.onSelectionAction} location={props.location} onPage={props.onPage} onSnapshot={props.onSnapshot} {...(props.loadAsset ? { loadAsset: props.loadAsset } : {})} {...(props.open ? { open: props.open } : {})} />} />
+      </> : null}
     </>
   );
 }
@@ -65,4 +72,21 @@ function AssignmentDetail({ entry, now }: { entry: Entry; now: Date }) {
       <OpenSource url={submit?.startsWith("https://") ? submit : undefined} label="제출 페이지 열기" />
     </div>
   );
+}
+
+/** WBS-067: a notice's attachments; a PDF opens here in the viewer, other formats at the source. */
+function Attachments({ assets, url, pdf }: { assets: readonly Asset[]; url: string | undefined; pdf: (asset: Asset) => React.ReactNode }) {
+  const [open, setOpen] = useState<string>();
+  if (!assets.length) return null;
+  const shown = assets.find((a) => a.id === open);
+  return <div className="attachments">
+    <p className="meta">첨부 {assets.length}개</p>
+    <ul>{assets.map((a) => {
+      const viewable = SUPPORTED_MEDIA_TYPES.includes(a.mediaType);
+      return <li key={a.id}>{viewable
+        ? <button aria-pressed={open === a.id} onClick={() => setOpen((o) => (o === a.id ? undefined : a.id))}>{a.originalName}{open === a.id ? " · 닫기" : " · 열기"}</button>
+        : <span>{a.originalName} <small className="meta">({extensionOf(a.originalName)} · {url ? "원문 열기로 확인" : "앱에서 열 수 없음"})</small></span>}</li>;
+    })}</ul>
+    {shown ? pdf(shown) : null}
+  </div>;
 }

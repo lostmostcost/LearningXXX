@@ -2007,11 +2007,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "공지·과제 본문을 수집해 앱 뷰어에서 안전하게 표시(스크립트 제거, 링크는 외부 브라우저)하고 첨부 PDF를 뷰어로 연다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-067-notice-body",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81cbafb0e55181bbb3a7?pvs=204",
-      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조."
+      "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조.",
+      "review_evidence": [
+        "Reviewed collector (message/description → body, cut at the contract limit, revision counts body edits only when both runs have a body), contract ManifestItem.body, UI rich-text converter (allow-list tree, dropped-with-content tags, entity decoding, https-only links, images as alt text), RichText rendering (no innerHTML), Viewer notice/assignment body and notice attachments (PDF in viewer). Checks: pnpm -r run check all pass (collector 81, ui 120, host 208); new tests for body collection/revision and for script/style/iframe/svg, event handlers, javascript:/data:/relative links, broken markup, uppercase tags. Fixture UI check: body shown with a script, onclick and javascript: link neutralized (no alert, no script element, only the https link kept), attached PDF opens in the viewer. Real LMS bodies appear after the next collection; not checked by the agent."
+      ]
     },
     {
       "id": "WBS-068",

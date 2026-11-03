@@ -113,6 +113,12 @@ export const IpcChannels = {
    * user to watch in the official player. Returns once it is open; a
    * `learning.watchClosed` push follows when the user closes it.
    */
+  /** CR-054 / WBS-059: a quiz's LMS page in a visible app window; the user takes it there. Not for lockdown-browser quizzes. */
+  "learning.openQuiz": {
+    request: z.object({ courseId: Id, moduleItemId: z.string().regex(/^\d{1,20}$/).optional(), quizId: z.string().regex(/^\d{1,20}$/).optional() })
+      .refine((r) => r.moduleItemId !== undefined || r.quizId !== undefined, "moduleItemId or quizId"),
+    response: z.object({}),
+  },
   "learning.watch": {
     request: z.object({ courseId: Id, moduleItemId: z.string().regex(/^\d{1,20}$/) }),
     response: z.object({}),

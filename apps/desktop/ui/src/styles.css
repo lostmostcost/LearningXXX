@@ -321,3 +321,8 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 /* WBS-057: watching a lecture in the official LMS player. */
 .week-files .watch-lms{min-width:0;font-size:11px;padding:4px 8px;margin-left:14px;border-style:dashed;}
 .up-next{font-size:12px;margin:8px 0 0;}
+/* WBS-059: quizzes in the 과제 section. */
+.quiz-list{margin-top:16px;}
+.quiz-row{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--line);font-size:12px;}
+.quiz-row small{color:var(--muted);}
+.quiz-row button{align-self:flex-start;margin-top:4px;font-size:11px;}

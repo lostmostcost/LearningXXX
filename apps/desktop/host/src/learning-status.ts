@@ -124,6 +124,7 @@ export function mergeCanvas(items: LearningItem[], assignments: readonly unknown
   const byRef = new Map(out.flatMap((i, n) => (i.sourceRef ? [[i.sourceRef, n] as const] : [])));
   const quizById = new Map(quizzes.map((q) => [str(obj(q).id), obj(q)] as const).filter(([id]) => id !== undefined));
   const quizInfo = (q: Json): LearningItem["quiz"] => ({
+    ...(str(q.id) && /^\d{1,20}$/.test(str(q.id)!) ? { quizId: str(q.id)! } : {}),
     lockdownBrowser: bool(q.require_lockdown_browser) ?? false,
     allowedAttempts: num(q.allowed_attempts) ?? null,
     questionCount: num(q.question_count) ?? null,
@@ -188,8 +189,8 @@ export interface LearningStatusOptions {
    * "failed" otherwise. Absent, view records are not offered.
    */
   openItemPage?: (page: { sourceCourseId: string; moduleItemId: string }) => Promise<"recorded" | "sign_in" | "failed">;
-  /** WBS-057: open the lecture page in a visible window; resolves when the user closes it. */
-  openWatchWindow?: (page: { sourceCourseId: string; moduleItemId: string; title: string }) => Promise<void>;
+  /** WBS-057/059: open an LMS page (a lecture or a quiz) in a visible window; resolves when the user closes it. */
+  openWatchWindow?: (page: { sourceCourseId: string; title: string } & ({ moduleItemId: string } | { quizId: string })) => Promise<void>;
   /** WBS-057: after the watch window closed and the status was read again. */
   onWatchClosed?: (courseId: string, moduleItemId: string) => void;
 }
@@ -304,6 +305,31 @@ export class LearningStatusService {
       if (this.#o.accountKey() !== account) return;
       await this.status(courseId, true).catch(() => undefined);
       this.#o.onWatchClosed?.(courseId, moduleItemId);
+    });
+  }
+
+  /**
+   * CR-054 / WBS-059: opens a quiz's own LMS page in a visible window so the
+   * user takes it there themselves; the app never answers or submits. A quiz
+   * that needs the school's lockdown browser cannot be taken in an app window.
+   * Closing the window reads the status again.
+   */
+  async openQuiz(courseId: string, ref: { moduleItemId?: string | undefined; quizId?: string | undefined }): Promise<void> {
+    const open = this.#o.openWatchWindow;
+    if (!open) fail("NOT_FOUND", "LMS 퀴즈 창을 열 수 없습니다.");
+    const account = this.#o.accountKey();
+    const course = account ? (await this.#o.courses()).find((c) => c.id === courseId && c.accountKey === account) : undefined;
+    if (!account || !course) fail("NOT_FOUND", "과목을 찾을 수 없습니다.");
+    const item = (await this.status(courseId))?.items.find((i) => i.kind === "quiz" && ((ref.moduleItemId && i.moduleItemId === ref.moduleItemId) || (ref.quizId && i.quiz?.quizId === ref.quizId)));
+    if (!item) fail("SCOPE_VIOLATION", "LMS 퀴즈만 열 수 있습니다.");
+    if (item.quiz?.lockdownBrowser) fail("SCOPE_VIOLATION", "이 퀴즈는 학교 전용 브라우저(LockDown Browser)가 필요합니다. 그 브라우저에서 LMS로 응시하세요.");
+    const target = item.moduleItemId ? { moduleItemId: item.moduleItemId } : item.quiz?.quizId ? { quizId: item.quiz.quizId } : fail("NOT_FOUND", "퀴즈 페이지 주소를 알 수 없습니다. LMS에서 직접 여세요.");
+    await this.#o.ensureSignedIn().catch(() => undefined);
+    const closed = open({ sourceCourseId: course.sourceCourseId, title: item.title.slice(0, 120), ...target });
+    void closed.then(async () => {
+      if (this.#o.accountKey() !== account) return;
+      await this.status(courseId, true).catch(() => undefined);
+      this.#o.onWatchClosed?.(courseId, item.moduleItemId ?? `quiz:${target.quizId ?? ""}`);
     });
   }
 

@@ -68,6 +68,11 @@ export function createHandlers(sessions: SessionService, library: LibraryService
       const status = await learning?.status(courseId, refresh ?? false);
       return status ? { status } : {};
     },
+    "learning.openQuiz": async ({ courseId, moduleItemId, quizId }) => {
+      if (!learning) throw Object.assign(new Error("unavailable"), { appError: { code: "NOT_FOUND", message: "LMS 퀴즈 창을 열 수 없습니다.", retryable: false } });
+      await learning.openQuiz(courseId, { moduleItemId, quizId });
+      return {};
+    },
     "learning.watch": async ({ courseId, moduleItemId }) => {
       if (!learning) throw Object.assign(new Error("unavailable"), { appError: { code: "NOT_FOUND", message: "LMS 시청 창을 열 수 없습니다.", retryable: false } });
       await learning.watch(courseId, moduleItemId);

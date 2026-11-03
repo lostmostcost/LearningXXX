@@ -114,3 +114,34 @@ export function nextUnwatched(status: CourseLearningStatus | undefined, now: Dat
 /** WBS-057: whether a lecture item can be opened in the LMS watch window. */
 export const canWatch = (item: LearningItem | undefined): item is LearningItem & { moduleItemId: string } =>
   !!item && (item.kind === "video" || item.kind === "live") && !!item.moduleItemId && item.period !== "not_open";
+
+export interface QuizRow {
+  item: LearningItem;
+  /** One line: taken or not, when it opens/closes, attempts. */
+  status: string;
+  /** Why it cannot be opened in the app, or undefined when it can. */
+  blocked?: string;
+}
+
+/**
+ * WBS-059: quizzes as the LMS lists them, read only. Opening one shows the
+ * LMS's own quiz page; the user takes it there. Earliest deadline first.
+ */
+export function quizRows(status: CourseLearningStatus | undefined, now: Date, format: (utc: string) => string): QuizRow[] {
+  const t = now.getTime();
+  return (status?.items ?? []).filter((i) => i.kind === "quiz")
+    .sort((a, b) => (a.dueAt ?? a.lockAt ?? "9999").localeCompare(b.dueAt ?? b.lockAt ?? "9999"))
+    .map((item) => {
+      const taken = item.submission && item.submission.state !== "unsubmitted";
+      const notYet = item.unlockAt && Date.parse(item.unlockAt) > t;
+      const closed = item.lockAt && Date.parse(item.lockAt) <= t;
+      const parts = [
+        taken ? (item.submission!.state === "graded" ? "응시함 · 채점됨" : "응시함") : "미응시",
+        notYet ? `${format(item.unlockAt!)}부터` : closed ? "마감됨" : item.dueAt ? `마감 ${format(item.dueAt)}` : "기한 없음",
+        item.quiz?.allowedAttempts === -1 ? "응시 횟수 제한 없음" : item.quiz?.allowedAttempts ? `응시 ${item.quiz.allowedAttempts}회` : "",
+        item.quiz?.questionCount ? `${item.quiz.questionCount}문항` : "",
+      ].filter(Boolean);
+      const blocked = item.quiz?.lockdownBrowser ? "학교 전용 브라우저(LockDown Browser)가 필요합니다" : !item.moduleItemId && !item.quiz?.quizId ? "LMS에서 직접 여세요" : undefined;
+      return { item, status: parts.join(" · "), ...(blocked ? { blocked } : {}) };
+    });
+}

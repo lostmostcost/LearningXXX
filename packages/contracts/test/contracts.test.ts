@@ -117,6 +117,7 @@ describe("producer → consumer round trip", () => {
       "learning.status": { courseId: sid, refresh: true },
       "learning.recordView": { courseId: sid, moduleItemId: "501" },
       "learning.watch": { courseId: sid, moduleItemId: "502" },
+      "learning.openQuiz": { courseId: sid, quizId: "77" },
       "credentials.status": {},
       "app.build": {},
       "credentials.saveSchool": { schoolId: "synthetic-id", password: "synthetic-password" },

@@ -170,7 +170,7 @@ test("WBS-057: only an open LMS video opens the visible watch window; closing it
   const s = new LearningStatusService({
     root, ensureSignedIn: async () => {}, courses: async () => [course], accountKey: () => course.accountKey,
     sources: { modules: async () => { modulesRead += 1; return MODULES; }, attendanceItem: async () => ({}), assignments: async () => [], quizzes: async () => [] },
-    openWatchWindow: (page) => { opened.push(`${page.sourceCourseId}/${page.moduleItemId}/${page.title}`); return new Promise<void>((r) => { close = r; }); },
+    openWatchWindow: (page) => { opened.push(`${page.sourceCourseId}/${"moduleItemId" in page ? page.moduleItemId : `quiz:${page.quizId}`}/${page.title}`); return new Promise<void>((r) => { close = r; }); },
     onWatchClosed: (courseId, moduleItemId) => closedFor.push(`${courseId}/${moduleItemId}`),
   });
   const code = (e: unknown) => (e as { appError: { code: string } }).appError.code;
@@ -184,5 +184,29 @@ test("WBS-057: only an open LMS video opens the visible watch window; closing it
   await assert.rejects(s.watch(course.id, "502"), (e) => code(e) === "SCOPE_VIOLATION", "materials are not watched");
   await assert.rejects(s.watch(course.id, "601"), (e) => code(e) === "SCOPE_VIOLATION", "a lecture not open yet");
   await assert.rejects(s.watch("22222222-2222-4222-8222-000000000002", "501"), (e) => code(e) === "NOT_FOUND");
+  assert.equal(opened.length, 1);
+});
+
+test("WBS-059: a quiz opens at its LMS page for the user to take; lockdown-browser quizzes do not", async () => {
+  const root = mkdtempSync(join(tmpdir(), "wbs059-"));
+  const course: Course = { id: "11111111-1111-4111-8111-000000000001", accountKey: "acct_synthetic01", termId: "1", sourceCourseId: "95899", title: "합성" };
+  const opened: string[] = [];
+  const s = new LearningStatusService({
+    root, ensureSignedIn: async () => {}, courses: async () => [course], accountKey: () => course.accountKey,
+    sources: {
+      modules: async () => MODULES, attendanceItem: async () => ({}),
+      assignments: async () => [{ id: 79, name: "퀴즈 1", quiz_id: 5, submission_types: ["online_quiz"], submission: { workflow_state: "unsubmitted" } }],
+      quizzes: async () => [{ id: 5, title: "퀴즈 1", require_lockdown_browser: true }, { id: 6, title: "연습 퀴즈", require_lockdown_browser: false }],
+    },
+    openWatchWindow: async (page) => { opened.push("quizId" in page ? `quiz:${page.quizId}` : `item:${page.moduleItemId}`); },
+  });
+  const code = (e: unknown) => (e as { appError: { code: string; message: string } }).appError;
+  const status = (await s.status(course.id))!;
+  assert.equal(status.items.find((i) => i.sourceRef === "quiz:6")!.quiz!.quizId, "6");
+  await s.openQuiz(course.id, { quizId: "6" });
+  assert.deepEqual(opened, ["quiz:6"]);
+  await assert.rejects(s.openQuiz(course.id, { quizId: "5" }), (e) => code(e).code === "SCOPE_VIOLATION" && /전용 브라우저/.test(code(e).message));
+  await assert.rejects(s.openQuiz(course.id, { moduleItemId: "501" }), (e) => code(e).code === "SCOPE_VIOLATION", "a lecture is not a quiz");
+  await assert.rejects(s.openQuiz(course.id, { quizId: "999" }), (e) => code(e).code === "SCOPE_VIOLATION");
   assert.equal(opened.length, 1);
 });

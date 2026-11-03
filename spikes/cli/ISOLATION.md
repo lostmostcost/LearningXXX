@@ -7,6 +7,7 @@
 - 결과: 2회 모두 PASS. 모든 호출이 `apiKeySource: none`
 - 두 번째 Mac: macOS 26.6.2, arm64, Claude Code 2.1.316, Team 구독에서 `debf231` PASS (QA-002)
 - 사람 QA: 통과 (검수자 이문찬, 2026-11-01)
+- 재검증(WBS-089, 2026-11-04): CLI 자동 갱신 2.1.317, macOS arm64, 구독 Pro, 깨끗한 환경(env -i)에서 2회 PASS (`evidence/2026-11-04-isolation1.json`, `isolation2.json`). 실행 플래그·판정 방법 동일, 모든 누출 경로 대조군 노출·격리 차단
 
 ## 결론
 

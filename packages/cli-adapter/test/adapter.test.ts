@@ -119,7 +119,7 @@ describe("argument policy", () => {
   });
 
   it("verified CLI version matches the WBS-005 toolchain pin", () => {
-    assert.deepEqual(A.VERIFIED_CLI_VERSIONS, [TOOLCHAIN.claude_cli.verified]);
+    assert.equal(A.VERIFIED_CLI_VERSIONS.at(-1), TOOLCHAIN.claude_cli.verified);
   });
 
   it("detects forbidden credential variables by name only", () => {

@@ -19,11 +19,12 @@ export const FORBIDDEN_ENV = [
 export const SESSION_ENV = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"] as const;
 
 /**
- * Versions the WBS-001/002 evidence was recorded with. Keep equal to
- * infra/dev/toolchain.json `claude_cli.verified`; a new version needs
- * spikes/cli/isolation.py re-run before independent sessions accept it.
+ * Versions the isolation evidence was recorded with (WBS-001/002 on 2.1.316,
+ * WBS-089 on 2.1.317). The newest is infra/dev/toolchain.json
+ * `claude_cli.verified`; a new version needs spikes/cli/isolation.py re-run
+ * before independent sessions accept it.
  */
-export const VERIFIED_CLI_VERSIONS: readonly string[] = ["2.1.316"];
+export const VERIFIED_CLI_VERSIONS: readonly string[] = ["2.1.316", "2.1.317"];
 
 export const INDEPENDENT_TOOLS = ["Read", "Glob", "Grep"] as const;
 export const COURSE_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit"] as const;

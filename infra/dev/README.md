@@ -17,7 +17,7 @@ Electron 앱은 host에서 실행되므로 **Mac host에도 같은 Node·pnpm이
 ## host check 결과 읽기
 
 - `FAIL`: 앱 개발 전에 고쳐야 한다. 종료 코드 1.
-- `WARN`: 같은 major 버전이지만 고정값과 다르거나, CLI 버전이 격리 검증 버전(2.1.316)과 다르다. CLI 버전이 다르면 `spikes/cli/isolation.py`를 다시 실행한다(ADR-002 결정 5).
+- `WARN`: 같은 major 버전이지만 고정값과 다르거나, CLI 버전이 격리 검증 버전(최신 2.1.317)과 다르다. CLI 버전이 다르면 `spikes/cli/isolation.py`를 다시 실행한다(ADR-002 결정 5).
 - `MANUAL`: 마이크, 화면 캡처, 키체인, Finder 실행 앱의 CLI 로그인. 실제 앱이 있어야 확인할 수 있어 WBS-007/011/014/016/023에서 확인한다. 이 스크립트는 PASS로 표시하지 않는다.
 
 `--json PATH`로 증거 파일을 남긴다. auth 결과는 `loggedIn`, `authMethod`, `apiProvider`, `subscriptionType`만 기록하고, 이메일·조직명과 환경변수 값은 남기지 않는다. 모델 요청을 보내지 않으므로 구독 사용량을 쓰지 않는다.

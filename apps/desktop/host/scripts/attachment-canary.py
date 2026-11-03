@@ -23,7 +23,7 @@ def main():
     if auth.get('authMethod') != 'claude.ai' or not auth.get('loggedIn'):
         raise RuntimeError('Official subscription login required')
     version = subprocess.run([cli, '--version'], env=env, capture_output=True, text=True, check=True).stdout.split()[0]
-    if version != '2.1.316':
+    if version not in ('2.1.316', '2.1.317'):
         raise RuntimeError('Unverified CLI version; rerun isolation evidence first')
     reports = []
     with tempfile.TemporaryDirectory(prefix='wbs036-live-') as root:

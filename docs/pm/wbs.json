@@ -2172,14 +2172,15 @@
         "REQ-006"
       ],
       "acceptance": "스파이크 후: 페이지 범위를 고르면 글자만 선호 언어로 바꾼 새 PDF를 만들고 토글로 원본과 전환한다. 스캔본 제외.",
-      "status": "In Progress",
+      "status": "Done",
       "branch": "feat/WBS-072-pdf-translation",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81b78b1cf0998e869bb4?pvs=204",
       "scope_note": "CR-061 이문찬 승인(2026-11-03). PLAN-061 참조. 2026-11-03 스파이크 완료(spikes/pdf-translation/README.md). 구현은 pdf-lib·@pdf-lib/fontkit 추가(루트 pnpm-lock.yaml·host package.json 경로 추가) 승인 대기. 2026-11-04 이문찬이 pdf-lib 의존성 추가 승인(루트 pnpm-lock.yaml 포함). 2026-11-04 구현: 쪽 범위 번역본(원본 글자 그리는 연산만 지우고 같은 자리에 번역, macOS 기본 글꼴), 원본/번역본 토글.",
       "review_evidence": [
         "Stage 1 host (src/pdf-translate.ts): reviewed stripping (first draft removed whole BT…ET, which also drops colour/state set inside text objects → changed to remove only Tj/TJ/'/\" with their operands; strings, hex strings, comments skipped; inline image BI and invisible OCR text 3 Tr leave the page as original), forms with own text → page kept, new content streams per page so shared streams are not changed, line merging along the text direction, glyph coverage (missing glyphs dropped, second font tried). Service: per account+course+sha256+language folder, account re-checked before writing (SCOPE_VIOLATION), one run at a time, ≤40 pages, cancel keeps finished pages, a failed request part-way keeps finished pages, a failure with nothing new does not rewrite the copy (found in app run: CLI failure had written an empty copy), encrypted/unwritable PDF rejected before any translation request. Fixes from real-PDF check (3 collected PDFs, stub translation, rendered with sips): text into the next column on the same baseline → width limited by next column; lines kept unchanged (code) fit their original width. Checks: host test 225 pass incl. 12 new, typecheck, build.",
-        "Stage 2 UI (PdfTranslation.tsx, Viewer, App): toggle 원본/번역본 keeps the page, chat-cited locations still win, fresh buffer per load, error and partial-progress messages, skipped pages listed by reason. ui check 124 pass, build. In-app (AI, worktree build, CDP): controls render on a real PDF; 번역본 만들기 shows the CLI_VERSION_MISMATCH message (installed CLI 2.1.317 ≠ verified 2.1.316 → WBS-089); with a stub-made copy the toggle opens the copy on page 2 showing translated text; stub copy removed afterwards. Real Claude translation not run (blocked by WBS-089). Known limits: text redrawn black (original colour not kept), WordArt drawn as shapes stays, no wrap of long lines (shrinks to 60%)."
+        "Stage 2 UI (PdfTranslation.tsx, Viewer, App): toggle 원본/번역본 keeps the page, chat-cited locations still win, fresh buffer per load, error and partial-progress messages, skipped pages listed by reason. ui check 124 pass, build. In-app (AI, worktree build, CDP): controls render on a real PDF; 번역본 만들기 shows the CLI_VERSION_MISMATCH message (installed CLI 2.1.317 ≠ verified 2.1.316 → WBS-089); with a stub-made copy the toggle opens the copy on page 2 showing translated text; stub copy removed afterwards. Real Claude translation not run (blocked by WBS-089). Known limits: text redrawn black (original colour not kept), WordArt drawn as shapes stays, no wrap of long lines (shrinks to 60%).",
+        "2026-11-04 after WBS-089: real Claude translation verified in app (see WBS-089 evidence)."
       ]
     },
     {
@@ -2658,18 +2659,23 @@
         "packages/cli-adapter/",
         "infra/dev/toolchain.json",
         "spikes/cli/",
-        "docs/pm/"
+        "docs/pm/",
+        "infra/dev/README.md",
+        "apps/desktop/host/scripts/attachment-canary.py"
       ],
       "spec": "PRD-001",
       "requirements": [
         "REQ-001"
       ],
       "acceptance": "spikes/cli/isolation.py를 설치된 CLI 2.1.317로 다시 실행해 증거를 남기고, 통과하면 VERIFIED_CLI_VERSIONS와 toolchain.json을 갱신해 독립 실행 AI 기능(정리본·번역·PDF 번역본)이 다시 동작한다.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "fix/WBS-089-cli-2-1-317",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd812f910df6a970f09a9d?pvs=204",
-      "scope_note": "2026-11-04 WBS-072 앱 확인 중 발견(CLI 자동 갱신). ADR-002 결정 5."
+      "scope_note": "2026-11-04 WBS-072 앱 확인 중 발견(CLI 자동 갱신). ADR-002 결정 5. 영역 밖 최소 수정: apps/desktop/host/scripts/attachment-canary.py의 버전 확인 한 줄(host 선점자 없음, 2026-11-04).",
+      "review_evidence": [
+        "Ran spikes/cli/isolation.py twice with installed CLI 2.1.317 (claude.ai Pro). First attempt refused because my agent shell carries the hosting session's ANTHROPIC_BASE_URL (the guard works); re-ran under env -i with only HOME/USER/LANG/TMPDIR/PATH, as an app the owner starts. Both PASS, all controls leaked, isolated sessions blocked every path; evidence 2026-11-04-isolation1/2.json checked for personal paths/emails (none). Changes: VERIFIED_CLI_VERSIONS ['2.1.316','2.1.317'] (older kept: other developer may still be on it, evidence exists), toolchain.json verified 2.1.317 (host_check WARN compares to newest), adapter test now checks the newest equals the toolchain pin, attachment-canary accepts both, ISOLATION.md re-verification line. Checks: cli-adapter check 50 pass, scripts/check.py PASS. In app (worktree build launched with env -i, CDP): real library.translatePdf on a collected English slide deck pages 2–3 → 7.4 s, 0 untranslated, table headers translated, SQL lines kept and fitting, page 4 original — this also completes WBS-072's real-translation check."
+      ]
     }
   ],
   "qaPolicy": {

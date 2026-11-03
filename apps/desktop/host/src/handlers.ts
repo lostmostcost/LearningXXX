@@ -48,6 +48,10 @@ export function createHandlers(sessions: SessionService, library: LibraryService
     "credentials.status": async () => signIn().status(),
     "credentials.saveSchool": (request) => signIn().saveSchool(request),
     "credentials.saveCanvasToken": (request) => signIn().saveCanvasToken(request),
+    "credentials.saveHeygenKey": (request) => signIn().saveHeygenKey(request),
+    "credentials.heygenVoices": () => signIn().heygenVoices(),
+    "credentials.setHeygenVoice": (request) => signIn().setHeygenVoice(request),
+    "credentials.heygenPreview": (request) => signIn().heygenPreview(request),
     "credentials.clear": async (request) => signIn().clear(request),
     "library.courses": async () => ({ courses: await library.courses() }),
     "learning.status": async ({ courseId, refresh }) => {

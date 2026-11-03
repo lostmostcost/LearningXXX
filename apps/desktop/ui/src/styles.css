@@ -388,3 +388,4 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .wordmark .build-tag{margin-left:0;}
 @media(max-width:700px){.brand-logo{width:105px;height:35px;}.wordmark{gap:4px;}}
 .removed-original{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;}
+.heygen-setting{margin-top:12px;}.heygen-setting form{display:flex;flex-wrap:wrap;gap:6px;align-items:end;}.heygen-voices{display:flex;gap:6px;align-items:center;margin-top:6px;}

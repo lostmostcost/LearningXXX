@@ -13,6 +13,9 @@ export interface Secrets {
   schoolId?: string;
   schoolPassword?: string;
   canvasToken?: string;
+  /** WBS-092: HeyGen API key and the chosen voice, for the weekly explanation video. */
+  heygenKey?: string;
+  heygenVoiceId?: string;
   /** Set when the school rejected the saved password; cleared only by saving it again (account-lockout guard). */
   schoolRejected?: boolean;
 }
@@ -22,6 +25,8 @@ export interface CredentialStatus {
   school: boolean;
   schoolRejected: boolean;
   canvasToken: boolean;
+  heygen: boolean;
+  heygenVoiceId?: string | undefined;
   available: boolean;
 }
 
@@ -50,7 +55,7 @@ export class CredentialStore {
 
   status(): CredentialStatus {
     const s = this.read();
-    return { school: !!(s.schoolId && s.schoolPassword), schoolRejected: !!s.schoolRejected, canvasToken: !!s.canvasToken, available: this.#cipher.available() };
+    return { school: !!(s.schoolId && s.schoolPassword), schoolRejected: !!s.schoolRejected, canvasToken: !!s.canvasToken, heygen: !!s.heygenKey, ...(s.heygenVoiceId ? { heygenVoiceId: s.heygenVoiceId } : {}), available: this.#cipher.available() };
   }
 
   saveSchool(schoolId: string, schoolPassword: string): void {
@@ -61,21 +66,32 @@ export class CredentialStore {
     this.#write({ ...this.read(), canvasToken });
   }
 
+  saveHeygen(heygenKey: string): void {
+    this.#write({ ...this.read(), heygenKey });
+  }
+
+  saveHeygenVoice(heygenVoiceId: string): void {
+    this.#write({ ...this.read(), heygenVoiceId });
+  }
+
   markSchoolRejected(): void {
     const s = this.read();
     if (s.schoolId) this.#write({ ...s, schoolRejected: true });
   }
 
-  clear(which: "school" | "canvasToken"): void {
+  clear(which: "school" | "canvasToken" | "heygen"): void {
     const next = this.read();
     if (which === "school") {
       delete next.schoolId;
       delete next.schoolPassword;
       delete next.schoolRejected;
+    } else if (which === "heygen") {
+      delete next.heygenKey;
+      delete next.heygenVoiceId;
     } else {
       delete next.canvasToken;
     }
-    if (!next.schoolId && !next.canvasToken) rmSync(this.#file, { force: true });
+    if (!next.schoolId && !next.canvasToken && !next.heygenKey) rmSync(this.#file, { force: true });
     else this.#write(next);
   }
 

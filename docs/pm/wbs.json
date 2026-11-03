@@ -2810,10 +2810,13 @@
         "pnpm-lock.yaml"
       ],
       "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증. CR-093: 과제 안내/AI 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제별 세션에서 해당 과목 모든 주차 읽기, 새 판 실시간 미리보기·이전 판 보존, 전환/실패/취소/재시작 회귀.",
-      "status": "Blocked",
+      "status": "In Progress",
       "branch": "feat/WBS-092-artifact-workflows",
       "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
-      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다."
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다. 2026-11-04 이문찬: WBS-094/097과 영역이 겹쳐도 병렬 진행 승인, HeyGen 로그인 요청. 첫 조각으로 설정의 HeyGen API 키·음성 선택만 구현(credential-store/-service, heygen-voices, HeygenSettings, contracts). 과제 초안 부분은 WBS-097이 진행 중이라 손대지 않음. task + 'voice-settings' 영역만 선점.",
+      "review_evidence": [
+        "Slice 1 (HeyGen sign-in): heygen-voices.ts lists Starfish voices via GET https://api.heygen.com/v3/voices?engine=starfish (x-api-key; checked against HeyGen's developer docs 2026-11-04), up to 5 pages, Korean first, malformed ids dropped; 401/403 = rejected, network = failed. CredentialService.saveHeygenKey saves only an accepted key (Keychain-encrypted with the other details), never returns or logs it; setHeygenVoice accepts only a voice from the key's own list; heygen() gives the narrator key+voice; clear('heygen'). Voice sample fetched by the host only from https heygen.ai/heygen.com, ≤5 MB, audio/*, then played as a blob (page CSP allows blob media only). Settings dialog: 'HeyGen 음성' section (key field, 확인 후 저장, voice select, 미리 듣기, 지우기). Tests: host 254 (3 new + status expectations), ui 134. Real key not tested by the agent (the owner enters it; agents must not type API keys)."
+      ]
     },
     {
       "phase": "MVP 검수",

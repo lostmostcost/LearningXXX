@@ -14,10 +14,15 @@ export const CredentialStatus = z.object({
   /** The school refused the saved password; nothing is retried until it is saved again. */
   schoolRejected: z.boolean(),
   canvasToken: z.boolean(),
+  /** WBS-092: a HeyGen API key is saved, and the voice chosen for explanation videos. */
+  heygen: z.boolean(),
+  heygenVoiceId: z.string().optional(),
   /** False when the Mac's Keychain-backed encryption is unavailable, so nothing can be saved. */
   available: z.boolean(),
 });
 export type CredentialStatus = z.infer<typeof CredentialStatus>;
+/** WBS-092: a HeyGen voice for the explanation video (Starfish engine). */
+export const HeygenVoice = z.object({ voiceId: z.string(), name: z.string(), language: z.string(), gender: z.string(), preview: z.string().url().optional() });
 
 /**
  * Renderer → host request channels (ADR-002: preload exposes only these).
@@ -107,8 +112,13 @@ export const IpcChannels = {
     request: z.object({ token: z.string().trim().min(10).max(512) }),
     response: CredentialStatus,
   },
+  /** WBS-092: checks the HeyGen API key by listing voices and saves it only if HeyGen accepts it. */
+  "credentials.saveHeygenKey": { request: z.object({ key: z.string().trim().min(8).max(512) }), response: z.object({ status: CredentialStatus, voices: z.array(HeygenVoice) }) },
+  "credentials.heygenVoices": { request: z.object({}), response: z.object({ voices: z.array(HeygenVoice) }) },
+  "credentials.heygenPreview": { request: z.object({ voiceId: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/) }), response: z.object({ bytes: z.instanceof(Uint8Array), mediaType: z.string() }) },
+  "credentials.setHeygenVoice": { request: z.object({ voiceId: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/) }), response: CredentialStatus },
   "credentials.clear": {
-    request: z.object({ which: z.enum(["school", "canvasToken"]) }),
+    request: z.object({ which: z.enum(["school", "canvasToken", "heygen"]) }),
     response: CredentialStatus,
   },
   /**

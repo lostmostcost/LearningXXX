@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { AccountKey, AppError, Id, ImportedDocKind, LectureMention, MANUAL_ENGINE, MediaAsset, Recording, SCHEMA_VERSION, Sha256, Transcript } from "@learningxxx/contracts";
 import type { MentionCandidate, PreferredLanguage } from "@learningxxx/contracts";
@@ -18,7 +18,9 @@ export type MediaDownload = z.infer<typeof Download>;
 const Imported = z.object({ sha256: Sha256, transcriptId: Id.optional(), model: z.string().max(200).optional(), docs: z.array(ImportedDocKind), createdAt: z.string() });
 /** WBS-069: a version the user corrected by hand, stored apart from engine output. */
 const Correction = z.object({ sha256: Sha256, transcriptId: Id });
-const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]), corrections: z.array(Correction).default([]), mentions: z.array(LectureMention).default([]) });
+/** WBS-087: originals the student deleted to free space; their transcripts and notes stay. */
+const Removed = z.object({ assetId: Id, removedAt: z.string() });
+const Catalog = z.object({ assets: z.array(MediaAsset), downloads: z.array(Download), imports: z.array(Imported).default([]), corrections: z.array(Correction).default([]), mentions: z.array(LectureMention).default([]), removed: z.array(Removed).default([]) });
 type Catalog = z.infer<typeof Catalog>;
 interface Partition { key: string; root: string; catalog: Catalog; queue: TranscriptionQueue; writes: Promise<void> }
 export interface MediaServiceOptions {
@@ -90,7 +92,67 @@ export class MediaService {
   /** Every original is transcribed once, except one imported with its own transcript (WBS-066). */
   #enqueue(p: Partition, asset: MediaAsset): TranscriptionJob | undefined {
     if (p.catalog.imports.some((i) => i.sha256 === asset.sha256 && i.transcriptId)) return undefined;
+    if (this.#isRemoved(p, asset.id)) return undefined;
     return p.queue.enqueue(asset);
+  }
+
+  #isRemoved(p: Partition, assetId: string): boolean { return p.catalog.removed.some((r) => r.assetId === assetId); }
+
+  /** Has a finished transcript (made here or imported with the recording). */
+  #transcribed(p: Partition, asset: MediaAsset): boolean {
+    if (p.catalog.imports.some((i) => i.sha256 === asset.sha256 && i.transcriptId)) return true;
+    return p.queue.jobs().some((j) => j.status === "succeeded" && j.outputTranscriptId && p.catalog.assets.find((a) => a.id === j.sourceAssetId)?.sha256 === asset.sha256);
+  }
+
+  #gone(p: Partition, asset: MediaAsset): void {
+    if (this.#isRemoved(p, asset.id)) fail("NOT_FOUND", "이 원본은 저장공간 정리로 지웠습니다. 전사와 정리본은 그대로 있습니다.");
+  }
+
+  /**
+   * WBS-087: the recordings and downloaded videos kept on this Mac, per course,
+   * with which of them may be deleted (only those with a finished transcript).
+   */
+  async storage(): Promise<IpcResponse<"media.storage">> {
+    const p = await this.#activate(), courses = await this.#o.courses();
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    return { courses: courses.filter((c) => c.accountKey === p.key).map((course) => ({
+      courseId: course.id, title: course.title,
+      items: p.catalog.assets.filter((a) => a.courseId === course.id && a.role === "original").map((a) => {
+        const removed = p.catalog.removed.find((r) => r.assetId === a.id);
+        return { assetId: a.id, title: a.title, kind: a.source.type === "recording" ? "recording" as const : "video" as const, bytes: a.bytes, createdAt: a.createdAt, transcribed: this.#transcribed(p, a), ...(removed ? { removedAt: removed.removedAt } : {}) };
+      }),
+    })).filter((c) => c.items.length) };
+  }
+
+  /**
+   * Deletes the chosen originals of a course. Only ones with a finished
+   * transcript, never during a download; transcripts, corrections, notes and
+   * translations are kept. The file goes only when no other kept asset uses
+   * the same stored bytes.
+   */
+  async removeOriginals(courseId: string, assetIds: readonly string[]): Promise<IpcResponse<"media.removeOriginals">> {
+    const { p } = await this.#course(courseId);
+    const skipped: { assetId: string; reason: string }[] = [];
+    const chosen: MediaAsset[] = [];
+    for (const id of new Set(assetIds)) {
+      const asset = p.catalog.assets.find((a) => a.id === id && a.courseId === courseId && a.role === "original");
+      const reason = !asset ? "이 과목의 원본이 아닙니다" : this.#isRemoved(p, id) ? "이미 지웠습니다"
+        : !this.#transcribed(p, asset) ? "전사가 끝나지 않았습니다"
+        : p.catalog.downloads.some((d) => d.assetId === id && (d.status === "queued" || d.status === "running")) ? "받는 중입니다" : undefined;
+      if (reason) skipped.push({ assetId: id, reason }); else chosen.push(asset!);
+    }
+    if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+    const removedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    p.catalog.removed.push(...chosen.map((a) => ({ assetId: a.id, removedAt })));
+    // Recorded first: a crash between the two steps leaves a marked original, never an unmarked missing one.
+    await this.#save(p);
+    let freedBytes = 0;
+    for (const storageKey of new Set(chosen.map((a) => a.storageKey))) {
+      const owner = chosen.find((a) => a.storageKey === storageKey)!;
+      if (p.catalog.assets.some((a) => a.storageKey === storageKey && !this.#isRemoved(p, a.id))) continue;
+      try { await unlink(this.#path(p, owner)); freedBytes += owner.bytes; } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") skipped.push({ assetId: owner.id, reason: "파일을 지우지 못했습니다" }); }
+    }
+    return { removed: chosen.length, freedBytes, skipped };
   }
 
   #importDir(p: Partition, sha256: string): string {
@@ -152,7 +214,7 @@ export class MediaService {
       const root = join(this.#o.dataRoot, "media", "accounts", key);
       let catalog: Catalog;
       try { catalog = Catalog.parse(JSON.parse(await readFile(join(root, "catalog.json"), "utf8"))); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [], corrections: [], mentions: [] }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail("CHECKSUM_MISMATCH", "미디어 목록을 읽지 못했습니다. 기존 파일을 보존했습니다."); catalog = { assets: [], downloads: [], imports: [], corrections: [], mentions: [], removed: [] }; }
       const p = { key, root, catalog, writes: Promise.resolve() } as Partition;
       const engine: Engine = { info: this.#o.engine.info, parameters: this.#o.engine.parameters, transcribe: async (input) => {
         const asset = p.catalog.assets.find((a) => this.#path(p, a) === input.audioPath);
@@ -444,12 +506,13 @@ export class MediaService {
       if (original < 0) continue;
       waiting[job.id] = { ahead: original, ...(runningTitle && runningJob?.id !== job.id ? { runningTitle } : {}), ...(runningJob?.progress !== undefined ? { runningProgress: runningJob.progress } : {}) };
     }
-    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, importedDocs, waiting, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId) };
+    return { assets, recordings: this.#o.recordings(courseId), jobs, transcripts, transcriptionPaused: p.queue.paused, importedDocs, waiting, downloads: p.catalog.downloads.filter((d) => d.courseId === courseId), removed: assets.filter((a) => this.#isRemoved(p, a.id)).map((a) => a.id) };
   }
 
   async asset(courseId: string, assetId: string) {
     const { p } = await this.#course(courseId), asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId);
     if (!asset) fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    this.#gone(p, asset);
     if (asset.bytes > 256 * 1024 ** 2) fail("MEDIA_UNREADABLE", "큰 원본은 시스템 플레이어로 열기를 사용하세요. 앱 내 재생은 256MB까지 지원합니다.");
     const path = await this.#verify(p, asset), bytes = new Uint8Array(await readFile(path));
     if (bytes.length !== asset.bytes || createHash("sha256").update(bytes).digest("hex") !== asset.sha256) fail("CHECKSUM_MISMATCH", "읽는 동안 원본이 바뀌었습니다.");
@@ -504,6 +567,7 @@ export class MediaService {
   async open(courseId: string, assetId: string) {
     const { p } = await this.#course(courseId), asset = p.catalog.assets.find((a) => a.id === assetId && a.courseId === courseId);
     if (!asset) fail("NOT_FOUND", "현재 과목의 원본이 아닙니다.");
+    this.#gone(p, asset);
     const path = await this.#verify(p, asset);
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
     await this.#o.openOriginal(path); return {};
@@ -521,7 +585,8 @@ export class MediaService {
     if (!source) fail("SCOPE_VIOLATION", "현재 과목에서 접근 가능한 영상이 아닙니다.");
     const title = source.title;
     const item = Download.parse({ id: randomUUID(), resourceId: randomUUID(), courseId, sourceId, title, status: "queued" });
-    const existing = p.catalog.downloads.find((d) => d.courseId === courseId && d.sourceId === sourceId && ["queued", "running", "succeeded"].includes(d.status));
+    // A video whose original was deleted to free space (WBS-087) can be downloaded again.
+    const existing = p.catalog.downloads.find((d) => d.courseId === courseId && d.sourceId === sourceId && ["queued", "running", "succeeded"].includes(d.status) && !(d.status === "succeeded" && d.assetId && this.#isRemoved(p, d.assetId)));
     if (existing) return { downloadId: existing.id };
     p.catalog.downloads.push(item); await this.#save(p);
     const abort = new AbortController();

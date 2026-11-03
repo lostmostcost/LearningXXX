@@ -2628,11 +2628,16 @@
         "REQ-008"
       ],
       "acceptance": "과목별 영상·녹음 원본 용량을 보여 주고, 전사가 끝난 원본을 골라 지울 수 있다. 전사·정리본·메모는 절대 지우지 않는다. 지운 원본은 표시가 남고 필요하면 다시 받을 수 있음을 안내.",
-      "status": "Backlog",
+      "status": "In Progress",
       "branch": "feat/WBS-087-storage",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd817cb4a4d1e20e01db7d?pvs=204",
-      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log."
+      "scope_note": "이문찬 2026-11-04 요청(CR-082). 권장안으로 결정, 결정 기록은 decision-log.",
+      "review_evidence": [
+        "Host media-service: catalog 'removed' list; storage() lists recording/video originals per course of the current account with size, transcribed (a succeeded transcription for the same bytes, or an imported transcript) and removedAt; removeOriginals refuses untranscribed, already removed, other course's and downloading originals, records the removal before unlinking (a crash leaves a marked original, never an unmarked missing one), unlinks only when no kept asset shares the stored bytes; removed originals are never enqueued again (also after restart), play/open refuse with a clear message, list reports them, a removed video can be downloaded again. Transcripts, corrections, readable notes, translations, mentions and memos are untouched. Host 240 pass (1 new: refuse → transcribe → delete → transcript kept → refuse play → restart no re-run).",
+        "UI: '저장공간' section on the home dashboard — totals (kept / removable now / already deleted), per course list with checkboxes only for transcribed originals, '전사 끝난 원본 모두 고르기', confirm stating transcripts stay and recordings cannot be restored. ui 130 pass (1 new).",
+        "In app (AI, env -i, CDP): view only — 1.5 GB originals, 788 MB removable, an untranscribed 612 MB video shown as '전사 전 · 지울 수 없음'. Nothing deleted on the owner's data (deletion verified by the host test). Known limit: the recording/transcript panel does not yet label a removed original (playing it shows the host message)."
+      ]
     },
     {
       "id": "WBS-088",

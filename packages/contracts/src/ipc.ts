@@ -315,10 +315,16 @@ export const IpcChannels = {
   "media.list": {
     request: z.object({ courseId: Id }),
     response: z.object({ assets: z.array(MediaAsset), recordings: z.array(Recording), jobs: z.array(TranscriptionJob), transcripts: z.array(Transcript), transcriptionPaused: z.boolean().optional(), importedDocs: z.record(Id, z.array(ImportedDocKind)).optional(),
+      /** WBS-087: originals deleted to free space (their transcripts stay). */
+      removed: z.array(Id).optional(),
       /** WBS-073: for each queued transcription, how many run before it and what is running now. */
       waiting: z.record(Id, z.object({ ahead: z.number().int().nonnegative(), runningTitle: z.string().max(300).optional(), runningProgress: z.number().min(0).max(1).optional() })).optional(), downloads: z.array(z.object({ id: Id, courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/).optional(), title: z.string(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]), receivedBytes: z.number().optional(), totalBytes: z.number().optional(), errorCode: z.string().optional() })) }),
   },
   /** Online lectures the account may download; `week` is the LMS module (주차) title, shown as given. */
+  /** WBS-087: recordings and downloaded videos kept on this Mac, per course of the signed-in account. */
+  "media.storage": { request: z.object({}), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), items: z.array(z.object({ assetId: Id, title: z.string(), kind: z.enum(["recording", "video"]), bytes: z.number().int().nonnegative(), createdAt: z.string(), transcribed: z.boolean(), removedAt: z.string().optional() })) })) }) },
+  /** WBS-087: deletes chosen originals that have a finished transcript; transcripts and notes stay. */
+  "media.removeOriginals": { request: z.object({ courseId: Id, assetIds: z.array(Id).min(1).max(500) }), response: z.object({ removed: z.number().int().nonnegative(), freedBytes: z.number().int().nonnegative(), skipped: z.array(z.object({ assetId: Id, reason: z.string() })) }) },
   "media.videos": { request: z.object({ courseId: Id }), response: z.object({ videos: z.array(z.object({ sourceId: z.string().regex(/^[\w-]{1,64}$/), title: z.string().min(1).max(200), week: z.string().min(1).max(200).optional() })) }) },
   "media.download": { request: z.object({ courseId: Id, sourceId: z.string().regex(/^[\w-]{1,64}$/) }), response: z.object({ downloadId: Id }) },
   "media.cancelDownload": { request: z.object({ courseId: Id, downloadId: Id }), response: z.object({}) },

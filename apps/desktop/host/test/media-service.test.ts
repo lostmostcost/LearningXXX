@@ -188,3 +188,29 @@ test("WBS-073: the queue lists the running and waiting transcriptions in run ord
   assert.deepEqual((await media.queue()).items, [], "another account sees none of these");
   await media.stop();
 });
+
+test("WBS-087: only a transcribed original can be deleted; its transcript stays and it cannot be played or transcribed again", async () => {
+  const s = await setup(), media = s.make(); await media.recover(); await tick();
+  const before = await media.storage();
+  assert.deepEqual(before.courses[0]!.items.map((i) => [i.assetId, i.kind, i.transcribed, i.removedAt]), [[s.asset.id, "recording", false, undefined]]);
+  const refused = await media.removeOriginals(s.course.id, [s.asset.id, randomUUID()]);
+  assert.equal(refused.removed, 0);
+  assert.deepEqual(refused.skipped.map((x) => x.reason).sort(), ["이 과목의 원본이 아닙니다", "전사가 끝나지 않았습니다"]);
+  assert.deepEqual(await readFile(join(s.root, s.asset.storageKey)), s.bytes, "nothing deleted before the transcript exists");
+  s.finish(); await until(async () => (await media.list(s.course.id)).transcripts.length === 1);
+  const done = await media.removeOriginals(s.course.id, [s.asset.id]);
+  assert.deepEqual([done.removed, done.freedBytes, done.skipped], [1, s.bytes.length, []]);
+  await assert.rejects(readFile(join(s.root, s.asset.storageKey)), /ENOENT/);
+  const listing = await media.list(s.course.id);
+  assert.deepEqual(listing.removed, [s.asset.id]);
+  assert.equal(listing.transcripts.length, 1, "the transcript is kept");
+  assert.equal((await media.storage()).courses[0]!.items[0]!.removedAt !== undefined, true);
+  await assert.rejects(media.asset(s.course.id, s.asset.id), /저장공간 정리로 지웠습니다/);
+  await assert.rejects(media.open(s.course.id, s.asset.id), /저장공간 정리로 지웠습니다/);
+  assert.deepEqual((await media.removeOriginals(s.course.id, [s.asset.id])).skipped.map((x) => x.reason), ["이미 지웠습니다"]);
+  await media.stop();
+  const restarted = s.make(); await restarted.recover(); await tick();
+  assert.equal(s.calls(), 1, "never sent to transcription again after a restart");
+  assert.equal((await restarted.list(s.course.id)).transcripts.length, 1);
+  await restarted.stop();
+});

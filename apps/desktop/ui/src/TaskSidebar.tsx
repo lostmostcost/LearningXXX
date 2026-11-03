@@ -12,8 +12,8 @@ export function TaskSidebar({ library, status, selectedId, onSelect, onOpenQuiz 
   const weeks = tasksByWeek(library, status);
   if (!weeks.length) return <p className="meta">과제가 없습니다.</p>;
   const row = (r: TaskRow) => (
-    <li key={r.key} className={`task-row ${r.done ? "done" : "todo"}`}>
-      {r.entry ? <button className="entry" aria-pressed={selectedId === r.entry.resource.id} onClick={() => onSelect(r.entry!)}>{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</button> : <span className="task-title">{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</span>}
+    <li key={r.key} className={`task-row ${r.done ? "is-done" : "is-todo"}`}>
+      {r.entry ? <button className="task-open" aria-pressed={selectedId === r.entry.resource.id} onClick={() => onSelect(r.entry!)}>{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</button> : <span className="task-title">{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</span>}
       <small>{r.dueAt ? `마감 ${formatSeoul(r.dueAt)}` : "마감 정보 없음"}{r.done === undefined ? " · LMS 상태 확인 전" : ""} <Badges item={r.item} /></small>
       {r.kind === "quiz" && r.item && !r.done && !r.item.quiz?.lockdownBrowser && (r.item.moduleItemId || r.item.quiz?.quizId) ? <button className="link-button" onClick={() => onOpenQuiz(r.item!)}>응시 창 열기</button> : null}
     </li>

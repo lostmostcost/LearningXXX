@@ -38,3 +38,8 @@ export function videoRows(videos: Videos, media: Media | undefined): VideoRow[] 
     return { ...base, state: "available", status: "아직 받지 않음" };
   });
 }
+
+/** The lectures that belong under one week of the materials menu; `undefined` collects those matching no week. */
+export function rowsForWeek(rows: readonly VideoRow[], week: string | undefined, weekLabels: readonly string[]): VideoRow[] {
+  return week === undefined ? rows.filter((r) => !weekLabels.includes(r.week)) : rows.filter((r) => r.week === week);
+}

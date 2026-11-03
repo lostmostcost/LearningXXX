@@ -81,13 +81,14 @@ export class ConversationService {
       catch { fail('대화 표시 기록을 읽지 못했습니다. 원본을 보존했으며 새 대화를 시작할 수 있습니다.'); }
     }
     try { map = JSON.parse(readFileSync(join(cwd, '.learningxxx-session.json'), 'utf8')); } catch { /* fresh */ }
-    const sessions = this.#o.sessions ?? await sdkSessions();
-    const resume = await this.#resumable(cwd, map, sessions);
+    const sessions = this.#o.sessions ?? (stored.messages?.length || map.sessionId ? await sdkSessions() : undefined);
+    // A brand-new conversation (nothing shown, nothing saved) has nothing to look up.
+    const resume = stored.messages?.length || map.sessionId ? await this.#resumable(cwd, map, sessions) : undefined;
     const state: ChatState = { messages: Array.isArray(stored.messages) ? stored.messages.slice(-200) : [], busy: false, connected: false, error: '', model: stored.model ?? '', effort: stored.effort ?? 'default', mode: 'default', models: [], commands: [], permissions: [], totalCost: stored.totalCost ?? 0, tokens: stored.tokens ?? 0, sessionId: resume ?? '' };
     if (resume) {
       // Read the engine's current transcript after an advanced-terminal handoff too.
       // This is session resume, not migration of the retired structured engine.
-      const messages = await sessions.messages(resume, cwd);
+      const messages = await sessions!.messages(resume, cwd);
       state.messages = messages.filter(m => !m.parent_tool_use_id).flatMap(m => {
         const body = m.message as { content?: unknown } | null;
         const blocks = Array.isArray(body?.content) ? body.content : typeof body?.content === 'string' ? [{ type: 'text', text: body.content }] : [];
@@ -145,7 +146,8 @@ export class ConversationService {
    * session Claude Code kept for this conversation's own folder, which is then
    * saved. Sessions of other folders are never taken.
    */
-  async #resumable(cwd: string, map: { sessionId?: string; transcriptPath?: string }, sessions: SessionStoreAccess): Promise<string | undefined> {
+  async #resumable(cwd: string, map: { sessionId?: string; transcriptPath?: string }, sessions: SessionStoreAccess | undefined): Promise<string | undefined> {
+    if (!sessions) return undefined;
     if (typeof map.sessionId === 'string' && UUID.test(map.sessionId)) {
       if (typeof map.transcriptPath === 'string' && map.transcriptPath.endsWith(`/${map.sessionId}.jsonl`) && existsSync(map.transcriptPath)) return map.sessionId;
       if (await sessions.info(map.sessionId, cwd).catch(() => undefined)) return map.sessionId;

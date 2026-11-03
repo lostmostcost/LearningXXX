@@ -39,13 +39,16 @@ export class ConversationService {
     if (this.#o.nativeActive(id)) fail('고급 터미널을 종료한 뒤 채팅으로 돌아오세요.');
     const pending = this.#opening.get(id); if (pending) return pending;
     const existing = this.#entries.get(id); if (existing?.state.connected) return this.state(id);
-    if (existing) await this.close(id);
-    const work = this.#start(id); this.#opening.set(id, work);
+    // Reserve reconnects before awaiting the old transport too. Otherwise two
+    // reconnect clicks can both pass the pending check and start separate CLIs.
+    const work = (async () => { if (existing) await this.#closeEntry(id); return this.#start(id); })();
+    this.#opening.set(id, work);
     try { return await work; } finally { this.#opening.delete(id); }
   }
   async #start(id: string): Promise<ChatState> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) fail('잘못된 대화 ID입니다.');
-    if (this.#entries.size + this.#opening.size >= 8) fail('열린 대화가 많습니다. 사용하지 않는 대화를 닫으세요.');
+    const otherConnections = new Set([...this.#entries.keys(), ...this.#opening.keys()].filter(key => key !== id));
+    if (otherConnections.size >= 8) fail('열린 대화가 많습니다. 사용하지 않는 대화를 닫으세요.');
     const executable = await (this.#o.prepare?.() ?? this.#cli());
     if (this.#stopped || this.#o.getSession(id).archivedAt || this.#o.nativeActive(id)) fail('대화 상태가 바뀌었습니다. 다시 연결하세요.');
     mkdirSync(this.#o.root, { recursive: true }); const root = realpathSync(this.#o.root), cwd = join(root, id);
@@ -74,6 +77,7 @@ export class ConversationService {
     } else if (state.messages.length) {
       fail('Claude Code 원본 이력이 없어 기존 문맥을 재개할 수 없습니다. 새 대화를 시작하세요.');
     }
+    if (this.#stopped || this.#o.getSession(id).archivedAt || this.#o.nativeActive(id)) fail('대화 상태가 바뀌었습니다. 다시 연결하세요.');
     const input = new Inputs(); let entry: Entry;
     const options: Options = {
       cwd, pathToClaudeCodeExecutable: executable, permissionMode: 'default', settingSources: ['user', 'project', 'local'], enableFileCheckpointing: true, extraArgs: { 'replay-user-messages': null },

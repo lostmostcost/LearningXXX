@@ -18,11 +18,11 @@ class FakeQuery {
   close() { this.stopped = true; this.wake?.(); }
 }
 function setup(t: { after: (f: () => void | Promise<void>) => void }) {
-  const root = mkdtempSync(join(tmpdir(), 'rich-service-')), id = randomUUID(); const q = new FakeQuery(); let options: Options;
+  const root = mkdtempSync(join(tmpdir(), 'rich-service-')), id = randomUUID(); const q = new FakeQuery(); let options: Options; let created = 0;
   const session = { appSessionId: id, engine: 'chat', mode: 'independent', status: 'idle' } as Session;
-  const service = new ConversationService({ root, getSession: () => session, rename() {}, nativeActive: () => false, prepare: async () => '/official/claude', createQuery: ((args: { options: Options }) => { options = args.options; return q as unknown as Query; }) as never });
+  const service = new ConversationService({ root, getSession: () => session, rename() {}, nativeActive: () => false, prepare: async () => '/official/claude', createQuery: ((args: { options: Options }) => { options = args.options; return (++created === 1 ? q : new FakeQuery()) as unknown as Query; }) as never });
   t.after(async () => { await service.stopAll(); rmSync(root, { recursive: true, force: true }); });
-  return { id, q, service, options: () => options };
+  return { id, q, service, options: () => options, created: () => created };
 }
 const tick = () => new Promise(r => setTimeout(r, 5));
 test('model, effort and plan use live controls; failed or unsupported changes are not displayed as applied', async t => {
@@ -91,4 +91,16 @@ test('shutdown closes a transport still waiting for initialization instead of wa
  f.q.initializationResult=()=>new Promise<never>((_,reject)=>{rejectInit=reject;});
  const close=f.q.close.bind(f.q);f.q.close=()=>{close();rejectInit(new Error('closed'));};
  const opening=f.service.open(f.id);const rejected=assert.rejects(opening);await tick();await f.service.stopAll();await rejected;assert.ok(f.q.stopped);assert.equal(f.service.active(f.id),false);
+});
+test('simultaneous reconnects reserve one replacement before awaiting the disconnected entry',async t=>{
+ const f=setup(t);await f.service.open(f.id);f.q.close();await tick();
+ const [a,b]=await Promise.all([f.service.open(f.id),f.service.open(f.id)]);
+ assert.equal(f.created(),2);assert.equal(a.connected,true);assert.equal(b.connected,true);
+});
+test('the eighth session can reconnect without counting its own reservation twice',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'chat-cap-')), ids=Array.from({length:9},()=>randomUUID()), queries:FakeQuery[]=[];
+ const service=new ConversationService({root,getSession:id=>({appSessionId:id,engine:'chat',mode:'independent',status:'idle'} as Session),rename(){},nativeActive:()=>false,prepare:async()=>'/official/claude',createQuery:(()=>{const q=new FakeQuery();queries.push(q);return q as unknown as Query;}) as never});
+ t.after(async()=>{await service.stopAll();rmSync(root,{recursive:true,force:true});});
+ await Promise.all(ids.slice(0,8).map(id=>service.open(id)));await assert.rejects(service.open(ids[8]!));
+ queries[7]!.close();await tick();await service.open(ids[7]!);assert.equal(queries.length,9);
 });

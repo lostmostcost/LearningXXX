@@ -17,6 +17,7 @@ import { SttRuntimeService } from "./stt-runtime.ts";
 import { createHandlers } from "./handlers.ts";
 import { LibraryService } from "./library-service.ts";
 import { runLmsProbe } from "./lms-probe.ts";
+import { runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
 import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch } from "./lms-session.ts";
@@ -56,7 +57,7 @@ function createWindow(): BrowserWindow {
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else if (!diagnostic) {
@@ -120,6 +121,19 @@ app.whenReady().then(async () => {
     },
   });
   await library.init();
+  // WBS-054 read-only measurement modes; see lms-status-probe.ts.
+  const statusProbeOut = process.argv.find((arg) => arg.startsWith("--lms-status-probe="))?.split("=")[1];
+  const watchOut = process.argv.find((arg) => arg.startsWith("--lms-watch="))?.split("=")[1];
+  if (statusProbeOut !== undefined || watchOut !== undefined) {
+    const ensureSignedIn = () => credentials.ensureSignedIn();
+    if (statusProbeOut !== undefined) {
+      await runLmsStatusProbe(statusProbeOut, { ensureSignedIn, learningxToken, canvas: () => createLmsClient(() => credentials.canvasToken()), courses: () => library.courses() });
+    } else {
+      await runLmsWatch(watchOut!, { ensureSignedIn });
+    }
+    app.quit();
+    return;
+  }
   const attachments = new AttachmentService({
     capture: () => captureRegion({ permission: () => systemPreferences.getMediaAccessStatus("screen") }),
     dataRoot, getSession: (id) => sessions.get(id), accountKey: () => library.accountKey(),

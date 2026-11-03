@@ -249,3 +249,54 @@ export function openLmsItemPage(
     void window.loadURL(page).catch(() => undefined); // aborted loads are judged by did-fail-load
   });
 }
+
+let watching: { window: BrowserWindow; closed: Promise<void> } | undefined;
+
+/**
+ * CR-054 / WBS-057: the lecture's LMS page in a window the user sees, in the
+ * sign-in session, so the user really watches it in the official player and
+ * the LMS counts it the way it always does. Sound is on; the app does not
+ * play, skip or report anything itself. One such window at a time: opening
+ * another lecture loads it in the same window. School pages only; pop-ups are
+ * refused. Resolves when the user closes the window.
+ */
+export function openLmsWatchWindow(
+  { sourceCourseId, moduleItemId, title }: { sourceCourseId: string; moduleItemId: string; title: string },
+  signInAgain: (contents: Electron.WebContents) => Promise<boolean>,
+): Promise<void> {
+  const page = `${KHU_CANVAS_BASE_URL}/courses/${encodeURIComponent(sourceCourseId)}/modules/items/${encodeURIComponent(moduleItemId)}`;
+  if (watching && !watching.window.isDestroyed()) {
+    watching.window.setTitle(`LMS에서 시청 · ${title}`);
+    void watching.window.loadURL(page).catch(() => undefined);
+    watching.window.show();
+    watching.window.focus();
+    return watching.closed;
+  }
+  const window = new BrowserWindow({
+    show: true,
+    width: 1280,
+    height: 860,
+    title: `LMS에서 시청 · ${title}`,
+    webPreferences: { partition: LMS_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  const contents = window.webContents;
+  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // Keep our title, not the page's.
+  window.on("page-title-updated", (event) => event.preventDefault());
+  const schoolOnly = (event: { preventDefault: () => void }, url: string) => {
+    const target = new URL(url);
+    if (target.protocol !== "https:" || !KHU_HOST.test(target.hostname)) event.preventDefault();
+  };
+  let signedInAgain = false;
+  contents.on("did-navigate", (_event, url) => {
+    if (!isSchoolSignIn(url) || signedInAgain) return;
+    signedInAgain = true;
+    void signInAgain(contents).then((ok) => { if (ok && !window.isDestroyed()) void contents.loadURL(page).catch(() => undefined); }, () => undefined);
+  });
+  contents.on("will-navigate", (event, url) => schoolOnly(event, url));
+  contents.on("will-redirect", (event, url) => schoolOnly(event, url));
+  const closed = new Promise<void>((resolve) => window.on("closed", () => { watching = undefined; resolve(); }));
+  watching = { window, closed };
+  void window.loadURL(page).catch(() => undefined);
+  return closed;
+}

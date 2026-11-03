@@ -1720,11 +1720,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "앱 안 보이는 창에서 공식 플레이어로 실제 시청하고 출석 상태를 추적한다. 진도 조작·시청 없는 출석 기록은 하지 않는다.",
-      "status": "Backlog",
+      "status": "Done",
       "branch": "feat/WBS-057-official-player",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81ff85edfbff47e3c24e?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지.",
+      "review_evidence": [
+        "Reviewed openLmsWatchWindow (visible, sound on, school pages only, pop-ups refused, one window reused, sign-in once like WBS-056, our title kept), LearningStatusService.watch (only open/late video or live items with a module item id, current account/course, status re-read after close, push to the UI), IPC contract and preload, UI watch button per lecture, next-unwatched line, notices and reload on close. Checks: host learning-status tests (12) incl. watch scope and re-read on close, UI learning tests (next unwatched, canWatch), pnpm -r run check. Fixture preview: button and next-lecture line shown, open and close notices. The real official player and attendance change were not tried by the agent (watching records attendance in the owner's LMS)."
+      ]
     },
     {
       "id": "WBS-058",

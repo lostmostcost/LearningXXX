@@ -9,7 +9,7 @@ import { RichChatPanel } from "./RichChatPanel.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
 import { LibraryPanel } from "./LibraryPanel.tsx";
 import { Badges, ViewRecordNote, useLearningStatus } from "./LearningBadges.tsx";
-import { canRecordView, itemForResource } from "./learning.ts";
+import { canRecordView, canWatch, itemForResource, nextUnwatched } from "./learning.ts";
 import { viewTarget } from "./document.ts";
 import { buildDetail, buildLabel } from "./build-label.ts";
 import { claimLaunchSync } from "./launch-sync.ts";
@@ -125,6 +125,22 @@ export function App() {
   // WBS-056: an LMS PDF whose page is actually drawn in the viewer is a view the LMS records
   // (once per item; retry on failure). A PDF that cannot be opened is not.
   const { recordView } = learning;
+  // WBS-057: watch in the official LMS player (a visible app window); the status is read again when it closes.
+  const [watchNotice, setWatchNotice] = useState<string>();
+  const watch = useCallback(async (moduleItemId: string) => {
+    const courseId = library?.course.id;
+    if (!courseId) return;
+    setWatchNotice(undefined);
+    const result = await invoke("learning.watch", { courseId, moduleItemId });
+    setWatchNotice(result.ok ? "LMS 시청 창을 열었습니다. 다 보고 창을 닫으면 출석 상태를 다시 읽습니다." : result.error.message);
+  }, [library?.course.id]);
+  const { reload: reloadLearning } = learning;
+  useEffect(() => onHostPush((push) => {
+    if (push.kind !== "learning.watchClosed" || push.courseId !== courseRef.current) return;
+    setWatchNotice("시청 창을 닫았습니다. LMS의 출석 상태를 다시 읽었습니다.");
+    void reloadLearning(false);
+  }), [reloadLearning]);
+  const upNext = nextUnwatched(learning.status, now);
   const target = selected ? viewTarget(selected) : undefined;
   const shownPdf = !playing && target?.kind === "pdf" && shownPage?.assetId === target.asset.id;
   useEffect(() => {
@@ -275,12 +291,15 @@ export function App() {
               const rec=(r:RecordingRow,nested?:boolean)=><RecordingFile key={r.recording.id} row={r} nested={nested} selected={r.asset!==undefined&&r.asset.id===mediaAssetId} onOpen={openRecording}/>;
               const unfiled=week||!library?[]:unfiledRecordings(lectures.media?.recordings??[], library.weeks.map(w=>w.week), learning.status);
               return <>
-                {videos.map(row=><div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`)}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
-                  {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>)}
+                {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
+                  {canWatch(lmsItem)?<button className="watch-lms" title="LMS 공식 플레이어로 시청(출석 반영)" onClick={()=>void watch(lmsItem.moduleItemId)}><Icon name="play"/>LMS에서 시청</button>:null}
+                  {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>;})}
                 {recs.filter(r=>!videos.some(v=>v.sourceId===r.recording.lectureSourceId)).map(r=>rec(r))}
                 {unfiled.length?<button className="recording-file unfiled" onClick={()=>{setRightTab('recording');setView('chat');setTray(false);setTrayDismissed(true);}}><Icon name="mic"/><span><span className="video-title">주차를 확인할 녹음 {unfiled.length}개</span><small>녹음 탭에서 추정 주차를 확인하고 옮기세요</small></span></button>:null}
               </>;
             })()}</div>
+          {upNext?<p className="up-next">다음 미시청 강의: {upNext.weekLabel?`${upNext.weekLabel} · `:''}{upNext.title}{upNext.dueAt?` · 출석 마감 ${new Date(upNext.dueAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:''} <button className="link-button" onClick={()=>void watch(upNext.moduleItemId)}>LMS에서 시청</button></p>:null}
+          {watchNotice?<p className="meta" role="status">{watchNotice}</p>:null}
           {lectures.loading?<p className="meta">동영상 강의 목록을 학교 서버에서 확인하는 중…</p>:null}
           {lectures.notice?<p className="meta" role="status">동영상 강의: {lectures.notice} <button className="link-button" onClick={()=>void lectures.reload()}>다시 확인</button></p>:null}</div>
         </div>

@@ -161,3 +161,28 @@ test("recorded Zoom classes are lecture videos like Commons movies; unopened one
   ]);
   assert.deepEqual(videos.map((v) => [v.sourceId, v.week]), [["m1", "6주차"], ["z1", "6주차"], ["z2", "6주차"]]);
 });
+
+test("WBS-057: only an open LMS video opens the visible watch window; closing it reads the status again", async () => {
+  const root = mkdtempSync(join(tmpdir(), "wbs057-"));
+  const course: Course = { id: "11111111-1111-4111-8111-000000000001", accountKey: "acct_synthetic01", termId: "1", sourceCourseId: "95899", title: "합성" };
+  let modulesRead = 0, close!: () => void;
+  const opened: string[] = [], closedFor: string[] = [];
+  const s = new LearningStatusService({
+    root, ensureSignedIn: async () => {}, courses: async () => [course], accountKey: () => course.accountKey,
+    sources: { modules: async () => { modulesRead += 1; return MODULES; }, attendanceItem: async () => ({}), assignments: async () => [], quizzes: async () => [] },
+    openWatchWindow: (page) => { opened.push(`${page.sourceCourseId}/${page.moduleItemId}/${page.title}`); return new Promise<void>((r) => { close = r; }); },
+    onWatchClosed: (courseId, moduleItemId) => closedFor.push(`${courseId}/${moduleItemId}`),
+  });
+  const code = (e: unknown) => (e as { appError: { code: string } }).appError.code;
+  await s.watch(course.id, "501");
+  assert.deepEqual(opened, ["95899/501/1차시 강의"]);
+  assert.equal(modulesRead, 1);
+  close();
+  for (let i = 0; i < 20 && !closedFor.length; i++) await new Promise((r) => setTimeout(r, 2));
+  assert.deepEqual(closedFor, [`${course.id}/501`]);
+  assert.equal(modulesRead, 2, "status read again from the LMS after closing");
+  await assert.rejects(s.watch(course.id, "502"), (e) => code(e) === "SCOPE_VIOLATION", "materials are not watched");
+  await assert.rejects(s.watch(course.id, "601"), (e) => code(e) === "SCOPE_VIOLATION", "a lecture not open yet");
+  await assert.rejects(s.watch("22222222-2222-4222-8222-000000000002", "501"), (e) => code(e) === "NOT_FOUND");
+  assert.equal(opened.length, 1);
+});

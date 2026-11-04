@@ -45,6 +45,7 @@ export function installFakeHost(courseTitle: string): void {
   const fakeCorrections: (typeof SAMPLE_TRANSCRIPT)[] = [];
   let fakeReadable = false;
   let fakeLanguage = "en";
+  let fakeTheme = "system";
   let fakeAutomation = { transcribe: true, correct: false, readable: false, mentions: false, courseMd: false, review: false, preview: false };
   let fakeCredentials = { school: true, schoolRejected: false, canvasToken: false, available: true };
   const fakeTranslations = new Map<string, string[]>();
@@ -111,8 +112,8 @@ export function installFakeHost(courseTitle: string): void {
     // WBS-071: preferences and translations in memory (the fixture prefers English so the toggle shows).
     "credentials.status": () => new URLSearchParams(location.search).has('statusFailure') ? fail('INTERNAL', '합성 연결 조회 실패') : ok({ ...fakeCredentials }),
     "credentials.clear": p => { fakeCredentials = { ...fakeCredentials, ...(p.which === 'school' ? { school: false } : { canvasToken: false }) }; return ok({ ...fakeCredentials }); },
-    "app.preferences": () => ok({ language: fakeLanguage, automation: fakeAutomation }),
-    "app.setPreferences": (p) => { if (p.language) fakeLanguage = String(p.language); if (p.automation) fakeAutomation = { ...fakeAutomation, ...p.automation as Partial<typeof fakeAutomation> }; return ok({ language: fakeLanguage, automation: fakeAutomation }); },
+    "app.preferences": () => ok({ language: fakeLanguage, automation: fakeAutomation, theme: fakeTheme }),
+    "app.setPreferences": (p) => { if (p.language) fakeLanguage = String(p.language); if (p.automation) fakeAutomation = { ...fakeAutomation, ...p.automation as Partial<typeof fakeAutomation> }; if (p.theme) fakeTheme = String(p.theme); return ok({ language: fakeLanguage, automation: fakeAutomation, theme: fakeTheme }); },
     "media.translation": (p) => ok(fakeTranslations.has(`${String(p.transcriptId)}.${String(p.language)}`) ? { texts: fakeTranslations.get(`${String(p.transcriptId)}.${String(p.language)}`) } : {}),
     "media.translate": async (p) => { await new Promise((r) => setTimeout(r, 500)); const t = [SAMPLE_TRANSCRIPT, ...fakeCorrections].find((x) => x.id === p.transcriptId)!; const texts = t.segments.map((seg) => `[${String(p.language)}] ${seg.text}`); fakeTranslations.set(`${t.id}.${String(p.language)}`, texts); return ok({ texts, untranslated: 0 }); },
     // WBS-073: a synthetic queue — one transcription running, one waiting behind it, one download.

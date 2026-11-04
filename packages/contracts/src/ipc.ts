@@ -9,6 +9,10 @@ import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
 import { ChatTurn, ComposerDraft, PreparedAttachment, Run, Session } from "./sessions.ts";
 
+/** WBS-100: screen theme. "system" follows the macOS appearance (the default and the earlier behaviour). */
+export const ThemePreference = z.enum(["system", "light", "dark"]);
+export type ThemePreference = z.infer<typeof ThemePreference>;
+
 export const CredentialStatus = z.object({
   school: z.boolean(),
   /** The school refused the saved password; nothing is retried until it is saved again. */
@@ -87,9 +91,9 @@ export const IpcChannels = {
   /** WBS-071: this Mac's app preferences. */
   /** WBS-080: open the macOS Settings pane for a permission (screen recording, microphone). */
   "app.openSettings": { request: z.object({ pane: z.enum(["screen", "microphone"]) }), response: z.object({}) },
-  "app.preferences": { request: z.object({}), response: z.object({ language: PreferredLanguage, automation: AutomationSettings }) },
-  /** Either part may be given; the other stays as it is. */
-  "app.setPreferences": { request: z.object({ language: PreferredLanguage.optional(), automation: AutomationSettings.partial().optional() }), response: z.object({ language: PreferredLanguage, automation: AutomationSettings }) },
+  "app.preferences": { request: z.object({}), response: z.object({ language: PreferredLanguage, automation: AutomationSettings, theme: ThemePreference }) },
+  /** Any part may be given; the others stay as they are. */
+  "app.setPreferences": { request: z.object({ language: PreferredLanguage.optional(), automation: AutomationSettings.partial().optional(), theme: ThemePreference.optional() }), response: z.object({ language: PreferredLanguage, automation: AutomationSettings, theme: ThemePreference }) },
   /** WBS-083: automatic steps waiting, running and recently finished. */
   "automation.status": { request: z.object({}), response: z.object({ running: z.string().optional(), waiting: z.number().int().nonnegative(), recent: z.array(z.object({ title: z.string(), at: z.string(), ok: z.boolean(), message: z.string().optional() })) }) },
   /** WBS-083: review/preview notes per course week, made automatically or on request. */

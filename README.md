@@ -112,9 +112,9 @@ tests/                  # 합성 fixture · 도구 검사
 
 ## 개발 방식
 
-두 명이 각자의 Claude Code 에이전트와 함께 개발했습니다. 요구사항(PRD)과 작업 목록(WBS)을 먼저 정하고,
-작업마다 영역을 선점한 뒤 브랜치 → 에이전트 자체 검토 → CI 통과 → PR 병합 순서로 진행했습니다.
-주요 기능 단계에서는 담당 개발자가 실제 앱을 직접 써 보고 결과를 기록했습니다.
+Claude Code 에이전트와 함께 개발했습니다. 요구사항(PRD)과 작업 목록(WBS)을 먼저 정하고,
+작업마다 영역을 선점해 충돌을 막고 브랜치 → 에이전트 자체 검토 → CI 통과 → PR 병합 순서로 진행했습니다.
+주요 기능 단계에서는 실제 앱을 직접 써 보고 결과를 기록했습니다.
 
 - [요구사항 (PRD-001)](docs/specs/PRD-001.md) · [아키텍처 (ARCH-001)](docs/specs/ARCH-001.md) · [로드맵](docs/specs/ROADMAP-001.md)
 - [협업 규칙 (OPS-001)](docs/specs/OPS-001.md) · [에이전트 작업 규칙 (AGENTS.md)](AGENTS.md) · [개발 환경](docs/DEVELOPMENT.md)
@@ -136,4 +136,6 @@ docker compose run --rm tools
 
 ## 팀
 
-**LearningXXX** — 이문찬 ([@lostmostcost](https://github.com/lostmostcost)) · 안상현 ([@Kishibae](https://github.com/Kishibae))
+**LearningXXX** — 이문찬 ([@lostmostcost](https://github.com/lostmostcost))
+
+개발 과정에서 안상현([@Kishibae](https://github.com/Kishibae))이 일부 기능 개발에 참여했습니다(공모전 참가자는 아님).

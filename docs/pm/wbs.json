@@ -3015,6 +3015,40 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-098.md: staged own diff/caller reviews and fixes. UI typecheck/build and existing 134 tests PASS. Actual built browser fixtures: partial-input approval/cancel request counts, PDF-step transition, automation opt-in/cancel/default restoration, /model reveals and focuses collapsed controls, chat draft survives recording tab switch, keyboard transcript version access and explicit excerpt preview. Actual 600px learning/assignment frames have scrollWidth=600; confirmation stays within viewport and Escape sends 0 requests. Real user app/recording untouched. Final frozen-container and CI results follow in PR."
       ]
+    },
+    {
+      "id": "WBS-099",
+      "title": "공모전 제출 v1.0: 독립 실행 macOS 앱(.app) 빌드·릴리스",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "spec": "QA-001",
+      "requirements": [
+        "REQ-010"
+      ],
+      "qa_mode": "appropriate_checks_only",
+      "deps": [
+        "WBS-098"
+      ],
+      "areas": [
+        "host",
+        "infra",
+        "shared"
+      ],
+      "paths": [
+        "infra/release/",
+        "apps/desktop/host/src/main.ts",
+        "apps/desktop/host/package.json",
+        "apps/desktop/ui/package.json",
+        "docs/releases/",
+        "docs/pm/",
+        "README.md",
+        ".gitignore"
+      ],
+      "status": "In Progress",
+      "branch": "feat/WBS-099-v1-release",
+      "acceptance": "main의 완성 기능을 소스 폴더·pnpm 없이 실행되는 단일 'YOLO UNIV.app'(Apple Silicon)으로 빌드하고 버전 1.0.0, git 태그 v1.0.0, GitHub Release(.dmg/.zip)로 배포한다. 패키지 안에서 UI·PDF·과제 초안 엔진·전사 엔진 설치 스크립트 경로가 동작하고, 빌드한 앱이 소스 폴더 밖에서 창을 띄우는 것을 확인한다. 실행법·데이터 위치·서명 한계·known issues를 릴리스 문서에 남긴다.",
+      "scope_note": "2026-11-04 이문찬 직접 지시(\"지금까지 완성된 버전을 공모전 제출 버전으로 하나의 실행 가능한 app 파일로 빌드하고 배포 버전 v1.0으로\"). WBS-030(로컬 릴리스·인수인계)의 패키징 부분을 먼저 수행. host 영역은 main.ts의 소스 기준 경로 계산과 package.json 버전만 수정. ui는 package.json 버전 숫자만(영역 밖 최소 수정). lockfile·의존성 변경 없음: 패키저(@electron/packager)는 저장소 밖 임시 npm 캐시로 실행.",
+      "url": "https://app.notion.com/p/40ebd7ec20cd81218650d5770c07f129"
     }
   ],
   "qaPolicy": {

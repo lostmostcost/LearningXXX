@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Details } from './Details.tsx';
+import { ConfirmDialog } from './ConfirmDialog.tsx';
 import type { AutomationSettings as Settings, IpcResponse } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
 import { formatSeoul } from './library.ts';
@@ -21,24 +23,46 @@ export function AutomationSettings() {
   const [settings, setSettings] = useState<Settings>();
   const [status, setStatus] = useState<IpcResponse<'automation.status'>>();
   const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false), [confirmAi, setConfirmAi] = useState(false);
+  const lock = useRef(false);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
-    void invoke('app.preferences', {}).then((r) => { if (r.ok) setSettings(r.data.automation); });
-    void invoke('automation.status', {}).then((r) => { if (r.ok) setStatus(r.data); });
-  }, []);
-  const toggle = async (key: keyof Settings, value: boolean) => {
-    const r = await invoke('app.setPreferences', { automation: { [key]: value } });
-    if (r.ok) { setSettings(r.data.automation); setNote('저장했습니다.'); } else setNote(r.error.message);
+    let alive = true;
+    void invoke('app.preferences', {}).then(r => { if (alive) { if (r.ok) { setSettings(r.data.automation); setNote(''); } else setNote(r.error.message); } }).catch(() => { if (alive) setNote('설정을 불러오지 못했습니다.'); });
+    void invoke('automation.status', {}).then(r => { if (alive && r.ok) setStatus(r.data); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [reload]);
+  const save = async (automation: Partial<Settings>) => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true); setNote('');
+    try {
+      const r = await invoke('app.setPreferences', { automation });
+      if (r.ok) { setSettings(r.data.automation); setConfirmAi(false); setNote('저장했습니다.'); } else setNote(r.error.message);
+    } catch { setNote('저장하지 못했습니다. 다시 시도하세요.'); }
+    finally { lock.current = false; setBusy(false); }
   };
+  const aiKeys = ITEMS.filter(i => i.ai).map(i => i.key);
+  const aiCount = aiKeys.filter(key => settings?.[key]).length;
+  const profile = (enabled: boolean) => Object.fromEntries(aiKeys.map(key => [key, enabled])) as Partial<Settings>;
   return <section className="automation-setting">
-    <h3>자동으로 할 일</h3>
-    <p className="meta">✦ 표시는 내 Claude 구독 사용량을 씁니다. 처음에는 꺼져 있고, 켠 것만 순서대로 하나씩 실행합니다.</p>
+    <p className="meta">{!settings ? '불러오는 중…' : `자동 전사 ${settings.transcribe ? '켜짐' : '꺼짐'} · AI 보조 ${aiCount}개`}</p>
+    <div className="automation-presets"><button disabled={!settings || busy} aria-pressed={!!settings?.transcribe && !aiCount} onClick={() => void save({ ...profile(false), transcribe: true })}>전사만 자동</button><button disabled={!settings || busy} aria-pressed={aiCount === aiKeys.length} onClick={() => { setNote(''); setConfirmAi(true); }}>AI 학습 보조</button></div>
+    <Details title="기능별 맞춤 설정">
+    <p className="meta">✦ 기능은 Claude 구독 사용량을 씁니다. 선택한 기능만 자동 실행합니다.</p>
     {ITEMS.map((item) => <label key={item.key} className="automation-item">
-      <input type="checkbox" disabled={!settings} checked={settings?.[item.key] ?? false} onChange={(e) => void toggle(item.key, e.target.checked)} />
+      <input type="checkbox" disabled={!settings || busy} checked={settings?.[item.key] ?? false} onChange={(e) => void save({ [item.key]: e.target.checked })} />
       <span><strong>{item.ai ? '✦ ' : ''}{item.label}</strong><small className="meta">{item.detail}</small></span>
     </label>)}
+    </Details>
     {note ? <p className="meta" role="status">{note}</p> : null}
+    {!settings && note ? <button onClick={() => setReload(v => v + 1)}>다시 읽기</button> : null}
     {status && (status.running || status.waiting || status.recent.length) ? <details><summary>최근 자동 작업{status.running ? ` · 지금: ${status.running}` : ''}{status.waiting ? ` · 대기 ${status.waiting}` : ''}</summary>
       <ul>{status.recent.map((r, i) => <li key={i} className="meta">{formatSeoul(r.at)} · {r.title} · {r.ok ? '완료' : `실패: ${r.message ?? ''}`}</li>)}</ul>
     </details> : null}
+    <ConfirmDialog open={confirmAi} title="AI 학습 보조를 켤까요?" approve="확인하고 켜기" busy={busy} onCancel={() => setConfirmAi(false)} onApprove={() => void save(profile(true))}>
+      <p>교정·정리·과제 안내 추출·과목 요약·복습·예습을 자동화합니다. 전사나 자료가 갱신되면 <strong>Claude 구독 사용량</strong>이 발생합니다.</p>
+      <p>자동 전사 설정은 유지하며, 언제든 전사만 자동으로 되돌릴 수 있습니다.</p>
+      {note ? <p role="alert">{note}</p> : null}
+    </ConfirmDialog>
   </section>;
 }

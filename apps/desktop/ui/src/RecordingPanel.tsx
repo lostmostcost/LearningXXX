@@ -1,3 +1,4 @@
+import { Details } from './Details.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CourseLearningStatus, MediaAsset, Recording, Week } from "@learningxxx/contracts";
 import { invoke, onHostPush } from "./host-api.ts";
@@ -232,8 +233,8 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
       <p className="capture-clock" role="status">{clock(elapsedMs)}</p>
       {active
         ? <p className="capture-place">{placeLabel(recordingNow, weeks, lectures) ?? ""}</p>
-        : weeks.length ? <div className="capture-place"><WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy} onChange={setChoice} />{!choice && estimated ? <small className="subtle">오늘 날짜로 고른 주차</small> : null}</div> : null}
-      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) : "녹음이 끝나면 자동으로 전사합니다"}</p>
+        : weeks.length ? <div className="capture-place"><Details title={<>{!choice && estimated ? "추천 · " : ""}{weeks.find(w=>w.id===place.weekId)?.label ?? "주차 선택"}{place.lectureSourceId ? ` · ${lectures.find(l=>l.sourceId===place.lectureSourceId)?.title ?? "강의"}` : ""}<small>변경</small></>} open={!place.weekId}><WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy} onChange={setChoice} /></Details></div> : null}
+      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) : "종료 후 자동 전사"}</p>
       <div className="capture-actions">
         {active ? <button className="capture-action secondary" aria-label={paused ? "녹음 이어서 하기" : "녹음 일시정지"} title={paused ? "녹음 이어서 하기" : "녹음 일시정지"} disabled={busy} onClick={togglePause}><Icon name={paused ? "play" : "pause"} /></button> : null}
         <button className="capture-action" aria-label={active ? "녹음 끝내고 저장" : "녹음 시작"} title={active ? "녹음 끝내고 저장" : "녹음 시작"} disabled={busy} onClick={() => active ? void stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>

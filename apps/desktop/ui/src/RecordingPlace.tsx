@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Details } from './Details.tsx';
 import type { CourseLearningStatus, Recording, Week } from "@learningxxx/contracts";
 import { formatSeoul } from "./library.ts";
 import { unfiledRecordings, type RecordingRow } from "./recording-weeks.ts";
@@ -50,8 +51,7 @@ export function UnfiledRecordings({ recordings, weeks, lectures, status, onAssig
     try { await onAssign(id, place); } finally { setBusy(undefined); }
   };
   return (
-    <section className="unfiled-recordings" aria-label="주차를 확인할 녹음">
-      <h4>주차를 확인할 녹음 {rows.length}개</h4>
+    <Details title={`주차 확인 ${rows.length}개`} className="unfiled-recordings">
       <p className="subtle">녹음한 날짜로 주차를 추정했습니다. 맞는지 확인하고 옮기세요.</p>
       <ul>
         {rows.map(({ recording, suggested }) => {
@@ -59,13 +59,13 @@ export function UnfiledRecordings({ recordings, weeks, lectures, status, onAssig
           return (
             <li key={recording.id}>
               <span className="unfiled-title"><strong>{recording.title}</strong><small>{formatSeoul(recording.startedAt)}{suggested ? ` · 추정 ${suggested.label}` : " · 날짜로 추정할 수 없음"}</small></span>
-              <WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy !== undefined} label={recording.title} onChange={(next) => setChosen((c) => ({ ...c, [recording.id]: next }))} />
-              <button disabled={!place.weekId || busy !== undefined} onClick={() => void move(recording.id, place)}>{busy === recording.id ? "옮기는 중…" : "이 주차로 옮기기"}</button>
+              <Details title={<>{weeks.find(w => w.id === place.weekId)?.label ?? '주차 선택'}<small>변경</small></>}><WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy !== undefined} label={recording.title} onChange={(next) => setChosen((c) => ({ ...c, [recording.id]: next }))} /></Details>
+              <button disabled={!place.weekId || busy !== undefined} onClick={() => void move(recording.id, place)}>{busy === recording.id ? "옮기는 중…" : "확인"}</button>
             </li>
           );
         })}
       </ul>
-    </section>
+    </Details>
   );
 }
 

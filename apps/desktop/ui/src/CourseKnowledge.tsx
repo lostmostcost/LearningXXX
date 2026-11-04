@@ -1,3 +1,4 @@
+import { Details } from './Details.tsx';
 import { useCallback, useEffect, useState } from 'react';
 import type { IpcResponse } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
@@ -19,30 +20,32 @@ export function CourseKnowledge({ courseId, courseTitle, weeks = [], weekId }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const load = useCallback(async () => {
-    const r = await invoke('course.knowledge', { courseId });
-    if (r.ok) { setState(r.data); setBusy(r.data.running); } else setError(r.error.message);
+    try { const r = await invoke('course.knowledge', { courseId });
+      if (r.ok) { setState(r.data); setBusy(r.data.running); } else setError(r.error.message);
+    } catch { setError('과목 정리를 불러오지 못했습니다. 다시 시도하세요.'); }
   }, [courseId]);
   useEffect(() => { setState(undefined); setError(''); void load(); }, [load]);
 
   const make = async () => {
     setBusy(true); setError('');
-    const r = await invoke('course.makeKnowledge', { courseId });
-    setBusy(false);
-    if (r.ok) setState(r.data); else setError(r.error.message);
+    try { const r = await invoke('course.makeKnowledge', { courseId });
+      if (r.ok) setState(r.data); else setError(r.error.message);
+    } catch { setError('과목 정리를 만들지 못했습니다. 다시 시도하세요.'); }
+    finally { setBusy(false); }
   };
 
   return <div className="course-knowledge">
     <div className="viewer-head"><h2>과목 정리 · {courseTitle}</h2></div>
-    <p className="meta">강의계획서·주차별 자료·강의 전사를 바탕으로 Claude Code가 만든 요약입니다. 이 과목의 채팅은 이 파일을 먼저 읽습니다.</p>
+    <Details title="요약에 사용되는 자료"><p>강의계획서·주차 자료·전사로 만든 AI 요약입니다. 과목 채팅에서 참고합니다.</p></Details>
     <div className="knowledge-actions">
       {busy ? <><span role="status">만드는 중… 자료 양에 따라 1~3분 걸립니다.</span><button onClick={() => void invoke('course.cancelKnowledge', { courseId })}>멈추기</button></>
-        : <button onClick={() => void make()}>{state?.markdown ? '다시 만들기' : '과목 정리 만들기'}</button>}
+        : <button className="primary-action" onClick={() => void make()}>{state?.markdown ? '다시 만들기' : '과목 정리 만들기'}</button>}
       {state?.generatedAt ? <span className="meta">{formatSeoul(state.generatedAt)} 만듦{state.stale ? ' · 그 뒤 자료가 바뀌었습니다(다시 만들면 반영)' : ''}</span> : null}
     </div>
     {error ? <p className="chat-error" role="alert">{error}</p> : null}
     {state?.meetings.length ? <p className="meta">수업 시간: {state.meetings.map((m) => `${m.day} ${m.start}–${m.end}${m.place ? ` ${m.place}` : ''}`).join(' · ')}</p> : null}
     {state === undefined && !error ? <p className="meta" role="status">불러오는 중…</p> : state?.markdown ? <article className="knowledge-body"><MarkdownAnswer text={state.markdown} /></article>
-      : state ? <p className="notice-box">아직 과목 정리가 없습니다. "과목 정리 만들기"를 누르면 강의계획서와 지금까지의 자료·전사로 만듭니다. 학교 LMS에는 아무것도 보내지 않습니다.</p> : null}
+      : state ? <p className="notice-box">자료를 모아 과목 정리를 만들어 보세요.</p> : null}
       {weeks.length ? <StudyNotes courseId={courseId} weeks={weeks} weekId={weekId} /> : null}
   </div>;
 }

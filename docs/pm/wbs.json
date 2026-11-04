@@ -2972,7 +2972,7 @@
         "REQ-013"
       ],
       "acceptance": "과제 안내/AI 제출 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제 고정 전용 세션에서 모든 주차 읽기, 공식 Claude 구독으로 최초 초안·수정 결과 새 판 실시간 미리보기와 PDF 내보내기. 이전 판·원본 보존, 명시 실행·누락 입력 확인, 전환/취소/실패/재시작/동시 요청·파일 경계 회귀.",
-      "status": "Review",
+      "status": "Done",
       "branch": "feat/WBS-097-assignment-workspace",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81a5a719d7305a8fa9c0",
@@ -2980,6 +2980,40 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-097.md: staged diff reviews, targeted host/UI/contracts/engine checks; actual official subscription draft and PDF generation; full container checks. Native chat edit request hit the subscription usage limit (09:40 Asia/Seoul reset); not marked passed. Manual working-file write verified actual preview/new-version publication and original PDF retention. WBS-058 remains deferred by latest owner reply.",
         "2026-11-04 구독 한도 리셋 뒤 실제 native 과제 Edit 성공. owner가 Read/Bash/Edit 권한을 직접 확인했고 agent 자동 승인은 없음. 요청한 p 한 줄만 추가됨(제거 시 이전 HTML과 완전 동일), SVG 10개·이전 PDF 유지, 새 UUID 6cf25ce1-db41-4932-97cf-d651fd91fe52 보존과 최신 실시간 미리보기 반영을 앱에서 확인. 사용량 한도에 막혔던 잔여 수용 검사 해소. 실제 제출은 보류 유지. 상세 docs/pm/reviews/WBS-097.md."
+      ]
+    },
+    {
+      "id": "WBS-098",
+      "title": "전체 UI 간소화·기본값과 단계별 확인 흐름",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-004",
+        "REQ-006",
+        "REQ-007",
+        "REQ-009"
+      ],
+      "qa_mode": "appropriate_checks_only",
+      "deps": [
+        "WBS-097"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/",
+        "docs/specs/SPEC-003.md"
+      ],
+      "status": "Review",
+      "branch": "feat/WBS-098-guided-ui",
+      "url": "https://app.notion.com/p/40ebd7ec20cd8140a1fdf1a23fa58939",
+      "acceptance": "반복 설명·고급 선택은 접고 화면당 주 행동을 명확히 한다. 현재 맥락 기본값, 오류/비용/삭제/권한/누락 자료 동의 유지. 동일 mount 녹음 유지. 별도 합성 preview에서 전체 주요 화면·keyboard·좁은 레이아웃 검증 및 전체 check.",
+      "scope_note": "CR-098 사용자 직접 승인. main e441ef6 기반, WBS-092 Draft 변경과 독립. 기존 앱/녹음 조작·재시작 없음. host/contracts/root manifest/lockfile 및 개인 데이터 변경 없음. 사용자 마지막 지시: 현재 UI 개선의 PR/merge까지만 완료하고 다른 작업이나 실제 앱 적용·재시작을 하지 않는다.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-098.md: staged own diff/caller reviews and fixes. UI typecheck/build and existing 134 tests PASS. Actual built browser fixtures: partial-input approval/cancel request counts, PDF-step transition, automation opt-in/cancel/default restoration, /model reveals and focuses collapsed controls, chat draft survives recording tab switch, keyboard transcript version access and explicit excerpt preview. Actual 600px learning/assignment frames have scrollWidth=600; confirmation stays within viewport and Escape sends 0 requests. Real user app/recording untouched. Final frozen-container and CI results follow in PR."
       ]
     }
   ],

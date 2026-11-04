@@ -1,3 +1,4 @@
+import { Details } from './Details.tsx';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { IpcResponse, MediaAsset, PreferredLanguage } from "@learningxxx/contracts";
 import { invoke } from "./host-api.ts";
@@ -53,10 +54,11 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
     try { const result = cancel ? await invoke("stt.cancel", {}) : await invoke("stt.prepare", {}); if (current === generation.current) { if (result.ok) setEngine(result.data); else setNotice(result.error.message); } }
     finally { setPreparing(false); }
   };
+  const runtimeControl = engine && engine.state !== "unsupported" ? <button className="icon-button" aria-label={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} title={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} disabled={preparing} onClick={() => void action(() => setup(engine.state === "installing"))}><Icon name={engine.state === "installing" ? "stop" : engine.state === "ready" ? "refresh" : "download"} /></button> : null;
   return <section className="media-workspace" aria-label="원본과 전사">
     <div className={`engine-card ${engine?.state ?? "checking"}`} role="status">
-      <span className="engine-light" /><div><strong>{engine?.state === "ready" ? "로컬 전사 준비 완료" : engine?.state === "installing" ? "전사 엔진 준비 중" : engine?.state === "unsupported" ? "지원하지 않는 Mac" : "전사 엔진 준비 필요"}</strong>{engine?.state !== "ready" ? <small>{engine?.message ?? "이 Mac의 엔진을 확인하고 있습니다…"}</small> : <small>오디오는 이 Mac에서 처리합니다</small>}</div>
-      {engine && engine.state !== "unsupported" ? <button className="icon-button" aria-label={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} title={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} disabled={preparing} onClick={() => void action(() => setup(engine.state === "installing"))}><Icon name={engine.state === "installing" ? "stop" : engine.state === "ready" ? "refresh" : "download"} /></button> : null}
+      <span className="engine-light" /><div><strong>{engine?.state === "ready" ? "로컬 전사 준비 완료" : engine?.state === "installing" ? "전사 엔진 준비 중" : engine?.state === "unsupported" ? "지원하지 않는 Mac" : "전사 엔진 준비 필요"}</strong>{engine?.state !== "ready" ? <small>{engine?.message ?? "이 Mac의 엔진을 확인하고 있습니다…"}</small> : <small>로컬 처리</small>}</div>
+      {engine?.state === "ready" ? <Details title="전사 설정">{runtimeControl}</Details> : runtimeControl}
     </div>
     {data?.transcriptionPaused ? <p role="status" className="notice-box">전사가 일시 정지되어 있습니다. <button className="link-button" onClick={() => void action(async () => { const r = await invoke("media.resumeTranscription", {}); if (!r.ok) throw new Error(r.error.message); await refresh(); })}>재개</button></p> : null}
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}

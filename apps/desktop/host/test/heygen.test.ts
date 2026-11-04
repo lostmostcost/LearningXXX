@@ -95,3 +95,13 @@ test('WBS-092: chunked preview bodies stop at the limit and streams are cancelle
   assert.equal(await heygenPreview('https://resource.heygen.ai:444/a.mp3'), undefined);
   assert.equal(await heygenPreview('https://name:secret@resource.heygen.ai/a.mp3'), undefined);
 });
+
+test('WBS-092: a stored Starfish mapping cannot override explicit workspace engine restrictions', async () => {
+  const result = await listHeygenVoices('synthetic', (async () => Response.json({ data: [
+    { voice_id: 'allowed', language: 'Korean', available_engines: ['starfish'] },
+    { voice_id: 'blocked', language: 'Korean', available_engines: ['heygen_voice'] },
+    { voice_id: 'none', language: 'Korean', available_engines: [] },
+    { voice_id: 'malformed', language: 'Korean', available_engines: 'starfish' },
+  ] })) as typeof fetch);
+  assert.ok(result.ok); assert.deepEqual(result.voices.map(v => v.voiceId), ['allowed']);
+});

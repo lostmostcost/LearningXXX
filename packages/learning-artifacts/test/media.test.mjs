@@ -19,7 +19,7 @@ test('missing credentials and pre-abort make no network call', async () => {
   const c = new AbortController(); c.abort(); await assert.rejects(configured(fetchImpl)({ text: 'x', signal: c.signal })); assert.equal(calls, 0);
 });
 test('auth/rate-limit errors never retry and never expose provider body', async () => {
-  for (const status of [401, 402, 429, 500]) {
+  for (const status of [400, 401, 402, 429, 500]) {
     let calls = 0; await assert.rejects(configured(async () => { calls++; return new Response('sensitive upstream body', { status }); })({ text: 'x', signal: signal() }), (e) => e.code === `VOICE_HTTP_${status}` && !e.message.includes('sensitive'));
     assert.equal(calls, 1);
   }

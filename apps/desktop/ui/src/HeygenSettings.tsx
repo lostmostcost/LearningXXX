@@ -35,7 +35,7 @@ export function HeygenSettings({ status, onStatus }: { status: CredentialStatus 
   const loadVoices = () => action(async current => {
     const r = await invoke('credentials.heygenVoices', {});
     if (!current()) return;
-    if (r.ok) { setVoices(r.data.voices); setMessage(`음성 ${r.data.voices.length}개를 읽었습니다(목록 최대 500개).`); } else setMessage(r.error.message);
+    if (r.ok) { setVoices(r.data.voices); setMessage(`사용 가능한 Starfish 음성 ${r.data.voices.length}개를 읽었습니다(목록 최대 500개).`); } else setMessage(r.error.message);
   });
 
   useEffect(() => { if (status?.heygen && !voices) void loadVoices(); }, [status?.heygen]);
@@ -81,7 +81,9 @@ export function HeygenSettings({ status, onStatus }: { status: CredentialStatus 
       {status?.heygen ? <button type="button" disabled={busy} onClick={() => void clear()}>지우기</button> : null}
     </form>
     {voices ? <div className="heygen-voices">
-      <select disabled={busy} aria-label="설명 영상 음성" value={status?.heygenVoiceId ?? ""} onChange={(e) => void choose(e.target.value)}>
+      {!voices.length ? <p role="alert">키 인증은 성공했지만 현재 목록에 사용 가능한 Starfish 음성이 없습니다. HeyGen API 플랜·워크스페이스의 엔진 권한을 확인하세요. 키를 다시 입력하지 않고 목록을 다시 읽을 수 있습니다.</p> : null}
+      {voices.length > 0 && status?.heygenVoiceId && !chosen ? <p role="alert">저장된 음성을 현재 키로 사용할 수 없습니다. 목록에서 다시 선택하세요.</p> : null}
+      <select disabled={busy || !voices.length} aria-label="설명 영상 음성" value={chosen?.voiceId ?? ""} onChange={(e) => void choose(e.target.value)}>
         <option value="" disabled>음성 고르기</option>
         {voices.map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name} · {v.language || "언어 미상"}{v.gender ? ` · ${v.gender === "female" ? "여성" : v.gender === "male" ? "남성" : v.gender}` : ""}</option>)}
       </select>

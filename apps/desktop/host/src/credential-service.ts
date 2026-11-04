@@ -86,11 +86,12 @@ export class CredentialService {
   }
 
   /** The voices the saved key can use (Korean first). */
-  async heygenVoices(): Promise<IpcResponse<"credentials.heygenVoices">> {
+  async heygenVoices(signal?: AbortSignal): Promise<IpcResponse<"credentials.heygenVoices">> {
     const key = this.#o.store.read().heygenKey;
     const epoch = this.#heygenEpoch;
     if (!key) fail("AUTH_REQUIRED", "HeyGen API 키를 먼저 저장하세요.");
-    const result = await (this.#o.heygenVoices ?? listHeygenVoices)(key);
+    const result = await (this.#o.heygenVoices ? this.#o.heygenVoices(key) : listHeygenVoices(key, fetch, signal));
+    signal?.throwIfAborted();
     this.#heygenCurrent(epoch, key);
     if (!result.ok) fail(result.reason === "rejected" ? "AUTH_REQUIRED" : "DOWNLOAD_FAILED", result.reason === "rejected" ? "저장된 HeyGen 키가 더 이상 받아들여지지 않습니다. 새 키를 저장하세요." : "HeyGen에 연결하지 못했습니다.", result.reason !== "rejected");
     return { voices: result.voices };

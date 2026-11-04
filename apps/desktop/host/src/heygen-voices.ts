@@ -54,6 +54,9 @@ export async function listHeygenVoices(key: string, fetchImpl: typeof fetch = fe
       if (!body || !Array.isArray(body.data)) return { ok: false, reason: 'failed' };
       for (const v of Array.isArray(body.data) ? body.data : []) {
         const item = (v ?? {}) as Json;
+        // `engine` filters the stored mapping, not workspace entitlement.
+        // New catalogs explicitly report engines available on this plan.
+        if (item.available_engines !== undefined && (!Array.isArray(item.available_engines) || !item.available_engines.includes('starfish'))) continue;
         const voiceId = str(item.voice_id);
         if (!/^[A-Za-z0-9_-]{1,120}$/.test(voiceId) || seen.has(voiceId)) continue;
         seen.add(voiceId);

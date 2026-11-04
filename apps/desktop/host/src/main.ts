@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AUDIO_IMPORT_TYPES, AUDIO_MEDIA_TYPES } from "@learningxxx/contracts";
+import type { CollectionManifest } from '@learningxxx/contracts';
 import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
@@ -53,6 +54,10 @@ import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
 import { AssignmentWorkspaces } from "./assignment-workspaces.ts";
 import { assignmentSources } from "./assignment-sources.ts";
 import { ASSIGNMENT_CSP, printAssignment } from "./assignment-printer.ts";
+import { ArtifactWorkflows, type ArtifactEngine } from './artifact-workflows.ts';
+import { ArtifactRuntimes } from './artifact-runtime.ts';
+import { artifactSources } from './artifact-sources.ts';
+import { runArtifactVoiceSmoke } from './artifact-smoke.ts';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'assignment-preview', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -65,6 +70,7 @@ const PRIVACY_PANES = {
 // Keep the legacy internal app name: Electron uses it for userData and macOS Safe Storage.
 const brandIcon = join(__dirname, "../../../../assets/branding/yolo-univ-icon.png");
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
+let closing = false;
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -87,12 +93,13 @@ function createWindow(): BrowserWindow {
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(artifact-voice-smoke|ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else if (!diagnostic) {
   // Launching again brings the open window forward instead of starting a second copy.
   app.on("second-instance", () => {
+    if (closing) return;
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) return;
     if (window.isMinimized()) window.restore();
@@ -137,6 +144,20 @@ app.whenReady().then(async () => {
       }
     },
   });
+  const artifactSmoke = process.argv.find(arg => arg.startsWith('--artifact-voice-smoke='))?.slice('--artifact-voice-smoke='.length);
+  if (artifactSmoke !== undefined) {
+    try {
+      const catalogOnly = process.argv.includes('--catalog-only');
+      await runArtifactVoiceSmoke(artifactSmoke, credentials, join(__dirname, '../../../../packages/learning-artifacts'), join(__dirname, '..'), catalogOnly);
+      console.log(catalogOnly ? 'PASS: read-only voice catalog checked; no TTS' : 'PASS: one real Korean HeyGen narration rendered to MP4; synthetic plan, no model call');
+      app.exit(0);
+    } catch {
+      // Provider errors and credential-bearing exception objects never reach logs.
+      console.error('FAIL: explicit voice smoke did not complete; no automatic retry');
+      app.exit(1);
+    }
+    return;
+  }
   // WBS-071/083: preferred language and automation settings.
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
   // WBS-083: the automatic steps; created once everything they use exists.
@@ -463,13 +484,14 @@ app.whenReady().then(async () => {
     return binding && extra ? { ...binding, brief: binding.brief + extra, startupBrief: (binding.startupBrief ?? binding.brief) + extra } : binding;
   };
   conversations = new ConversationService({ prepareCourse, beforeSend: id => assignments?.beforeSend(id), root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
+  const isAssignmentQuiz = async (scope: { courseId: string; assignmentId?: string | undefined }, manifest: CollectionManifest) => {
+    const sourceId = manifest.items.find(i => i.resource.id === scope.assignmentId)?.resource.sourceId;
+    return /^quiz:/.test(sourceId ?? '') || ((await learning.status(scope.courseId))?.items.some(i => i.kind === 'quiz' && i.sourceRef === `assignment:${sourceId}`) ?? false);
+  };
   assignments = new AssignmentWorkspaces({
     root: join(dataRoot, 'assignment-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), accountKey: () => library.accountKey(),
     manifest: id => library.manifest(id), getSession: id => sessions.get(id), createSession: (courseId, title) => sessions.create({ mode: 'course', engine: 'chat', courseId, title }), busy: id => conversations.busy(id),
-    isQuiz: async (scope, manifest) => {
-      const sourceId = manifest.items.find(i => i.resource.id === scope.assignmentId)?.resource.sourceId;
-      return /^quiz:/.test(sourceId ?? '') || ((await learning.status(scope.courseId))?.items.some(i => i.kind === 'quiz' && i.sourceRef === `assignment:${sourceId}`) ?? false);
-    },
+    isQuiz: isAssignmentQuiz,
     sources: async (scope, manifest) => assignmentSources(manifest, {
       asset: async id => (await library.asset({ courseId: scope.courseId, assetId: id })).bytes, pdf: pdfPageTexts,
       notes: [...await notesFor(scope.courseId), ...await memos.notes(scope.courseId), ...await study.weekNotes(scope.courseId)], summary: await knowledge.markdown(scope.courseId),
@@ -496,6 +518,62 @@ app.whenReady().then(async () => {
     print: printAssignment,
     show: async (path, how) => { if (how === 'reveal') shell.showItemInFolder(path); else { const error = await shell.openPath(path); if (error) throw new Error('PDF를 열지 못했습니다.'); } },
   });
+  const artifactEngineRoot = join(__dirname, '../../../../packages/learning-artifacts');
+  const artifactRuntime = new ArtifactRuntimes(artifactEngineRoot, join(__dirname, '..'));
+  const artifactModule = await import(pathToFileURL(join(artifactEngineRoot, 'src/workflow.mjs')).href) as { ArtifactWorkflow: new (options: unknown) => ArtifactEngine };
+  type NarrationInput = { text: string; signal: AbortSignal; assertCurrent?: (() => void) | undefined };
+  const voiceModule = await import(pathToFileURL(join(artifactEngineRoot, 'src/heygen.mjs')).href) as { createHeygenNarrator(options: { apiKey: () => string; voiceId: string; language: string }): (input: NarrationInput) => Promise<{ bytes: Buffer }> };
+  const artifacts = new ArtifactWorkflows({
+    root: join(dataRoot, 'artifact-workflows'), accountKey: () => library.accountKey(), manifest: id => library.manifest(id), isQuiz: isAssignmentQuiz,
+    sources: async (scope, manifest) => artifactSources(scope, manifest, {
+      asset: async id => (await library.asset({ courseId: scope.courseId, assetId: id })).bytes, pdf: pdfPageTexts,
+      notes: [...await notesFor(scope.courseId), ...await memos.notes(scope.courseId), ...await study.weekNotes(scope.courseId)], summary: await knowledge.markdown(scope.courseId),
+    }),
+    engine: () => {
+      let fixedVoice: { key: string; voiceId: string } | undefined;
+      const assertVoice = () => {
+        if (!fixedVoice) return;
+        const current = credentials.heygen();
+        if (current?.key !== fixedVoice.key || current.voiceId !== fixedVoice.voiceId) throw Object.assign(new Error('voice changed'), { appError: { code: 'INVALID_REQUEST', message: 'HeyGen 키 또는 음성이 바뀌어 출력을 중단했습니다. 자동 재시도하지 않습니다.', retryable: false } });
+      };
+      return new artifactModule.ArtifactWorkflow({
+        root: join(dataRoot, 'artifact-workflows/outputs'), accountId: () => library.accountKey(),
+        generate: async ({ prompt, signal, assertCurrent }: { prompt: string; signal: AbortSignal; assertCurrent: () => void }) => {
+          assertCurrent(); const answer = await claudeText({ prompt, signal, what: '학습 자료 초안 만들기' }); assertCurrent();
+          return /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(answer.trim())?.[1] ?? answer;
+        },
+        narrate: async (input: NarrationInput) => {
+          const configured = credentials.heygen();
+          if (!configured?.voiceId) throw Object.assign(new Error('voice required'), { appError: { code: 'AUTH_REQUIRED', message: '설정에서 HeyGen 키와 설명 영상 음성을 선택하세요.', retryable: false } });
+          fixedVoice ??= { key: configured.key, voiceId: configured.voiceId };
+          const selected = fixedVoice;
+          const guard = () => {
+            input.signal.throwIfAborted(); input.assertCurrent?.();
+            assertVoice();
+          };
+          guard();
+          const result = await voiceModule.createHeygenNarrator({ apiKey: () => { guard(); return selected.key; }, voiceId: selected.voiceId, language: 'ko' })({ ...input, assertCurrent: guard });
+          guard(); return result;
+        },
+        media: {
+          duration: async (input: Parameters<ArtifactRuntimes['duration']>[0]) => { assertVoice(); const result = await artifactRuntime.duration(input); assertVoice(); return result; },
+          render: async (input: Parameters<ArtifactRuntimes['render']>[0]) => { assertVoice(); const result = await artifactRuntime.render(input); assertVoice(); return result; },
+        },
+        pptxPdf: artifactRuntime.pptxPdf.bind(artifactRuntime),
+      });
+    },
+    beforeExport: async (kind, signal) => {
+      await artifactRuntime.preflight(kind, signal);
+      if (kind === 'video') {
+        const configured = credentials.heygen();
+        if (!configured?.voiceId) throw Object.assign(new Error('voice required'), { appError: { code: 'AUTH_REQUIRED', message: '설정에서 HeyGen 키와 설명 영상 음성을 선택하세요.', retryable: false } });
+        const listed = await credentials.heygenVoices(signal);
+        if (!listed.voices.some(v => v.voiceId === configured.voiceId)) throw Object.assign(new Error('voice unavailable'), { appError: { code: 'INVALID_REQUEST', message: '설정에서 현재 키로 쓸 수 있는 음성을 다시 고르세요.', retryable: false } });
+      }
+      signal.throwIfAborted();
+    },
+    show: async (path, how) => { if (how === 'reveal') shell.showItemInFolder(path); else { const error = await shell.openPath(path); if (error) throw new Error('출력 파일을 열지 못했습니다.'); } },
+  });
   protocol.handle('assignment-preview', async request => {
     try {
       const url = new URL(request.url), ids = url.pathname.split('/').filter(Boolean);
@@ -505,12 +583,13 @@ app.whenReady().then(async () => {
     } catch { return new Response('과제 초안을 불러오지 못했습니다. 과제 화면을 다시 열어 주세요.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
   });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
-  let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
     clearInterval(previewTimer); automation?.stop(); assignments.stopAll();
+    const artifactStop = artifacts.stopAll(), runtimeStop = artifactRuntime.stop();
     void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
+      await Promise.allSettled([artifactStop, runtimeStop]);
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
     } })().catch(() => undefined).finally(() => app.quit());
@@ -550,6 +629,15 @@ app.whenReady().then(async () => {
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
+    'artifacts.inputs': async request => artifacts.inputs(request),
+    'artifacts.prepare': async request => artifacts.prepare(request),
+    'artifacts.list': async request => artifacts.list(request.courseId),
+    'artifacts.state': async request => artifacts.state(request.courseId, request.id),
+    'artifacts.export': async request => artifacts.export(request.courseId, request.id, request.reviewToken),
+    'artifacts.cancel': async request => artifacts.cancel(request.courseId, request.id),
+    'artifacts.open': async request => artifacts.show(request.courseId, request.id, request.file, request.how),
+    'artifacts.runtime': async () => artifactRuntime.status(),
+    'artifacts.setup': async request => artifactRuntime.setup(request.which),
     'assignment.open': request => assignments.open(request), 'assignment.state': request => assignments.state(request),
     'assignment.generate': request => assignments.generate(request), 'assignment.cancel': request => assignments.cancel(request),
     'assignment.export': request => assignments.export(request), 'assignment.showPdf': request => assignments.showPdf(request),
@@ -621,6 +709,7 @@ app.whenReady().then(async () => {
     return;
   }
   app.on("activate", () => {
+    if (closing) return;
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });

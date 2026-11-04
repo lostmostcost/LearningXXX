@@ -42,7 +42,10 @@ export function createHeygenNarrator({ apiKey, voiceId, language = 'ko', fetchIm
         headers: { 'Content-Type': 'application/json', 'X-Api-Key': key },
         body: JSON.stringify({ text, voice_id: voiceId, engine: 'starfish', language, speed: 1 }),
       });
-      requireThat(response.ok, `VOICE_HTTP_${response.status}`, `HeyGen TTS request failed (HTTP ${response.status}); no automatic retry`);
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new ArtifactError(`VOICE_HTTP_${response.status}`, `HeyGen TTS request failed (HTTP ${response.status}); no automatic retry`);
+      }
       let payload;
       try { payload = JSON.parse((await limitedBody(response, 1_000_000)).toString('utf8')); } catch (e) { if (e instanceof ArtifactError) throw e; throw new ArtifactError('INVALID_AUDIO', 'Malformed HeyGen response'); }
       const inner = payload?.data ?? payload;

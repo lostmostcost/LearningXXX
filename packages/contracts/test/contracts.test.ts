@@ -99,6 +99,12 @@ describe("producer → consumer round trip", () => {
   it("every IPC channel round-trips a valid request through the host validator", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
+      'artifacts.inputs': { courseId: sid, kind: 'video', weekId: sid },
+      'artifacts.prepare': { courseId: sid, kind: 'slides', assignmentId: sid, sourceToken: 'a'.repeat(64), allowMissing: false },
+      'artifacts.list': { courseId: sid }, 'artifacts.state': { courseId: sid, id: sid },
+      'artifacts.export': { courseId: sid, id: sid, reviewToken: 'a'.repeat(64) },
+      'artifacts.cancel': { courseId: sid, id: sid }, 'artifacts.open': { courseId: sid, id: sid, file: 'pdf', how: 'reveal' },
+      'artifacts.runtime': {}, 'artifacts.setup': { which: 'video' },
       'assignment.open': { courseId: sid, assignmentId: sid },
       'assignment.state': { courseId: sid, assignmentId: sid },
       'assignment.generate': { courseId: sid, assignmentId: sid, sourceToken: 'a'.repeat(64), allowMissing: false },

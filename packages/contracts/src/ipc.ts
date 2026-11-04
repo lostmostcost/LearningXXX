@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ArtifactScope, ArtifactInput, ArtifactJob, ArtifactRuntime, ArtifactFile, checkArtifactScope } from './artifacts.ts';
 import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
@@ -53,6 +54,15 @@ export const ConversationState = z.object({
 });
 export const SttStatus = z.object({ state: z.enum(['missing', 'installing', 'ready', 'failed', 'unsupported']), message: z.string() });
 export const IpcChannels = {
+  'artifacts.inputs': { request: ArtifactScope.superRefine(checkArtifactScope), response: ArtifactInput },
+  'artifacts.prepare': { request: ArtifactScope.extend({ sourceToken: z.string().regex(/^[0-9a-f]{64}$/), allowMissing: z.boolean(), includedSourceIds: z.array(z.string().max(300)).max(2000).optional() }).superRefine(checkArtifactScope), response: ArtifactJob },
+  'artifacts.list': { request: z.object({ courseId: Id }), response: z.object({ jobs: z.array(ArtifactJob).max(100) }) },
+  'artifacts.state': { request: z.object({ courseId: Id, id: Id }), response: ArtifactJob },
+  'artifacts.export': { request: z.object({ courseId: Id, id: Id, reviewToken: z.string().regex(/^[0-9a-f]{64}$/) }), response: ArtifactJob },
+  'artifacts.cancel': { request: z.object({ courseId: Id, id: Id }), response: z.object({}) },
+  'artifacts.open': { request: z.object({ courseId: Id, id: Id, file: ArtifactFile, how: z.enum(['open', 'reveal']) }), response: z.object({}) },
+  'artifacts.runtime': { request: z.object({}), response: ArtifactRuntime },
+  'artifacts.setup': { request: z.object({ which: z.enum(['video', 'pptx']) }), response: ArtifactRuntime },
   'assignment.open': { request: AssignmentScope.extend({ reset: z.boolean().optional() }), response: AssignmentWorkspace },
   'assignment.state': { request: AssignmentScope, response: AssignmentWorkspace },
   'assignment.generate': { request: AssignmentScope.extend({ sourceToken: z.string().regex(/^[0-9a-f]{64}$/), allowMissing: z.boolean(), includedSourceIds: z.array(z.string().max(300)).max(2000).optional() }), response: AssignmentWorkspace },

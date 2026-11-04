@@ -3,6 +3,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Must equal IpcChannels in @learningxxx/contracts; test/boundary.test.ts enforces it.
 const CHANNELS = new Set([
+  "artifacts.inputs",
+  "artifacts.prepare",
+  "artifacts.list",
+  "artifacts.state",
+  "artifacts.export",
+  "artifacts.cancel",
+  "artifacts.open",
+  "artifacts.runtime",
+  "artifacts.setup",
   "assignment.open",
   "assignment.state",
   "assignment.generate",

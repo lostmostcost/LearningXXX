@@ -12,6 +12,7 @@ export * from "./media.ts";
 export * from "./learning.ts";
 export * from "./events.ts";
 export * from "./ipc.ts";
+export * from "./artifacts.ts";
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: AppError };
 

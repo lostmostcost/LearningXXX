@@ -73,6 +73,13 @@ YOLO UNIV는 이 과정을 하나의 앱으로 연결합니다. 경희대 LMS의
 | PDF | pdf.js |
 | 개발 환경 | pnpm 워크스페이스, Docker 공통 검사, GitHub Actions |
 
+## 내려받아 실행하기 (v1.0.0)
+
+[Releases](https://github.com/lostmostcost/LearningXXX/releases/tag/v1.0.0)에서 `YOLO-UNIV-1.0.0-arm64.dmg`를 받아 `YOLO UNIV`를 `Applications`로 옮기면 됩니다.
+Apple Silicon Mac, macOS 13 이상, 로그인된 Claude Code가 필요합니다. 공증되지 않은 앱이라 처음 열 때
+**시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**가 필요합니다. 설치·데이터 위치·백업·한계는
+[v1.0.0 릴리스 문서](docs/releases/v1.0.0.md)에 있습니다.
+
 ## 직접 실행하기
 
 **필요한 것:** Apple Silicon Mac, Node 24.22.2, pnpm 12.14.0, 로그인된 [Claude Code](https://claude.com/claude-code) 구독, 경희대 LMS 계정.

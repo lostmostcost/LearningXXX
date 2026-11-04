@@ -11,7 +11,7 @@ import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirect
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
-import { app, BrowserWindow, Menu, protocol, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, Menu, nativeTheme, protocol, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -142,6 +142,10 @@ app.whenReady().then(async () => {
   });
   // WBS-071/083: preferred language and automation settings.
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
+  // WBS-100: one theme for every window, the native frame and dialogs; "system" follows macOS.
+  // Set before any window opens so the first paint already has it.
+  nativeTheme.themeSource = preferences.get().theme;
+  preferences.onChange((value) => { nativeTheme.themeSource = value.theme; });
   // WBS-083: the automatic steps; created once everything they use exists.
   let automation: AutomationService | undefined;
   // WBS-088: the student's own files, added to the served course material (declared before the library uses it).

@@ -30,6 +30,7 @@ import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
 import { openPdfInBrowser } from "./pdf-browser.ts";
 import { SignInSettings } from "./SignInSettings.tsx";
+import { ThemeToggle } from "./ThemeControls.tsx";
 import { syncStatusText } from "./sync-status.ts";
 import { Viewer } from "./Viewer.tsx";
 import type { PageSnapshot } from "./PdfView.tsx";
@@ -319,6 +320,7 @@ export function App() {
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP || FIXTURE_MODE ? <JobQueue /> : null}
+        {IN_APP && !FIXTURE_MODE ? <ThemeToggle /> : null}
         {IN_APP && !FIXTURE_MODE ? <SignInSettings /> : null}
         {courses.length > 1 && library ? (
           <label className="course-picker">과목{" "}

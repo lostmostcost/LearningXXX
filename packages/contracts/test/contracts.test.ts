@@ -207,6 +207,14 @@ describe("producer → consumer round trip", () => {
 });
 
 describe("invariants", () => {
+  it("WBS-100: theme is system, light or dark, and stays optional when saving preferences", () => {
+    const channel = C.IpcChannels["app.setPreferences"];
+    assert.ok(channel.request.safeParse({ theme: "dark" }).success);
+    assert.ok(channel.request.safeParse({ language: "ja" }).success);
+    assert.equal(channel.request.safeParse({ theme: "sepia" }).success, false);
+    assert.equal(C.IpcChannels["app.preferences"].response.safeParse({ language: "ko", automation: C.DEFAULT_AUTOMATION }).success, false);
+  });
+
   it("event stream checker catches gaps, foreign runs and events after terminal", () => {
     const events = load("normal/events.json") as C.RunEvent[];
     assert.deepEqual(C.checkEventStream(events), []);

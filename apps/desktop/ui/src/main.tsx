@@ -5,14 +5,16 @@ import { installFakeHost } from "./fake-host.ts";
 import { FIXTURE_MANIFEST } from "./fixtures.ts";
 import { TranscriptDemo } from "./TranscriptDemo.tsx";
 import "./styles.css";
+import { GuidedPreview } from './GuidedPreview.tsx';
 
 // `?fixture` in a plain browser: an in-memory host so the chat flow can be tried. Never inside the app.
-if (new URLSearchParams(window.location.search).has("fixture") && window.host === undefined) installFakeHost(FIXTURE_MANIFEST.course.title);
+const browserPreview = window.host === undefined && new URLSearchParams(window.location.search).has('guidedPreview');
+if ((new URLSearchParams(window.location.search).has("fixture") || browserPreview) && window.host === undefined) installFakeHost(FIXTURE_MANIFEST.course.title);
 
 const root = document.getElementById("root");
 if (root === null) throw new Error("missing root element");
 createRoot(root).render(
   <StrictMode>
-    {new URLSearchParams(window.location.search).has("mediaFixture") && window.host === undefined ? <TranscriptDemo /> : <App />}
+    {browserPreview ? <GuidedPreview /> : new URLSearchParams(window.location.search).has("mediaFixture") && window.host === undefined ? <TranscriptDemo /> : <App />}
   </StrictMode>,
 );

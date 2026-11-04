@@ -1,3 +1,4 @@
+import { Details } from './Details.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Memo, Week } from '@learningxxx/contracts';
 import { invoke } from './host-api.ts';
@@ -79,15 +80,15 @@ export function MemoPanel({ courseId, weeks, weekId: shownWeek, page }: {
 
   return <div className="memo-panel">
     <div className="memo-head">
-      <select aria-label="메모 주차" value={weekId ?? ''} onChange={(e) => { void flush(); setWeekId(e.target.value || undefined); }}>
+      <Details title={<>{weeks.find(w=>w.id===weekId)?.label ?? "주차 없음"}<small>변경</small></>}><select aria-label="메모 주차" value={weekId ?? ''} onChange={(e) => { void flush(); setWeekId(e.target.value || undefined); }}>
         {weeks.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
         <option value="">주차 없음</option>
-      </select>
-      <button disabled={!page} title={page ? `${page.title} ${page.page}쪽을 메모에 넣기` : '자료 보기에서 PDF를 열면 쓸 수 있습니다'} onClick={() => void addPage()}>📄 보고 있는 쪽 추가</button>
+      </select></Details>
+      <button disabled={!page} title={page ? `${page.title} ${page.page}쪽을 메모에 넣기` : '자료 보기에서 PDF를 열면 쓸 수 있습니다'} onClick={() => void addPage()}>쪽 추가</button>
       <button disabled={busy || !text.trim()} title="과목 정리와 이 주차 자료를 참고해 정리본을 만듭니다(메모는 그대로)" onClick={() => void tidy()}>{busy ? '정리하는 중…' : 'AI로 정리'}</button>
       {memo?.canUndo ? <button onClick={() => void apply('undo')} title="정리본으로 바꾸기 전 메모로">되돌리기</button> : null}
     </div>
-    <textarea aria-label="메모" value={text} placeholder="이 주차 수업에서 기억할 것을 적어 보세요. 자동으로 저장됩니다." onChange={(e) => edit(e.target.value)} onBlur={() => void flush()} />
+    <textarea aria-label="메모" value={text} placeholder="메모하세요. 자동으로 저장됩니다." onChange={(e) => edit(e.target.value)} onBlur={() => void flush()} />
     <p className="meta" role="status">{error ? null : status}</p>
     {error ? <p className="chat-error" role="alert">{error}{error.includes('다른 곳에서') ? <> <button className="link-button" onClick={() => void load()}>다시 불러오기</button></> : null}</p> : null}
     {memo?.cleaned ? <section className="memo-cleaned" aria-label="AI 정리본">

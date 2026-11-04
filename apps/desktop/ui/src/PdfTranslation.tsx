@@ -1,3 +1,4 @@
+import { Details } from './Details.tsx';
 import { useCallback, useEffect, useState } from "react";
 import { LANGUAGE_NAMES, type IpcResponse, type IpcResult, type PdfTranslationSkip, type PreferredLanguage } from "@learningxxx/contracts";
 import { PdfView, type AssetLoader, type PageSnapshot, type PdfOpener } from "./PdfView.tsx";
@@ -97,9 +98,9 @@ export function TranslatablePdf(props: {
         <button aria-pressed={!showCopy} onClick={() => toggle(false)}>원본</button>
         <button aria-pressed={showCopy} disabled={!copy?.bytes} title={copy?.bytes ? undefined : "아직 번역본이 없습니다"} onClick={() => toggle(true)}>번역본({LANGUAGE_NAMES[language]})</button>
       </span>
-      <label>쪽 <input inputMode="numeric" aria-label="번역 시작 쪽" placeholder={String(page)} value={from} disabled={busy} onChange={(e) => setFrom(e.target.value.replace(/\D/g, ""))} /></label>
+      <Details title={`번역 범위 · ${from || page}–${to || Number(from || page) + DEFAULT_SPAN - 1}쪽`} className="translation-range"><label>쪽 <input inputMode="numeric" aria-label="번역 시작 쪽" placeholder={String(page)} value={from} disabled={busy} onChange={(e) => setFrom(e.target.value.replace(/\D/g, ""))} /></label>
       <label>– <input inputMode="numeric" aria-label="번역 끝 쪽" placeholder={String(Number(from || page) + DEFAULT_SPAN - 1)} value={to} disabled={busy} onChange={(e) => setTo(e.target.value.replace(/\D/g, ""))} /></label>
-      {busy ? <button onClick={() => translator.cancel()}>멈추기</button> : <button onClick={() => void make()}>번역본 만들기</button>}
+      </Details>{busy ? <button onClick={() => translator.cancel()}>멈추기</button> : <button onClick={() => void make()}>번역본 만들기</button>}
       {copy?.pages.length ? <span className="meta">번역된 쪽: {pageList(copy.pages)}</span> : null}
       {note ? <span className="meta" role="status">{note}</span> : null}
       {skippedNote ? <span className="meta">원본 유지 — {skippedNote}</span> : null}

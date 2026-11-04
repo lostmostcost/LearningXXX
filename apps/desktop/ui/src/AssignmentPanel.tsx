@@ -52,13 +52,16 @@ export function useAssignment(scope: Scope | undefined) {
     cancel: async () => { if (scope) { try { const r = await invoke('assignment.cancel', scope); if (!r.ok && current.current === key) setFailure({ key, text: r.error.message }); } catch { if (current.current === key) setFailure({ key, text: '취소 요청을 전달하지 못했습니다.' }); } } } };
 }
 
-export function AssignmentPanel({ workspace, instructions }: { workspace: ReturnType<typeof useAssignment>; instructions: ReactNode }) {
+export function AssignmentPanel({ workspace, instructions, presentation }: { workspace: ReturnType<typeof useAssignment>; instructions: ReactNode; presentation?: ReactNode }) {
   const { state, error, opening, pending, action, refresh, cancel } = workspace;
   const [tab, setTab] = useState<'instructions' | 'draft'>('instructions');
   const [allowMissing, setAllowMissing] = useState(false);
   const [included, setIncluded] = useState<string[] | undefined>();
   const [search, setSearch] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
+  const [presentationOpen, setPresentationOpen] = useState(false);
+  const presentationDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const dialog = presentationDialog.current; if (presentationOpen && dialog && !dialog.open) dialog.showModal(); return () => { if (dialog?.open) dialog.close(); }; }, [presentationOpen]);
   useEffect(() => { setAllowMissing(false); setIncluded(undefined); }, [state?.sourceToken]);
   const available = state?.sources.filter(s => s.status === 'available') ?? [];
   const selected = new Set(included ?? available.map(s => s.id));
@@ -94,6 +97,7 @@ export function AssignmentPanel({ workspace, instructions }: { workspace: Return
         {partial ? <label className="assignment-consent"><input type="checkbox" checked={allowMissing} onChange={e => setAllowMissing(e.target.checked)} />누락·제외 범위를 확인했습니다. 선택한 텍스트로 부분 초안을 만들고, 그림·원본은 과제 채팅에서 확인하겠습니다.</label> : null}
         {characters > 500_000 ? <p role="status">초기 생성 한도를 넘습니다. 입력 자료를 선택하거나 오른쪽 과제 채팅에서 원본을 나눠 검토해 주세요.</p> : null}
         <div className="assignment-actions">
+          {presentation ? <button onClick={() => setPresentationOpen(true)}>발표 초안 · PPTX/PDF</button> : null}
           <button disabled={opening || !state?.sourceToken || pending || working || characters > 500_000 || !!partial && !allowMissing} onClick={() => void action((scope, s) => invoke('assignment.generate', { ...scope, sourceToken: s.sourceToken, allowMissing, ...(included ? { includedSourceIds: included } : {}) }))}>{state?.revision ? '새 초안 만들기' : 'AI 초안 만들기'}</button>
           <button disabled={opening || pending || working} onClick={refresh}>자료 다시 읽기</button>
           {working ? <button onClick={() => void cancel()}>작업 취소</button> : null}
@@ -106,5 +110,6 @@ export function AssignmentPanel({ workspace, instructions }: { workspace: Return
       </div>
       {preview ? <iframe sandbox="" title="제출용 과제 초안" src={preview} /> : <p className="empty-tool">아직 초안이 없습니다. AI 초안 만들기 또는 오른쪽 채팅에서 작성을 요청하세요.</p>}
     </div>
+    {presentationOpen && presentation ? <dialog className="artifact-dialog" ref={presentationDialog} onCancel={() => setPresentationOpen(false)} aria-label="발표 초안 만들기"><div className="artifact-dialog-head"><strong>발표 초안 · PPTX/PDF</strong><button onClick={() => setPresentationOpen(false)}>닫기</button></div><p className="meta">닫아도 시작한 생성은 계속됩니다. 다시 열어 결과를 확인하거나 작업 취소를 선택하세요.</p>{presentation}</dialog> : null}
   </section>;
 }

@@ -2810,10 +2810,15 @@
         "pnpm-lock.yaml"
       ],
       "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증. CR-093: 과제 안내/AI 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제별 세션에서 해당 과목 모든 주차 읽기, 새 판 실시간 미리보기·이전 판 보존, 전환/실패/취소/재시작 회귀.",
-      "status": "Blocked",
-      "branch": "feat/WBS-092-artifact-workflows",
+      "status": "Review",
+      "branch": "feat/WBS-092-heygen-settings",
       "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
-      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다."
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다. 2026-11-04 이문찬: WBS-094/097과 영역이 겹쳐도 병렬 진행 승인, HeyGen 로그인 요청. 첫 조각으로 설정의 HeyGen API 키·음성 선택만 구현(credential-store/-service, heygen-voices, HeygenSettings, contracts). 과제 초안 부분은 WBS-097이 진행 중이라 손대지 않음. task + 'voice-settings' 영역만 선점. 2026-11-04 사용자 직접 인계로 기존 task/voice-settings claim 01343bd8을 이어 사용한다. WBS-097 claim holder도 현재 동일 agent이며 사용자 병렬 승인에 따라 최소 공유 파일(credential-store.ts, credential-service.ts, handlers.ts, preload.cjs, heygen-voices.ts, HeygenSettings.tsx, SignInSettings.tsx, styles.css, contracts/src/ipc.ts와 관련 tests)을 수정한다. 과제 작업공간은 별도 유지한다. 실제 API/네이티브 편집을 사용량·인증 없이 완료로 표시하지 않는다. 2026-11-04 인계 후 영상/PPT 앱 통합: 사용자 병렬 영역 승인과 동일 agent의 WBS-097 host/ui/shared claim 아래 최소 공통 App.tsx, AssignmentPanel.tsx, main.ts, preload.cjs, contracts IPC/index/test, host package.json 및 자동 생성 pnpm-lock.yaml을 수정한다. root manifest·migration은 수정하지 않는다. 과제 문서 흐름은 #118 의존성으로 유지한다. 최신 사용자 지시로 실제 HeyGen 음성 실검증과 WBS-058 제출은 보류; 나머지 구현·검사는 계속한다. WBS-097 #118/e441ef6 Done 이후 기존 본인 claim을 CAS 해제하고 scripts/claim.py로 정식 WBS-092 task+host/ui/shared/learning-artifacts claim 266f2069를 확보했다. 현재 Review/#119 Draft: 공식 구독의 장면·슬라이드 계획 생성은 실측 성공, owner가 녹음·앱 사용 중 화면 검증을 보류하여 실제 PPTX/PDF 출력 UI 확인은 남는다. 음성·LMS 제출 보류도 유지한다.",
+      "review_evidence": [
+        "Slice 1 (HeyGen sign-in): heygen-voices.ts lists Starfish voices via GET https://api.heygen.com/v3/voices?engine=starfish (x-api-key; checked against HeyGen's developer docs 2026-11-04), up to 5 pages, Korean first, malformed ids dropped; 401/403 = rejected, network = failed. CredentialService.saveHeygenKey saves only an accepted key (Keychain-encrypted with the other details), never returns or logs it; setHeygenVoice accepts only a voice from the key's own list; heygen() gives the narrator key+voice; clear('heygen'). Voice sample fetched by the host only from https heygen.ai/heygen.com, ≤5 MB, audio/*, then played as a blob (page CSP allows blob media only). Settings dialog: 'HeyGen 음성' section (key field, 확인 후 저장, voice select, 미리 듣기, 지우기). Tests: host 254 (3 new + status expectations), ui 134. Real key not tested by the agent (the owner enters it; agents must not type API keys).",
+        "인계 후 자체 리뷰: docs/pm/reviews/WBS-092.md. 실제 PPTX→PDF 및 원본 불변 PASS; HyperFrames 0.8.181 합성 tone MP4 A/V·길이·한글 프레임 PASS. 실제 HeyGen 요청 1회 HTTP 400; 추가 TTS 없이 현재 조회 목록 available_engines의 Starfish 허용 0개 확인. owner가 음성 실검증 보류 지시. 키 인증·목록 조회와 TTS 성공을 구분하며 유료 자동 재시도 없음. host 277 macOS PASS, UI 134 PASS, engine 26 PASS. 최종 통합 검사는 후속 기록 참조.",
+        "d2f7956: full frozen tools exit 0 and fresh clone full tools exit 0, CI 41757328474 SUCCESS. Actual official subscription video plan: 23 scenes / 51 reviewed sources, needs_review; actual slide plan: 25 slides / 14 selected sources, needs_review. User deferred real voice validation and later deferred app screen validation while using recording; do not execute output or disturb recording. PR #119 remains Draft/Review for those deferred checks."
+      ]
     },
     {
       "phase": "MVP 검수",
@@ -2972,14 +2977,15 @@
         "REQ-013"
       ],
       "acceptance": "과제 안내/AI 제출 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제 고정 전용 세션에서 모든 주차 읽기, 공식 Claude 구독으로 최초 초안·수정 결과 새 판 실시간 미리보기와 PDF 내보내기. 이전 판·원본 보존, 명시 실행·누락 입력 확인, 전환/취소/실패/재시작/동시 요청·파일 경계 회귀.",
-      "status": "Review",
+      "status": "Done",
       "branch": "feat/WBS-097-assignment-workspace",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81a5a719d7305a8fa9c0",
       "scope_note": "CR-093 사용자 승인 과제 요구를 WBS-092에서 독립 작업으로 분리. 영상 앱 연결은 WBS-092, 실제 지정 과제 제출은 WBS-058. WBS-094 뒤 task/area claim 확보 후 진행. 실제 대규모 과목의 초기 생성 입력은 사용자가 명시적으로 선택할 수 있으며 제외 자료를 누락으로 표시하고 부분 생성 동의를 받는다. 전체 주차 전용 채팅 열람 범위는 유지한다.",
       "review_evidence": [
         "docs/pm/reviews/WBS-097.md: staged diff reviews, targeted host/UI/contracts/engine checks; actual official subscription draft and PDF generation; full container checks. Native chat edit request hit the subscription usage limit (09:40 Asia/Seoul reset); not marked passed. Manual working-file write verified actual preview/new-version publication and original PDF retention. WBS-058 remains deferred by latest owner reply.",
-        "2026-11-04 구독 한도 리셋 뒤 실제 native 과제 Edit 성공. owner가 Read/Bash/Edit 권한을 직접 확인했고 agent 자동 승인은 없음. 요청한 p 한 줄만 추가됨(제거 시 이전 HTML과 완전 동일), SVG 10개·이전 PDF 유지, 새 UUID 6cf25ce1-db41-4932-97cf-d651fd91fe52 보존과 최신 실시간 미리보기 반영을 앱에서 확인. 사용량 한도에 막혔던 잔여 수용 검사 해소. 실제 제출은 보류 유지. 상세 docs/pm/reviews/WBS-097.md."
+        "2026-11-04 구독 한도 리셋 뒤 실제 native 과제 Edit 성공. owner가 Read/Bash/Edit 권한을 직접 확인했고 agent 자동 승인은 없음. 요청한 p 한 줄만 추가됨(제거 시 이전 HTML과 완전 동일), SVG 10개·이전 PDF 유지, 새 UUID 6cf25ce1-db41-4932-97cf-d651fd91fe52 보존과 최신 실시간 미리보기 반영을 앱에서 확인. 사용량 한도에 막혔던 잔여 수용 검사 해소. 실제 제출은 보류 유지. 상세 docs/pm/reviews/WBS-097.md.",
+        "PR #118 merged e441ef69dfa7b1558a35647ba79150935d58c236 after native Edit/live revision validation and CI 41757789459 SUCCESS. Latest edited PDF: 14 pages, all rendered/visually reviewed; previous PDFs preserved. WBS-058 actual submission remains deferred."
       ]
     }
   ],

@@ -567,6 +567,9 @@ export class MediaService {
     return {};
   }
 
+  /** WBS-101: whether the student (or the automation setting) paused transcription; false before the media list was first opened. */
+  transcriptionPaused(): boolean { return this.#partition?.queue.paused ?? false; }
+
   async pauseTranscription() {
     const p = await this.#activate();
     if (p.key !== this.#o.accountKey()) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");

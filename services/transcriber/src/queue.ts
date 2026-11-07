@@ -296,7 +296,7 @@ export class TranscriptionQueue {
       if (abort.signal.reason !== "shutdown" && abort.signal.reason !== "pause") this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
       return;
     }
-    this.#update(jobId, { status: "running", attempt: entry.job.attempt + 1, leaseExpiresAt: lease() }, ["progress"]);
+    this.#update(jobId, { status: "running", attempt: entry.job.attempt + 1, leaseExpiresAt: lease() }, ["progress", "errorDetail"]);
     const renew = setInterval(() => this.#update(jobId, { leaseExpiresAt: lease() }), Math.max(1000, leaseMs / 3));
     renew.unref();
     try {
@@ -309,6 +309,7 @@ export class TranscriptionQueue {
         output = await this.#o.engine.transcribe({
           audioPath: this.#o.pathOf(entry.asset),
           context,
+          sourceSha256: entry.asset.sha256,
           signal: abort.signal,
           onProgress: (progress) => {
             if (!acceptingProgress || abort.signal.aborted || entry.job.status !== "running" || this.#running?.abort !== abort || !Number.isFinite(progress) || progress < 0 || progress > 1) return;
@@ -336,7 +337,7 @@ export class TranscriptionQueue {
       const file = join(dir, `${transcript.id}.json`);
       writeFileSync(`${file}.tmp`, JSON.stringify(transcript));
       renameSync(`${file}.tmp`, file);
-      this.#update(jobId, { status: "succeeded", progress: 1, outputTranscriptId: transcript.id }, ["leaseExpiresAt", "errorCode"]);
+      this.#update(jobId, { status: "succeeded", progress: 1, outputTranscriptId: transcript.id }, ["leaseExpiresAt", "errorCode", "errorDetail"]);
     } catch (error) {
       if (abort.signal.aborted) {
         // Pause hands the job back to the queue for resume. Quitting the app marks it
@@ -349,8 +350,10 @@ export class TranscriptionQueue {
       }
       const engineError = error instanceof EngineError ? error : new EngineError("TRANSCRIBE_FAILED", "전사 중 오류가 났습니다.", true);
       const attempt = this.job(jobId)!.attempt;
+      // WBS-101: the reason stays with the job (also while it waits to be retried).
+      const detail = engineError.detail ? { errorDetail: engineError.detail.slice(0, 300) } : {};
       if (engineError.retryable && attempt < (this.#o.maxAttempts ?? 3)) {
-        this.#update(jobId, { status: "queued" }, ["leaseExpiresAt", "progress"]);
+        this.#update(jobId, { status: "queued", ...detail }, ["leaseExpiresAt", "progress"]);
         const delays = this.#o.retryDelaysMs ?? [30_000, 120_000];
         const delay = delays[Math.min(attempt - 1, delays.length - 1)] ?? 0;
         this.#holdUntil.set(jobId, this.#now().getTime() + delay);
@@ -360,7 +363,7 @@ export class TranscriptionQueue {
         }, delay);
         return;
       }
-      this.#update(jobId, { status: "failed", errorCode: engineError.code as ErrorCode }, ["leaseExpiresAt", "progress"]);
+      this.#update(jobId, { status: "failed", errorCode: engineError.code as ErrorCode, ...detail }, ["leaseExpiresAt", "progress"]);
     } finally {
       clearInterval(renew);
     }

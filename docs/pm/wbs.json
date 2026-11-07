@@ -3087,6 +3087,44 @@
       "url": "https://app.notion.com/p/40ebd7ec20cd812c9aa0e75b69974171",
       "acceptance": "상단 바에서 한 번에 라이트↔다크를 바꾸고, 설정에서 시스템 따르기/라이트/다크를 고른다. 선택은 이 Mac 앱 설정(preferences.json)에 저장돼 재시작 후에도 유지되며 기본값은 시스템 따르기(기존 동작). 화면 전체·창 테두리·대화상자가 같은 테마로 바뀐다(Electron nativeTheme). 배포 앱에서 두 테마를 실제로 바꿔 확인하고 v1.0.0 산출물을 다시 만든다.",
       "scope_note": "2026-11-04 이문찬 직접 지시(v1.0 배포 전 마지막 기능). WBS-099 claim 해제 후 host·shared·ui·infra claim. 계약 변경은 기존 app.preferences 응답에 theme 필드 추가와 app.setPreferences 요청의 선택 필드뿐(하위 호환)."
+    },
+    {
+      "id": "WBS-101",
+      "title": "녹음 중 구간별 실시간 전사와 긴 녹음 전사 안정화",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-005",
+        "REQ-006"
+      ],
+      "qa_mode": "developer_self_test",
+      "deps": [
+        "WBS-100"
+      ],
+      "areas": [
+        "host",
+        "shared",
+        "transcriber",
+        "ui"
+      ],
+      "paths": [
+        "services/transcriber/",
+        "apps/desktop/host/src/",
+        "apps/desktop/host/test/",
+        "apps/desktop/ui/src/",
+        "apps/desktop/ui/test/",
+        "packages/contracts/src/",
+        "packages/contracts/test/",
+        "docs/pm/",
+        "docs/specs/SPEC-004.md",
+        "docs/qa/"
+      ],
+      "status": "In Progress",
+      "branch": "feat/WBS-101-chunked-transcription",
+      "url": "https://app.notion.com/p/411bd7ec20cd814f9879e13ee30fb2a7",
+      "acceptance": "구간 길이 실험(전체 vs 1·2·5·10분: 속도·최대 메모리·텍스트 차이·경계)을 기록하고 기본값을 정한다. 엔진은 긴 오디오를 조용한 지점에서 구간으로 나눠 구간마다 별도 실행·병합하고, 구간 결과를 보존해 일시정지·종료·재시도 후 이어서 진행하며, 엔진 실행은 한 번에 하나다. 녹음 중에는 구간 길이만큼 쌓일 때마다 전사하고 멈추면 남은 꼬리만 전사해 곧바로 전사본을 만든다(강제 종료 후에도 이어짐). 실패 원인 요약을 작업에 남기고 화면에 표시한다. 합성 오디오 테스트, 전체 검사, 실제 앱 확인.",
+      "scope_note": "2026-11-07 이문찬 직접 지시. 실험에는 이 Mac의 실제 강의 녹음 일부를 로컬에서만 쓰고 저장소·테스트에는 넣지 않는다(테스트는 합성 오디오)."
     }
   ],
   "qaPolicy": {

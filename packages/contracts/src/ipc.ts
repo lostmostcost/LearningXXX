@@ -324,7 +324,8 @@ export const IpcChannels = {
       seq: z.number().int().nonnegative(),
       pcm: z.instanceof(Uint8Array).refine((b) => b.byteLength > 0 && b.byteLength <= 2_000_000 && b.byteLength % 2 === 0, "pcm chunk"),
     }),
-    response: z.object({ savedMs: z.number().int().nonnegative() }),
+    /** WBS-101: `transcribedMs` = how much of it, from the start, is already transcribed while recording. */
+    response: z.object({ savedMs: z.number().int().nonnegative(), transcribedMs: z.number().int().nonnegative().optional() }),
   },
   /** Ends the recording and confirms the original; `reason` says why it stopped when the user did not. */
   "recording.stop": {

@@ -32,6 +32,8 @@ export class SttRuntimeService {
     return JSON.parse(stdout).ready === true;
   }
   #env() { return { PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin', HOME: process.env.HOME ?? '', HF_HUB_DISABLE_TELEMETRY: '1', PYTHONUNBUFFERED: '1' }; }
+  /** WBS-101: the last known state, without checking again (for decisions made on every recorded chunk). */
+  isReady(): boolean { return !this.#closing && !this.#installTask && this.#state.state === 'ready'; }
   async requireReady() {
     if (this.#closing || (await this.status(true)).state !== 'ready' || this.#closing) throw new EngineError('ENGINE_UNAVAILABLE', '전사 탭에서 엔진 준비를 먼저 완료해 주세요.', false);
   }

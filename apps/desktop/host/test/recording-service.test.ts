@@ -175,3 +175,26 @@ test("WBS-065: filing a recording while its original is being encoded is not los
   assert.equal(recording.status, "finalized");
   assert.deepEqual([recording.weekId, recording.lectureSourceId], [WEEK_A, "lec-2"]);
 });
+
+test("WBS-101: live transcription hears every saved chunk and the final original before the queue does; its failures never stop a recording", async () => {
+  const events: string[] = [];
+  let transcribed = 0;
+  const live = {
+    chunkSaved: (id: string, path: string, bytes: number) => { events.push(`chunk ${bytes}`); assert.ok(existsSync(path)); if (bytes > 64_000) throw new Error("live broke"); },
+    finish: (id: string, path: string, bytes: number, sha: string) => { events.push(`finish ${bytes} ${sha.length}`); assert.ok(existsSync(path), "the PCM is still there"); },
+    discard: (id: string) => events.push(`discard ${id.length}`),
+    transcribedMs: () => (transcribed += 500),
+  };
+  const { service, confirmed } = setup({ live, onOriginalConfirmed: (a) => { events.push("queue"); void a; } });
+  const rec = await service.start({ courseId: COURSE });
+  assert.deepEqual(await service.chunk({ recordingId: rec.id, seq: 0, pcm: pcm(1000) }), { savedMs: 1000, transcribedMs: 500 });
+  // A broken live step is ignored: the chunk is still saved.
+  assert.equal((await service.chunk({ recordingId: rec.id, seq: 1, pcm: pcm(1500) })).savedMs, 2500);
+  const stopped = await service.stop({ recordingId: rec.id });
+  assert.ok(stopped.asset);
+  assert.deepEqual(events, ["chunk 32000", "chunk 80000", "finish 80000 64", "queue"]);
+  assert.equal(confirmed.length, 0);
+  const empty = await service.start({ courseId: COURSE });
+  await service.stop({ recordingId: empty.id });
+  assert.equal(events.at(-1), "discard 36");
+});

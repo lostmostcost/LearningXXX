@@ -41,6 +41,9 @@ def main():
     parser.add_argument("--model", required=True)
     parser.add_argument("--language", default="Korean")
     parser.add_argument("--context", default="")
+    # WBS-101: MLX keeps freed GPU buffers for reuse and the library only clears them at the very end,
+    # so without a cap the cache grows until memory runs short. Negative = no cap.
+    parser.add_argument("--cache-mb", type=int, default=-1)
     args = parser.parse_args()
 
     try:
@@ -48,6 +51,14 @@ def main():
     except Exception as error:  # noqa: BLE001 - any import failure means no engine
         sys.stderr.write(f"engine unavailable: {error}\n")
         return 3
+
+    if args.cache_mb >= 0:
+        try:
+            import mlx.core as mx
+
+            mx.set_cache_limit(args.cache_mb * 1024 * 1024)
+        except Exception as error:  # noqa: BLE001 - an older MLX without the call still transcribes
+            sys.stderr.write(f"warning: cache limit not set: {error}\n")
 
     try:
         audio = (read_wav(args.wav), 16000)

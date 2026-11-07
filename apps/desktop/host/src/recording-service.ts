@@ -54,6 +54,13 @@ export interface RecordingServiceOptions {
   onOriginalConfirmed?: (asset: MediaAsset) => void;
   /** The host stopped a recording on its own (low disk, sleep). */
   onStopped?: (recording: Recording, asset: MediaAsset | undefined) => void;
+  /** WBS-101: transcription while recording; told about the growing PCM, the final original and discarded recordings. */
+  live?: {
+    chunkSaved: (recordingId: string, pcmPath: string, pcmBytes: number) => void;
+    finish: (recordingId: string, pcmPath: string, pcmBytes: number, sha256: string) => void;
+    discard: (recordingId: string) => void;
+    transcribedMs: (recordingId: string) => number;
+  };
   now?: () => Date;
   newId?: () => string;
 }
@@ -200,7 +207,11 @@ export class RecordingService {
     fsyncSync(active.fd);
     active.bytes += pcm.byteLength;
     active.nextSeq += 1;
-    return { savedMs: Math.floor(active.bytes / BYTES_PER_MS) };
+    const live = this.#o.live;
+    if (!live) return { savedMs: Math.floor(active.bytes / BYTES_PER_MS) };
+    // Live transcription is a convenience: whatever goes wrong there never stops the recording.
+    try { live.chunkSaved(recordingId, join(this.#dir(recordingId), "audio.pcm"), active.bytes); } catch { /* the queue transcribes the original */ }
+    return { savedMs: Math.floor(active.bytes / BYTES_PER_MS), transcribedMs: live.transcribedMs(recordingId) };
   }
 
   /** Ends the active recording and confirms its original. Safe to call twice. */
@@ -243,6 +254,7 @@ export class RecordingService {
     const pcmFile = join(this.#dir(id), "audio.pcm");
     const pcmBytes = existsSync(pcmFile) ? statSync(pcmFile).size - (statSync(pcmFile).size % 2) : 0;
     if (pcmBytes === 0) {
+      try { this.#o.live?.discard(id); } catch { /* nothing to keep */ }
       rmSync(this.#dir(id), { recursive: true, force: true });
       return { recording: this.#put({ ...recording, status: "failed", errorCode: cause ?? "RECORDING_INTERRUPTED" }) };
     }
@@ -296,6 +308,8 @@ export class RecordingService {
     this.#state.assets.push(asset);
     // Read again: the user may have filed it under a week while it was being encoded.
     const done = this.#put({ ...this.#recording(id), status, durationMs, originalAssetId: asset.id });
+    // WBS-101: the rest of the audio becomes the last live window before the working copy goes.
+    try { this.#o.live?.finish(id, pcmFile, pcmBytes, sha256); } catch { /* the queue transcribes the original */ }
     // The original is safely stored; the working copy is no longer needed.
     rmSync(this.#dir(id), { recursive: true, force: true });
     try {

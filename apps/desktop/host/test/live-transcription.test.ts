@@ -125,6 +125,13 @@ test("WBS-101: live work of a recording that is gone, or whose original is gone,
   live.prune(() => false, () => false);
   assert.equal(existsSync(join(root, "orphan")), false);
   assert.equal(existsSync(join(root, "removed")), false);
+  // Finished but never taken for more than two weeks (transcription cancelled and not retried).
+  const old = recording();
+  const later = new LiveTranscription({ root, window: WINDOW, transcribe: engine.transcribe, enabled: () => false, now: () => Date.now() + 15 * 24 * 3600_000 });
+  later.chunkSaved("cancelled", old.pcmPath, old.grow(12));
+  later.finish("cancelled", old.pcmPath, statSync(old.pcmPath).size, "9".repeat(64));
+  later.prune(() => false, () => true);
+  assert.equal(existsSync(join(root, "cancelled")), false);
   const short = recording();
   live.chunkSaved("short", short.pcmPath, short.grow(5));
   live.finish("short", short.pcmPath, statSync(short.pcmPath).size, "f".repeat(64));

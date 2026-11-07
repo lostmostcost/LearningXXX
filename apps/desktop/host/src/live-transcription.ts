@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { mergeWindows, nextCut, SAMPLE_RATE, wavFile, type EngineOutput, type WindowSettings } from "@learningxxx/transcriber";
 
@@ -144,8 +144,10 @@ export class LiveTranscription {
    * original is gone, is removed; the rest continues.
    */
   prune(isRecording: (recordingId: string) => boolean, hasOriginal: (sha256: string) => boolean): void {
+    // A finished recording whose transcription was cancelled and never retried is dropped after two weeks.
+    const stale = (id: string) => { try { return statSync(join(this.#dir(id), "manifest.json")).mtimeMs < (this.#o.now ?? Date.now)() - 14 * 24 * 3600_000; } catch { return true; } };
     for (const [id, m] of [...this.#manifests]) {
-      if (m.final ? !hasOriginal(m.final.sha256) : !isRecording(id)) this.discard(id);
+      if (m.final ? !hasOriginal(m.final.sha256) || stale(id) : !isRecording(id)) this.discard(id);
       else if (m.final) this.#kick(id);
     }
   }

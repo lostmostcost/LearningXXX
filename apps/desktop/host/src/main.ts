@@ -36,6 +36,7 @@ import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
+import { LiveTranscription } from "./live-transcription.ts";
 import { AudioImporter } from "./audio-import.ts";
 import { ChatOutputs } from "./chat-outputs.ts";
 import { MemoService } from "./memos.ts";
@@ -294,8 +295,21 @@ app.whenReady().then(async () => {
     },
   });
   let media: MediaService;
+  const sttRoot = join(app.getPath("userData"), "stt");
+  // WBS-101: windows of a few minutes, one engine process at a time for the whole app; finished windows are kept.
+  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: join(appRoot, "services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf"), partsRoot: join(sttRoot, "parts") });
+  let stt: SttRuntimeService;
+  let transcribeSetting = preferences.get().automation.transcribe;
+  // WBS-101: transcription while recording, only when transcription is on, not paused, and the engine is ready.
+  const live = new LiveTranscription({
+    root: join(dataRoot, "media", "live"), window: engine.window,
+    transcribe: (wav, signal, onProgress, context) => stt.run(() => engine.transcribeWav(wav, signal, onProgress, context)),
+    contextFor: async (recordingId) => (await library.manifest(recordings.courseOf(recordingId)))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
+    enabled: () => transcribeSetting && stt.isReady() && !media.transcriptionPaused(),
+  });
   const recordings = new RecordingService({
     dataRoot,
+    live,
     micPermission: async () => {
       const status = systemPreferences.getMediaAccessStatus("microphone");
       if (status === "granted") return "granted";
@@ -313,13 +327,15 @@ app.whenReady().then(async () => {
       }).catch(() => undefined);
     },
   });
-  const sttRoot = join(app.getPath("userData"), "stt");
-  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: join(appRoot, "services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") });
-  const stt = new SttRuntimeService({ root: sttRoot, source: join(appRoot, "services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
+  stt = new SttRuntimeService({ root: sttRoot, source: join(appRoot, "services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
   media = new MediaService({
     dataRoot, accountKey: () => library.accountKey(), courses: () => library.courses(),
     originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
-    engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => { input.signal.throwIfAborted(); return engine.transcribe(input); }) },
+    // WBS-101: an original made from a live recording takes its finished windows instead of starting over.
+    engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => {
+      input.signal.throwIfAborted();
+      return (input.sourceSha256 ? await live.take(input.sourceSha256, input.signal, input.onProgress) : undefined) ?? engine.transcribe(input);
+    }) },
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
     // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
     readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),
@@ -356,6 +372,8 @@ app.whenReady().then(async () => {
   });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
   await recordings.recover().catch(() => undefined);
+  // WBS-101: then live work continues, or goes when its recording or original is gone.
+  live.prune((id) => recordings.activeId === id, (sha) => recordings.originals().some((a) => a.sha256 === sha));
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
   // Jobs that failed only because the engine was missing run again once it is
@@ -455,7 +473,6 @@ app.whenReady().then(async () => {
   });
   if (!preferences.get().automation.transcribe) await media.pauseTranscription().catch(() => undefined);
   // Only a change of this setting pauses or resumes; a pause the student made by hand otherwise stays.
-  let transcribeSetting = preferences.get().automation.transcribe;
   preferences.onChange((value) => {
     if (value.automation.transcribe === transcribeSetting) return;
     transcribeSetting = value.automation.transcribe;
@@ -519,7 +536,7 @@ app.whenReady().then(async () => {
     clearInterval(previewTimer); automation?.stop(); assignments.stopAll();
     void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
-      await media.stop(); await stt.stop();
+      await live.stop(); await media.stop(); await stt.stop();
     } })().catch(() => undefined).finally(() => app.quit());
   });
   // Ctrl-C in a terminal or a plain `kill` quits the same way as Cmd-Q, so recordings and transcription are saved.

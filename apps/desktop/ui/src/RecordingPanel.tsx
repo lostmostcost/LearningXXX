@@ -54,6 +54,8 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
   const [active, setActive] = useState<string>();
   const [paused, setPaused] = useState(false);
   const [savedMs, setSavedMs] = useState(0);
+  // WBS-101: how much of this recording is already transcribed while it is still being recorded.
+  const [transcribedMs, setTranscribedMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -114,6 +116,7 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
     if (result.ok) {
       c.seq += 1;
       setSavedMs(result.data.savedMs);
+      setTranscribedMs(result.data.transcribedMs ?? 0);
     } else {
       // The host already stopped and saved (e.g. low disk); stop capturing too.
       setNotice(result.error.message);
@@ -153,7 +156,7 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
         context.createMediaStreamSource(stream).connect(node);
         stream.getAudioTracks()[0]?.addEventListener("ended", () => { if (capture.current === c) void stop("device_lost"); });
         capture.current = c;
-        setSavedMs(0);
+        setSavedMs(0); setTranscribedMs(0);
         setElapsedMs(0);
         setActive(recordingId);
         void reload();
@@ -234,7 +237,7 @@ export function RecordingPanel({ courseId, view = "recording", onState, weeks = 
       {active
         ? <p className="capture-place">{placeLabel(recordingNow, weeks, lectures) ?? ""}</p>
         : weeks.length ? <div className="capture-place"><Details title={<>{!choice && estimated ? "추천 · " : ""}{weeks.find(w=>w.id===place.weekId)?.label ?? "주차 선택"}{place.lectureSourceId ? ` · ${lectures.find(l=>l.sourceId===place.lectureSourceId)?.title ?? "강의"}` : ""}<small>변경</small></>} open={!place.weekId}><WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy} onChange={setChoice} /></Details></div> : null}
-      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) : "종료 후 자동 전사"}</p>
+      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) + (transcribedMs > 0 ? ` · 전사됨 ${clock(transcribedMs)}` : "") : "녹음하는 동안 몇 분마다 전사"}</p>
       <div className="capture-actions">
         {active ? <button className="capture-action secondary" aria-label={paused ? "녹음 이어서 하기" : "녹음 일시정지"} title={paused ? "녹음 이어서 하기" : "녹음 일시정지"} disabled={busy} onClick={togglePause}><Icon name={paused ? "play" : "pause"} /></button> : null}
         <button className="capture-action" aria-label={active ? "녹음 끝내고 저장" : "녹음 시작"} title={active ? "녹음 끝내고 저장" : "녹음 시작"} disabled={busy} onClick={() => active ? void stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>

@@ -154,6 +154,8 @@ export const TranscriptionJob = z
     attempt: z.number().int().nonnegative(),
     leaseExpiresAt: UtcTimestamp.optional(),
     errorCode: ErrorCode.optional(),
+    /** WBS-101: what the engine said when it last failed, shortened and without file paths. */
+    errorDetail: z.string().max(300).optional(),
     outputTranscriptId: Id.optional(),
     createdAt: UtcTimestamp,
     updatedAt: UtcTimestamp,

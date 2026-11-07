@@ -422,3 +422,5 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .automation-presets{display:flex;gap:8px;flex-wrap:wrap}.automation-presets button{padding:10px 14px;border-radius:10px}.automation-presets button[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:var(--text)}
 /* Compact course cards keep the title and the next action on one reading line. */
 .dashboard{padding:32px 4vw}.dashboard h1{font-size:28px}.dashboard h2{margin-top:24px}.course-cards{gap:12px;margin-top:14px}.course-cards>button{min-height:92px;flex-direction:row;align-items:center;padding:18px;gap:14px}.course-cards strong{font-size:16px;min-width:0;overflow-wrap:anywhere}.course-mark{display:grid;place-items:center;flex:0 0 auto}.dashboard-bottom{gap:30px}
+/* WBS-101: the engine's own reason under a failed transcription. */
+.error-detail{display:block;color:var(--muted);overflow-wrap:anywhere;}

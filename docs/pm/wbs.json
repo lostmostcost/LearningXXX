@@ -3132,7 +3132,7 @@
     },
     {
       "id": "WBS-106",
-      "title": "자료를 고르기 전 가운데 칸에 이번 주차 과제 목록",
+      "title": "자료를 고르기 전 가운데 칸에 이번 주차 자료·과제 목록",
       "phase": "MVP 검수",
       "priority": "P1",
       "deps": [
@@ -3147,14 +3147,15 @@
       ],
       "spec": "PRD-001",
       "requirements": [],
-      "acceptance": "자료를 아무것도 선택하지 않은 화면의 가운데 칸(과제가 열리는 자리)에 현재 주차의 과제·퀴즈가 나열되고, 누르면 그 자리에서 과제가 열린다.",
+      "acceptance": "자료를 아무것도 선택하지 않은 화면의 가운데 칸에 안내 문구 대신 현재 주차의 자료(공지 포함)와 과제·퀴즈가 나열되고, 누르면 그 자리에서 열린다.",
       "status": "Review",
       "branch": "feat/WBS-106-week-tasks-empty-viewer",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/413bd7ec20cd818383bfe3ce2ac811c1?pvs=204",
       "scope_note": "이문찬 지시(2026-11-09). 주차는 주차 메뉴에서 고른 주차(기본은 이번 주차, WBS-105). 로컬 브랜치만, push 보류.",
       "review_evidence": [
-        "2026-11-09 Viewer gets an `empty` slot under the hint; WeekTasks (TaskSidebar.tsx) reuses tasksByWeek for the week chosen in the week menu: to-do, then not open yet, then submitted, with due time and LMS badges; collected items open with the same selectEntry as the 과제 list, LMS-only quizzes get 응시 창 열기, items taken off the list are only counted. Review fix: '제출함' shown twice (text and badge) → text removed. Checks: ui 136 pass, typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로 10주차 lists its two 수업요약 assignments (미제출, 11/9 23:59), 데이터베이스 10주차 lists 개념적 설계 실습 (ERD) as submitted; clicking it opened the assignment with 과제 안내/초안 미리보기 tabs and the list went away."
+        "2026-11-09 Viewer gets an `empty` slot under the hint; WeekTasks (TaskSidebar.tsx) reuses tasksByWeek for the week chosen in the week menu: to-do, then not open yet, then submitted, with due time and LMS badges; collected items open with the same selectEntry as the 과제 list, LMS-only quizzes get 응시 창 열기, items taken off the list are only counted. Review fix: '제출함' shown twice (text and badge) → text removed. Checks: ui 136 pass, typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로 10주차 lists its two 수업요약 assignments (미제출, 11/9 23:59), 데이터베이스 10주차 lists 개념적 설계 실습 (ERD) as submitted; clicking it opened the assignment with 과제 안내/초안 미리보기 tabs and the list went away.",
+        "2026-11-09 owner follow-up: the hint '왼쪽에서 자료를 선택하면…' is replaced by the week's materials and notices (non-assignment entries of the chosen week, LMS completion badge, '[공지]' prefix, file count) above the assignments; clicking uses the same selectEntry as the side list. Checks: ui 136 pass, build. Real app (test-app.sh, read-only): all six courses show '10주차 자료' / '10주차 과제' and no hint (논리회로 3 items, 데이터베이스 4, 외식메뉴 1, 웨스턴퀴진 1, 취업·창업특강 0 → '아직 자료가 없습니다', Hospitality 2). Materials were not clicked by the agent: opening an LMS PDF asks the LMS to record the view (WBS-056), same as the side list."
       ]
     }
   ],

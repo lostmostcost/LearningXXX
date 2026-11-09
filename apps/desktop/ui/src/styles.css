@@ -448,3 +448,4 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .week-task-open{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:0;border:0;background:none;color:inherit;text-align:left;font:inherit;}
 button.week-task-open{cursor:pointer;}button.week-task-open:hover strong{text-decoration:underline;}
 .week-task-open strong{font-size:13px;overflow-wrap:anywhere;}.week-task-open small{font-size:12px;color:var(--muted);}
+.week-tasks h3:not(:first-child){margin-top:24px;}.week-tasks{margin-top:8px;}

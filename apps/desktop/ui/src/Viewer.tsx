@@ -22,13 +22,16 @@ export function Viewer(props: { entry: Entry | undefined; loadAsset?: AssetLoade
   translator?: PdfTranslator | undefined;
   onSelectionAction?: ((selection: SelectedText, intent: SelectionIntent) => void) | undefined; location?: PageLocation | undefined;
   onPage?: ((assetId: string, page: number) => void) | undefined;
-  onSnapshot?: ((snapshot: PageSnapshot | undefined) => void) | undefined }) {
+  onSnapshot?: ((snapshot: PageSnapshot | undefined) => void) | undefined;
+  /** WBS-106: shown instead of the hint while nothing is selected (this week's assignments). */
+  empty?: React.ReactNode }) {
   const { entry } = props;
   if (!entry) {
     return (
       <>
         <h2>자료</h2>
         <p>왼쪽에서 자료를 선택하면 여기에서 열립니다.</p>
+        {props.empty}
       </>
     );
   }

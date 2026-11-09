@@ -36,3 +36,30 @@ export function TaskSidebar({ library, status, currentWeekId, selectedId, onSele
     ))}
   </div>;
 }
+
+/**
+ * WBS-106: while no material is open, the middle column lists one week's
+ * assignments and quizzes (the week chosen in the week menu, which opens on
+ * this week). Choosing one opens it right there, as from the 과제 list.
+ * Items the student took off the list are counted, not shown.
+ */
+export function WeekTasks({ library, status, weekId, onSelect, onOpenQuiz }: { library: Library; status: CourseLearningStatus | undefined; weekId: string | undefined; onSelect: (entry: Entry) => void; onOpenQuiz: (item: LearningItem) => void }) {
+  const account = library.course.accountKey;
+  const hidden = useHiddenTodos([account]);
+  const week = library.weeks.find((w) => w.week.id === weekId)?.week;
+  if (!week) return null;
+  const group = tasksByWeek(library, status, new Date(), (key) => hidden.isHidden(account, key)).find((w) => w.key === week.id);
+  const rows: (readonly [TaskRow, "todo" | "later" | "done"])[] = group ? [...group.todo.map((r) => [r, "todo"] as const), ...group.later.map((r) => [r, "later"] as const), ...group.done.map((r) => [r, "done"] as const)] : [];
+  return <section className="week-tasks" aria-label={`${week.label} 과제`}>
+    <h3>{week.label} 과제</h3>
+    {rows.length ? <ul>{rows.map(([r, place]) => (
+      <li key={r.key} className={`week-task ${place === "done" ? "is-done" : "is-todo"}`}>
+        {r.entry ? <button className="week-task-open" onClick={() => onSelect(r.entry!)}><strong>{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</strong>
+          <small>{place === "later" && r.opensAt ? `${formatSeoul(r.opensAt)}부터 · ` : ""}{r.dueAt ? `마감 ${formatSeoul(r.dueAt)}` : "마감 정보 없음"}</small></button>
+          : <span className="week-task-open"><strong>{r.kind === "quiz" ? "[퀴즈] " : ""}{r.title}</strong><small>{r.dueAt ? `마감 ${formatSeoul(r.dueAt)}` : "마감 정보 없음"} · LMS에만 있는 항목</small></span>}
+        <Badges item={r.item} />
+        {place === "todo" && r.kind === "quiz" && r.item && !r.item.quiz?.lockdownBrowser && (r.item.moduleItemId || r.item.quiz?.quizId) ? <button className="link-button" onClick={() => onOpenQuiz(r.item!)}>응시 창 열기</button> : null}
+      </li>))}</ul> : <p className="meta">이 주차에는 과제가 없습니다.</p>}
+    {group?.hidden.length ? <p className="meta">목록에서 뺀 과제 {group.hidden.length}개는 과제 탭에서 볼 수 있습니다.</p> : null}
+  </section>;
+}

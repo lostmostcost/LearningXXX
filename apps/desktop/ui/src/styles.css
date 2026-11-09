@@ -423,3 +423,12 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 /* Compact course cards keep the title and the next action on one reading line. */
 .dashboard{padding:32px 4vw}.dashboard h1{font-size:28px}.dashboard h2{margin-top:24px}.course-cards{gap:12px;margin-top:14px}.course-cards>button{min-height:92px;flex-direction:row;align-items:center;padding:18px;gap:14px}.course-cards strong{font-size:16px;min-width:0;overflow-wrap:anywhere}.course-mark{display:grid;place-items:center;flex:0 0 auto}.dashboard-bottom{gap:30px}
 .assignment-submit{margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;}.assignment-submit h3{margin:0 0 6px;font-size:13px;}.submit-plan p{margin:4px 0;}.submit-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;}.submit-rules{list-style:none;padding:0;font-size:12px;}
+
+/* WBS-103: the tools column (채팅·메모·녹음·전사) is dragged wider or narrower at its left edge. */
+.study-app .panel.chat{position:relative;}
+.tools-resizer{position:absolute;top:0;bottom:0;left:0;width:7px;z-index:5;cursor:col-resize;touch-action:none;background:transparent;transition:background .12s;}
+.tools-resizer:hover,.tools-resizer:focus-visible,.resizing-tools .tools-resizer{background:color-mix(in srgb,var(--focus) 35%,transparent);outline:none;}
+.resizing-tools,.resizing-tools *{cursor:col-resize!important;user-select:none!important;}
+.study-app .panels.tools-sized{grid-template-columns:190px minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 550px)));}
+.study-app .panels.tools-sized.mode-book{grid-template-columns:minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 360px)));}
+@media(max-width:1000px){.study-app .panels.tools-sized{grid-template-columns:minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 360px)));}}

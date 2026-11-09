@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Course, IpcResponse, LectureMention, MediaAsset, PreferredLanguage } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
-import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, visiblePanels } from "./layout.ts";
+import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, readToolsWidth, TOOLS_WIDTH_KEY, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
 import brandLogo from "../../../../assets/branding/yolo-univ-logo.png";
@@ -21,6 +21,7 @@ import { claimLaunchSync } from "./launch-sync.ts";
 import type { RecordingState } from "./recorder.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
+import { ToolsResizer } from "./ToolsResizer.tsx";
 import { recordingSession, recordingState, useRecordingSession } from "./recording-session.ts";
 import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
@@ -126,6 +127,13 @@ export function App() {
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
   // WBS-064: red light on the recording tab, the mic rail button and the top bar while recording.
+  // WBS-103: the tools column's width, dragged by the user and kept on this Mac.
+  const [toolsWidth, setToolsWidth] = useState<number | undefined>(() => readToolsWidth(typeof localStorage === "undefined" ? undefined : localStorage));
+  const resizeTools = useCallback((width: number, done: boolean) => {
+    setToolsWidth(width);
+    if (done) { try { localStorage.setItem(TOOLS_WIDTH_KEY, String(width)); } catch { /* kept for this window only */ } }
+  }, []);
+  const resetTools = useCallback(() => { setToolsWidth(undefined); try { localStorage.removeItem(TOOLS_WIDTH_KEY); } catch { /* nothing saved */ } }, []);
   // WBS-102: the recording belongs to the window, not to the course on screen.
   const recording = useRecordingSession();
   const recState: RecordingState = recordingState(recording);
@@ -348,7 +356,7 @@ export function App() {
       </header>
       {IN_APP && !FIXTURE_MODE ? <div hidden={!modifying}><ModifyPanel /></div> : null}
       {home?<Dashboard fixture={FIXTURE_MODE} courses={courses} onOpen={(id,entry)=>{setHome(false);setSection('book');void chooseCourse(id).then(()=>{if(courseRef.current===id&&entry)setSelected(entry);});}}/>:null}
-      <main className={`panels mode-${section}`} hidden={home}>
+      <main className={`panels mode-${section}${toolsWidth !== undefined && !narrow ? " tools-sized" : ""}`} hidden={home} style={toolsWidth !== undefined && !narrow ? { "--tools-width": `${toolsWidth}px` } as React.CSSProperties : undefined}>
         <div className={`week-tray ${tray?'is-open':''} ${trayDismissed?'is-dismissed':''}`} onMouseLeave={() => setTray(false)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTray(false); }}>
           <button className="week-handle" onMouseEnter={() => { setTrayDismissed(false); setTray(true); }} onFocus={() => { setTrayDismissed(false); setTray(true); }} aria-expanded={tray} onClick={()=>{setTrayDismissed(false);setTray(true);}} onKeyDown={(event)=>{if(event.key==="Escape"){setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}}>{library?.weeks[weekIndex]?.week.label??'학습 자료'} <span>⌄</span></button>
           <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button><div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={(event)=>{selectEntry(e);setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}<Badges item={itemForResource(learning.status,e.resource)}/></button>)}
@@ -398,6 +406,7 @@ export function App() {
           knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weeks={weekList} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : assignmentScope ? <AssignmentPanel key={`${assignmentScope.courseId}/${assignmentScope.assignmentId}`} workspace={assignment} instructions={materialViewer} /> : materialViewer
         ))}
         {panel("chat", "학습 도구", <>
+          {!narrow ? <ToolsResizer width={toolsWidth} onChange={resizeTools} onReset={resetTools} /> : null}
           <div className="right-tabs" role="tablist" aria-label="학습 도구" onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
             event.preventDefault();

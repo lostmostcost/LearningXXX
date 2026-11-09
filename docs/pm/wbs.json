@@ -3049,6 +3049,31 @@
       "review_evidence": [
         "2026-11-09 cause: recording 881beeca finalized 09:38:27 (29m47s, status finalized, not recovered), 논리회로 course workspace prepared 09:38:44; pmset shows no sleep 09:08-09:38; RecordingPanel (keyed by course) stopped capture on unmount and chooseCourse unmounts it. Fix: capture moved to an app-level store (recording-session.ts) the panel only displays; host push/pagehide handled there; panel shows a note and disables start when another course is recording; top-bar pill opens the recording course. Recording.stopReason (contract) set by host for user/device_lost/page_closed/sleep/app_closing/disk_full/access_lost/crashed. Review: dead onState prop removed; stop() success/failure paths release capture once. Checks: pnpm -r run check all pass (host 271 incl. 1 new reason test, ui 134, contracts 58); fixture preview (?fixture=mic, preview-only second course) — course switch unmounted the panel and saved time kept rising 0:04→0:06, stop ended it. Not tried: real microphone recording in the app across courses (owner)."
       ]
+    },
+    {
+      "id": "WBS-103",
+      "title": "오른쪽 학습 도구 너비 끌어서 조절",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "가운데 칸과 오른쪽 학습 도구(채팅·메모·녹음·전사) 경계에서 양쪽 화살표 커서로 바뀌고, 끌어서 너비를 바꾼다. 너비는 이 Mac에 저장되고 두 번 누르면 기본 너비로 돌아간다.",
+      "status": "Review",
+      "branch": "feat/WBS-103-resizable-tools-panel",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd8121a9b6f75ea2e12a6a?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 로컬 브랜치만, push 보류. 배포용 앱 빌드 없이 test-app.sh로만 확인.",
+      "review_evidence": [
+        "2026-11-09 layout.ts clampToolsWidth (280..960, middle keeps 360) and readToolsWidth (bad or blocked storage → none); ToolsResizer (separator role, pointer capture so PDFs/previews never take the drag, arrows ±16/±64, double click resets); App keeps the width in localStorage per Mac, hidden in the narrow one-column layout; CSS caps the column again by the current width so a smaller window never squeezes the middle. Checks: ui 135 pass (1 new), typecheck, build; fixture preview 1400px: handle 7px on the column's left edge with col-resize cursor, real mouse drag 389→595px saved, kept after reload, double click back to 389, dragging to the far left stops at 960 with the middle 382px. Not tried in the real app window by the owner yet."
+      ]
     }
   ],
   "qaPolicy": {

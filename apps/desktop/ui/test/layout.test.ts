@@ -38,3 +38,17 @@ test("WBS-068: the edge course list closes only once the pointer is past the lis
   assert.equal(edgeClosesAt(EDGE_DRAWER_WIDTH + RAIL_WIDTH), false, "on the pushed rail it stays open");
   assert.equal(edgeClosesAt(EDGE_DRAWER_WIDTH + RAIL_WIDTH + 40), true);
 });
+
+test("WBS-103: the tools column stays between its minimum and what leaves the middle readable", async () => {
+  const { clampToolsWidth, readToolsWidth, TOOLS_MIN_WIDTH, TOOLS_WIDTH_KEY } = await import("../src/layout.ts");
+  assert.equal(clampToolsWidth(500, 1400), 500);
+  assert.equal(clampToolsWidth(100, 1400), TOOLS_MIN_WIDTH);
+  assert.equal(clampToolsWidth(1200, 1400), 960, "never wider than the maximum");
+  assert.equal(clampToolsWidth(700, 900), 540, "the middle keeps 360px");
+  assert.equal(clampToolsWidth(700, 500), TOOLS_MIN_WIDTH, "a tiny window still shows the controls");
+  assert.equal(clampToolsWidth(Number.NaN, 1400), TOOLS_MIN_WIDTH);
+  assert.equal(readToolsWidth({ getItem: (k) => (k === TOOLS_WIDTH_KEY ? "420" : null) }), 420);
+  assert.equal(readToolsWidth({ getItem: () => "abc" }), undefined);
+  assert.equal(readToolsWidth({ getItem: () => null }), undefined);
+  assert.equal(readToolsWidth({ getItem: () => { throw new Error("blocked"); } }), undefined);
+});

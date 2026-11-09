@@ -30,3 +30,29 @@ export const EDGE_DRAWER_WIDTH = 240;
 export const RAIL_WIDTH = 58;
 export const EDGE_OPEN_DELAY_MS = 120;
 export const edgeClosesAt = (x: number): boolean => x > EDGE_DRAWER_WIDTH + RAIL_WIDTH + 12;
+
+/**
+ * WBS-103: the right-hand tools column (채팅·메모·녹음·전사) can be dragged
+ * wider or narrower. It never gets narrower than its controls need, and it
+ * always leaves the middle column room to read.
+ */
+export const TOOLS_MIN_WIDTH = 280;
+export const TOOLS_MAX_WIDTH = 960;
+export const MIDDLE_MIN_WIDTH = 360;
+export const TOOLS_WIDTH_KEY = "learningxxx.toolsWidth";
+
+/** The width to use for the tools column, given what the user asked for and the columns' total width. */
+export function clampToolsWidth(width: number, available: number): number {
+  const max = Math.min(TOOLS_MAX_WIDTH, Math.max(TOOLS_MIN_WIDTH, available - MIDDLE_MIN_WIDTH));
+  return Math.round(Math.min(max, Math.max(TOOLS_MIN_WIDTH, Number.isFinite(width) ? width : TOOLS_MIN_WIDTH)));
+}
+
+/** A saved width, or undefined when none is saved or it cannot be read. */
+export function readToolsWidth(storage: Pick<Storage, "getItem"> | undefined): number | undefined {
+  try {
+    const value = Number(storage?.getItem(TOOLS_WIDTH_KEY));
+    return Number.isFinite(value) && value >= TOOLS_MIN_WIDTH && value <= TOOLS_MAX_WIDTH ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}

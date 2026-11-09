@@ -25,6 +25,8 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  * validation is a convenience, not a security boundary.
  */
 const TerminalId = z.string().uuid();
+/** WBS-085/107: class times per course and where they came from (entered, the syllabus, course.md). */
+const TimetableCourses = z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "syllabus", "course_md", "none"]) })) });
 /** WBS-081: a file a conversation made (in its folder, or written elsewhere by its file tools). */
 export const ChatOutput = z.object({
   id: z.string().regex(/^[0-9a-f]{32}$/), name: z.string(), location: z.string(), where: z.enum(["folder", "elsewhere"]),
@@ -211,9 +213,9 @@ export const IpcChannels = {
   /** Move to another week (null = 기타 자료), rename, or remove from the course (the app's copy only). */
   "materials.change": { request: z.object({ courseId: Id, resourceId: Id, weekId: Id.nullable().optional(), title: z.string().max(300).optional(), remove: z.boolean().optional() }), response: z.object({}) },
   /** WBS-085: class times per course — the student's own, else those found in course.md. */
-  "timetable.get": { request: z.object({}), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  "timetable.get": { request: z.object({}), response: TimetableCourses },
   /** `meetings: null` drops the student's times and uses course.md again. */
-  "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: TimetableCourses },
   /** WBS-058: picks a file for a collected LMS assignment and reads the assignment again; nothing is sent. */
   "submit.choose": { request: z.object({ courseId: Id, resourceId: Id }), response: z.object({ planId: Id.optional(), fileName: z.string().optional(), bytes: z.number().int().nonnegative().optional(), problem: z.string().optional(), warning: z.string().optional(),
     assignment: z.object({ name: z.string(), dueAt: z.string().nullable(), lockAt: z.string().nullable(), extensions: z.array(z.string()), attempt: z.number().int().nullable(), allowedAttempts: z.number().int().nullable(), submittedAt: z.string().nullable(), files: z.array(z.string()) }).optional() }) },

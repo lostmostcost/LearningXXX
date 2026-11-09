@@ -5,8 +5,8 @@ import { AccountKey, AppError, CourseMeeting, Id, type IpcResponse } from "@lear
 
 /**
  * WBS-085: when each course meets. Times the student entered win; otherwise
- * the times found in the course summary (course.md, WBS-082). Kept on this
- * Mac per school account.
+ * the times the syllabus states (WBS-107), else those found in the course
+ * summary (course.md, WBS-082). Kept on this Mac per school account.
  */
 
 function fail(code: "AUTH_REQUIRED" | "SCOPE_VIOLATION" | "INVALID_REQUEST", message: string): never {
@@ -19,8 +19,8 @@ export interface TimetableOptions {
   root: string;
   accountKey: () => string | undefined;
   courses: () => Promise<{ id: string; title: string; accountKey: string }[]>;
-  /** Times found in course.md, when it was made. */
-  found: (courseId: string) => Promise<CourseMeeting[]>;
+  /** Times found without the student: from the syllabus, else course.md. */
+  found: (courseId: string) => Promise<{ meetings: CourseMeeting[]; source: "syllabus" | "course_md" }>;
 }
 
 export class Timetable {
@@ -41,16 +41,18 @@ export class Timetable {
     const { key, file } = this.#file();
     const manual = await this.#read(file);
     const courses = (await this.#o.courses()).filter((c) => c.accountKey === key);
-    const out: IpcResponse<"timetable.get">["courses"] = [];
-    for (const c of courses) {
+    // Courses are looked up together: the first time, each may read its syllabus from the school.
+    const out = await Promise.all(courses.map(async (c): Promise<IpcResponse<"timetable.get">["courses"][number]> => {
       const own = manual[c.id];
-      const found = own ? [] : await this.#o.found(c.id).catch(() => []);
-      out.push({ courseId: c.id, title: c.title, meetings: own ?? found, source: own ? "manual" : found.length ? "course_md" : "none" });
-    }
+      if (own) return { courseId: c.id, title: c.title, meetings: own, source: "manual" };
+      const found = await this.#o.found(c.id).catch(() => undefined);
+      return { courseId: c.id, title: c.title, meetings: found?.meetings ?? [], source: found?.meetings.length ? found.source : "none" };
+    }));
+    if (this.#o.accountKey() !== key) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다. 시간표를 다시 불러오세요.");
     return { courses: out };
   }
 
-  /** The student's own times for a course; an empty list means "no class time", null goes back to course.md. */
+  /** The student's own times for a course; an empty list means "no class time", null goes back to the found times. */
   set(courseId: string, meetings: CourseMeeting[] | null): Promise<IpcResponse<"timetable.get">> {
     const work = this.#writes.catch(() => undefined).then(async () => {
       const { key, file } = this.#file();

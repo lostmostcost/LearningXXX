@@ -358,3 +358,43 @@ export function syllabusText(doc: SyllabusDoc): string {
   }
   return lines.filter(Boolean).join("\n");
 }
+
+// ---------- class times ----------
+
+type Meeting = { day: "월" | "화" | "수" | "목" | "금" | "토" | "일"; start: string; end: string; place?: string };
+const TIME_LABEL = /강의\s*시간|수업\s*시간|강의\s*일시|수업\s*일시|class\s*time|schedule/i;
+const ROOM_LABEL = /강의실|장소|room|location/i;
+const clock = (h: string, m: string) => `${h.padStart(2, "0")}:${m}`;
+
+/**
+ * WBS-107: weekly class times from a syllabus's time/room field, e.g.
+ * "홍길동 월18:00-19:00 전220, 홍길동 수18:00-19:00 전220" or
+ * "월요일 9:00 – 11:45분" with the room in its own field. Only explicit
+ * day + start–end times are taken; "온라인" or period numbers give none.
+ */
+export function syllabusMeetings(doc: SyllabusDoc): Meeting[] {
+  const fields = [...doc.facts, ...doc.sections.flatMap((s) => s.blocks).flatMap((b) => b.type === "fields" ? b.fields : [])];
+  const timeField = fields.find((f) => TIME_LABEL.test(f.label));
+  if (!timeField) return [];
+  const roomField = fields.find((f) => ROOM_LABEL.test(f.label) && !TIME_LABEL.test(f.label));
+  const room = roomField ? cleanPlace(roomField.value) : undefined;
+  const out: Meeting[] = [];
+  const re = /([월화수목금토일](?:\s*요일)?(?:\s*[,·/및]\s*[월화수목금토일](?:\s*요일)?)*)\s*\(?\s*(\d{1,2})\s*[:시]\s*(\d{2})\s*분?\s*(?:[-–—~]|부터)\s*(\d{1,2})\s*[:시]\s*(\d{2})\s*분?\)?\s*(?:까지)?([^,\n]*)/g;
+  for (const m of timeField.value.matchAll(re)) {
+    const start = clock(m[2]!, m[3]!); const end = clock(m[4]!, m[5]!);
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(end) || start >= end) continue;
+    // The text after the time up to the next day+time (or comma) is the room; a following instructor's name is not.
+    const after = cleanPlace(m[6]!.replace(/\s+\S+\s+[월화수목금토일]\s*\d.*$/, ""));
+    const place = after || room;
+    for (const day of m[1]!.replace(/요일/g, "").match(/[월화수목금토일]/g) as Meeting["day"][]) {
+      if (out.some((x) => x.day === day && x.start === start && x.end === end)) continue;
+      out.push({ day, start, end, ...(place ? { place } : {}) });
+    }
+  }
+  return out.slice(0, 20);
+}
+
+function cleanPlace(text: string): string | undefined {
+  const place = text.replace(/[()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+  return place && !/^(온라인|online|비대면|미정|tba|-)$/i.test(place) ? place : undefined;
+}

@@ -456,7 +456,11 @@ app.whenReady().then(async () => {
   });
   const submitTimer = setInterval(() => { void submissions.tick().catch(() => undefined); }, 60_000);
   // WBS-085: class times (the student's own, else from course.md).
-  const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => (await knowledge.get(courseId)).meetings });
+  const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => {
+    // WBS-107: the syllabus's stated times first (read from the school the first time), else course.md's.
+    const stated = await syllabus.meetings(courseId, true);
+    return stated.length ? { meetings: stated, source: 'syllabus' as const } : { meetings: (await knowledge.get(courseId)).meetings, source: 'course_md' as const };
+  } });
   automation = new AutomationService({
     settings: () => preferences.get().automation,
     correct: ({ courseId, assetId, transcriptId, signal }) => media.autoCorrect(courseId, assetId, transcriptId, signal),

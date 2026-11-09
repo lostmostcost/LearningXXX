@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { AccountKey, AppError, CourseSyllabus, Id, SyllabusSource, type CollectionManifest } from "@learningxxx/contracts";
+import { AccountKey, AppError, CourseMeeting, CourseSyllabus, Id, SyllabusSource, type CollectionManifest } from "@learningxxx/contracts";
 import { SYLLABUS_TITLE } from "./course-knowledge.ts";
 import { htmlToText } from "./week-notes.ts";
-import { parseDocx, parsePdfText, parseSyllabusHtml, syllabusText } from "./syllabus-parse.ts";
+import { parseDocx, parsePdfText, parseSyllabusHtml, syllabusMeetings, syllabusText } from "./syllabus-parse.ts";
 
 /**
  * WBS-107: the course syllabus, read by the app itself so the student does
@@ -120,6 +120,23 @@ export class SyllabusService {
       const { sources } = await this.get(courseId);
       return sources.filter((s) => s.doc).map((s) => ({ title: s.label, text: syllabusText(s.doc!) }));
     } catch { return []; }
+  }
+
+  /**
+   * Weekly class times the syllabus states (first source that has them).
+   * With `readIfUnread`, a listed source never read is read first, so the
+   * timetable fills itself the first time it is shown.
+   */
+  async meetings(courseId: string, readIfUnread = false): Promise<CourseMeeting[]> {
+    try {
+      let state = await this.get(courseId);
+      if (readIfUnread && state.sources.some((s) => !s.doc && !s.error)) state = await this.refresh(courseId);
+      for (const s of state.sources) {
+        const found = s.doc ? syllabusMeetings(s.doc).flatMap((m) => { const ok = CourseMeeting.safeParse(m); return ok.success ? [ok.data] : []; }) : [];
+        if (found.length) return found;
+      }
+    } catch { /* no account, no manifest or unreadable: no times */ }
+    return [];
   }
 
   refresh(courseId: string): Promise<CourseSyllabus> {

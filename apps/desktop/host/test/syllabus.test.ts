@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import type { CollectionManifest } from "@learningxxx/contracts";
-import { parseDocx, parsePdfText, parseSyllabusHtml, syllabusText, tableBlocks } from "../src/syllabus-parse.ts";
+import { parseDocx, parsePdfText, parseSyllabusHtml, syllabusMeetings, syllabusText, tableBlocks } from "../src/syllabus-parse.ts";
 import { schoolSyllabusUrl, SyllabusService, syllabusSources } from "../src/syllabus.ts";
 
 const COURSE = "11111111-1111-4111-8111-111111111111";
@@ -79,6 +79,18 @@ describe("syllabus parsing", () => {
     assert.equal(parseDocx(new TextEncoder().encode("not a zip"), "x"), undefined);
   });
 
+  it("finds weekly class times only where a day and start–end time are written", () => {
+    const doc = (fields: { label: string; value: string }[]) => ({ title: "", sections: [], facts: fields, grading: [], weeks: [], books: [] });
+    assert.deepEqual(syllabusMeetings(doc([{ label: "강의시간 강의실", value: "홍길동 월18:00-19:00 전220, 홍길동 수18:00-19:00 전220" }])),
+      [{ day: "월", start: "18:00", end: "19:00", place: "전220" }, { day: "수", start: "18:00", end: "19:00", place: "전220" }]);
+    assert.deepEqual(syllabusMeetings(doc([{ label: "강의시간 강의실", value: "김교수 수12:00-14:45 호202, 이교수 수12:00-14:45 호202" }])), [{ day: "수", start: "12:00", end: "14:45", place: "호202" }], "two instructors, one class");
+    assert.deepEqual(syllabusMeetings(doc([{ label: "강의시간", value: "월요일 9:00 – 11:45분" }, { label: "강의실", value: "( 본관 701호)" }])), [{ day: "월", start: "09:00", end: "11:45", place: "본관 701호" }], "요일 is not Sunday; the room field is used");
+    assert.deepEqual(syllabusMeetings(doc([{ label: "수업시간", value: "화,목 10:30~11:45 공학관 101" }])).map((m) => m.day), ["화", "목"]);
+    for (const value of ["이교수 온라인", "월 3,4교시", "수시", "목 19:00-18:00"]) assert.deepEqual(syllabusMeetings(doc([{ label: "강의시간 강의실", value }])), [], value);
+    assert.deepEqual(syllabusMeetings(doc([{ label: "담당교수", value: "월 10:00-11:00 면담" }])), [], "only a class time field counts");
+    assert.deepEqual(syllabusMeetings(parseSyllabusHtml(PAGE)), [{ day: "화", start: "10:30", end: "11:45", place: "A동 101" }]);
+  });
+
   it("reads PDF page text", () => {
     const doc = parsePdfText(["담당교수 : 최교수\n평가 안내"], "계획서.pdf");
     assert.deepEqual(doc?.facts, [{ label: "담당교수", value: "최교수" }]);
@@ -135,12 +147,19 @@ describe("syllabus sources and service", () => {
       const service = new SyllabusService({ root, accountKey: () => account, manifest: async () => manifest(`<a href="${LINK}">수업계획서 바로가기</a>`), asset: async () => new Uint8Array(), pdfPages: async () => [], fetch, now: () => new Date("2026-11-09T01:02:03.456Z") });
       const before = await service.get(COURSE);
       assert.equal(before.sources.length, 1); assert.equal(before.sources[0]!.doc, undefined); assert.equal(asked.length, 0, "get never fetches");
+      assert.deepEqual(await service.meetings(COURSE), [], "without readIfUnread nothing is fetched");
+      assert.equal(asked.length, 0);
+      assert.equal((await service.meetings(COURSE, true)).length, 1, "the timetable's first look reads the syllabus");
+      assert.equal(asked.length, 1);
+      await service.meetings(COURSE, true);
+      assert.equal(asked.length, 1, "read once; later looks use the kept copy");
       const first = await service.refresh(COURSE);
-      assert.deepEqual(asked, ["https://sugang.khu.ac.kr/core?attribute=lectPlan&p_year=2026&p_code=AB100&loginYn=N"]);
+      assert.deepEqual(asked.slice(1), ["https://sugang.khu.ac.kr/core?attribute=lectPlan&p_year=2026&p_code=AB100&loginYn=N"]);
       assert.equal(first.sources[0]!.doc?.grading.length, 2);
       assert.equal(first.sources[0]!.fetchedAt, "2026-11-09T01:02:03Z");
       assert.ok(first.sources[0]!.original?.includes("평가방법") && !first.sources[0]!.original.includes("<head>"));
       assert.deepEqual(await service.get(COURSE), first, "kept on disk");
+      assert.deepEqual(await service.meetings(COURSE), [{ day: "화", start: "10:30", end: "11:45", place: "A동 101" }]);
       assert.match(await service.text(COURSE).then((t) => t[0]!.text), /중간고사/);
 
       mode = "down";

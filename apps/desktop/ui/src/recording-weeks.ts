@@ -52,9 +52,9 @@ export function semesterStart(weeks: readonly Week[], status: CourseLearningStat
  * times, or a gap such as an exam week without its own LMS week).
  */
 export function estimateWeek(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): Week | undefined {
-  const start = semesterStart(weeks, status);
-  if (start === undefined) return undefined;
+  const start = academicStart(weeks, status, at);
   const numbered = weeks.flatMap((w) => { const n = weekNumber(w.label); return n === undefined ? [] : [{ w, n }]; }).sort((a, b) => a.n - b.n);
+  if (!numbered.length) return undefined;
   const n = Math.floor((at.getTime() - start) / (7 * DAY)) + 1;
   if (n < numbered[0]!.n) return numbered[0]!.w;
   if (n > numbered.at(-1)!.n) return numbered.at(-1)!.w;
@@ -109,31 +109,43 @@ export function placeLabel(recording: Recording | undefined, weeks: readonly Wee
 }
 
 /**
- * WBS-105: when no LMS week has an opening time, the academic calendar's rule
- * gives the start: week 1 is the week (Monday, Seoul) holding 1 September for
- * the second semester and 2 March for the first. February 15 – July belongs to
- * the first semester, August – February 14 to the second (January and early
- * February count toward the previous year's second semester).
+ * WBS-105: the academic calendar's opening day (00:00 Seoul): 1 September for
+ * the second semester, 2 March for the first, moved to the next Monday when it
+ * falls on a weekend. Weeks count seven days from this day — a semester that
+ * opens on Tuesday 1 September has week 1 = Tue 9/1 – Mon 9/7 (owner, 2026-11-09).
+ * February 15 – July is the first semester; August – February 14 the second
+ * (January and early February count toward the previous year's fall).
  */
 export function calendarSemesterStart(at: Date): number {
   const seoul = new Date(at.getTime() + SEOUL);
   const year = seoul.getUTCFullYear(), month = seoul.getUTCMonth() + 1, day = seoul.getUTCDate();
   const spring = (month > 2 || (month === 2 && day >= 15)) && month < 8;
-  const anchor = spring ? Date.UTC(year, 2, 2) : Date.UTC(month < 3 ? year - 1 : year, 8, 1);
-  return seoulMonday(anchor - SEOUL);
+  const opening = spring ? Date.UTC(year, 2, 2) : Date.UTC(month < 3 ? year - 1 : year, 8, 1);
+  const weekday = new Date(opening).getUTCDay(); // 0 Sunday … 6 Saturday
+  return opening + (weekday === 6 ? 2 : weekday === 0 ? 1 : 0) * DAY - SEOUL;
 }
 
 /**
- * WBS-105: the week a course screen opens on. The LMS's own week openings
- * decide the semester start (estimateWeek); without them the academic
- * calendar does. A week the course has no module for (an exam week, say)
+ * WBS-105: when week 1 starts. The academic calendar's opening day, unless the
+ * LMS's own week openings put week 1 in another calendar week: then the start
+ * moves by those whole weeks and keeps the opening weekday.
+ */
+export function academicStart(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): number {
+  const calendar = calendarSemesterStart(at);
+  const lmsMonday = semesterStart(weeks, status);
+  const calendarMonday = seoulMonday(calendar);
+  return lmsMonday === undefined || lmsMonday === calendarMonday ? calendar : lmsMonday + (calendar - calendarMonday);
+}
+
+/**
+ * WBS-105: the week a course screen opens on, counted from academicStart. A week the course has no module for (an exam week, say)
  * falls back to the closest earlier week; before week 1 → the first week,
  * after the last → the last. Index into `weeks`, or -1 when no week is numbered.
  */
 export function currentWeekIndex(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): number {
   const numbered = weeks.flatMap((w, i) => { const n = weekNumber(w.label); return n === undefined ? [] : [{ i, n }]; }).sort((a, b) => a.n - b.n);
   if (!numbered.length) return -1;
-  const start = semesterStart(weeks, status) ?? calendarSemesterStart(at);
+  const start = academicStart(weeks, status, at);
   const n = Math.floor((at.getTime() - start) / (7 * DAY)) + 1;
   if (n <= numbered[0]!.n) return numbered[0]!.i;
   let best = numbered[0]!;

@@ -35,11 +35,13 @@ test("today's week: by date from the start, clamped to the semester, nothing for
   const at = (iso: string) => estimateWeek(weeks, status, new Date(iso))?.label;
   assert.equal(at("2026-11-03T03:00:00Z"), "10주차", "Tue 2026-11-03");
   assert.equal(at("2026-08-30T14:59:00Z"), "1주차", "Sunday before the semester → first week");
-  assert.equal(at("2026-09-06T14:59:00Z"), "1주차", "Sunday 23:59 Seoul is still week 1");
-  assert.equal(at("2026-09-06T15:00:00Z"), "2주차", "Monday 00:00 Seoul starts week 2");
+  assert.equal(at("2026-09-06T15:00:00Z"), "1주차", "WBS-105: Monday 9/7 is still week 1 (the semester opened on Tuesday 9/1)");
+  assert.equal(at("2026-09-07T14:59:00Z"), "1주차", "Monday 23:59 Seoul is still week 1");
+  assert.equal(at("2026-09-07T15:00:00Z"), "2주차", "Tuesday 00:00 Seoul starts week 2");
+  assert.equal(at("2026-11-09T03:00:00Z"), "10주차", "Monday 11/9 is week 10");
   assert.equal(at("2026-10-20T03:00:00Z"), undefined, "week 8 has no LMS week (exam): the user picks");
   assert.equal(at("2026-12-30T03:00:00Z"), "10주차", "after the last week → last week");
-  assert.equal(estimateWeek(weeks, undefined, new Date()), undefined);
+  assert.equal(estimateWeek(weeks, undefined, new Date("2026-09-15T03:00:00Z"))?.label, "3주차", "WBS-105: without LMS openings the academic calendar decides");
 });
 
 const recording = (over: Partial<Recording>): Recording => ({
@@ -71,22 +73,27 @@ test("a week's recordings show their saved original and transcription state", ()
   assert.equal(placeLabel(recording({}), weeks, []), "주차 미정");
 });
 
-test("WBS-105: the course opens on the current week, from the LMS or else the academic calendar", async () => {
-  const { calendarSemesterStart, currentWeekIndex } = await import("../src/recording-weeks.ts");
+test("WBS-105: the course opens on the current week, counted from the opening day", async () => {
+  const { academicStart, calendarSemesterStart, currentWeekIndex } = await import("../src/recording-weeks.ts");
   const at = (iso: string) => new Date(iso);
-  // LMS openings: week 1 = Mon 2026-08-31. Mon 2026-11-09 (Seoul) is week 11; this course has weeks up to 10 → 10주차.
-  assert.equal(weeks[currentWeekIndex(weeks, status, at("2026-11-09T03:00:00Z"))]!.label, "10주차");
-  // 2026-09-15 is week 3.
-  assert.equal(weeks[currentWeekIndex(weeks, status, at("2026-09-15T03:00:00Z"))]!.label, "3주차");
-  // Week 8 has no module (exam week): the closest earlier week.
-  assert.equal(weeks[currentWeekIndex(weeks, status, at("2026-10-20T03:00:00Z"))]!.label, "7주차");
-  // Before the semester → week 1.
-  assert.equal(weeks[currentWeekIndex(weeks, status, at("2026-08-20T03:00:00Z"))]!.label, "1주차");
-  // No LMS opening times: the calendar gives the same Monday.
-  assert.equal(new Date(calendarSemesterStart(at("2026-11-09T03:00:00Z"))).toISOString(), "2026-08-30T15:00:00.000Z");
-  assert.equal(weeks[currentWeekIndex(weeks, undefined, at("2026-11-09T03:00:00Z"))]!.label, "10주차");
-  // Spring: 2027-03-02 is a Tuesday → week 1 starts Mon 2027-03-01; January still counts toward the fall semester.
-  assert.equal(new Date(calendarSemesterStart(at("2027-04-01T03:00:00Z"))).toISOString(), "2027-02-28T15:00:00.000Z");
-  assert.equal(new Date(calendarSemesterStart(at("2027-01-10T03:00:00Z"))).toISOString(), "2026-08-30T15:00:00.000Z");
+  const many: Week[] = Array.from({ length: 15 }, (_, i) => ({ id: weekId(i + 1), courseId: COURSE, sourceWeekId: `w${i + 1}`, label: `${i + 1}주차`, order: i }));
+  const label = (w: readonly Week[], s: CourseLearningStatus | undefined, iso: string) => w[currentWeekIndex(w, s, at(iso))]!.label;
+  // 2026 fall opened Tue 9/1: Mon 11/9 is week 10, Tue 11/10 week 11 (owner's count).
+  assert.equal(new Date(calendarSemesterStart(at("2026-11-09T03:00:00Z"))).toISOString(), "2026-08-31T15:00:00.000Z", "Tue 2026-09-01 00:00 Seoul");
+  assert.equal(new Date(academicStart(weeks, status, at("2026-11-09T03:00:00Z"))).toISOString(), "2026-08-31T15:00:00.000Z", "the LMS agrees on the week");
+  assert.equal(label(many, status, "2026-11-09T03:00:00Z"), "10주차");
+  assert.equal(label(many, undefined, "2026-11-09T03:00:00Z"), "10주차", "no LMS openings: the calendar alone");
+  assert.equal(label(many, status, "2026-11-09T15:00:00Z"), "11주차", "Tue 11/10 00:00 Seoul");
+  // Week 8 has no module (exam week): the closest earlier week; before/after the semester: first/last.
+  assert.equal(label(weeks, status, "2026-10-20T03:00:00Z"), "7주차");
+  assert.equal(label(weeks, status, "2026-08-20T03:00:00Z"), "1주차");
+  assert.equal(label(weeks, status, "2026-12-30T03:00:00Z"), "10주차");
+  // LMS openings a week later than the calendar move the start by that week, keeping the weekday.
+  const late = { ...status, items: status.items.map((i) => ({ ...i, unlockAt: i.unlockAt ? new Date(Date.parse(i.unlockAt) + 7 * 86_400_000).toISOString() : null })) };
+  assert.equal(new Date(academicStart(weeks, late, at("2026-11-09T03:00:00Z"))).toISOString(), "2026-09-07T15:00:00.000Z");
+  // Spring 2027 opens Tue 3/2; an opening on a weekend moves to Monday (2025-03-02 was a Sunday); January is still fall.
+  assert.equal(new Date(calendarSemesterStart(at("2027-04-01T03:00:00Z"))).toISOString(), "2027-03-01T15:00:00.000Z");
+  assert.equal(new Date(calendarSemesterStart(at("2025-04-01T03:00:00Z"))).toISOString(), "2025-03-02T15:00:00.000Z");
+  assert.equal(new Date(calendarSemesterStart(at("2027-01-10T03:00:00Z"))).toISOString(), "2026-08-31T15:00:00.000Z");
   assert.equal(currentWeekIndex([{ ...weeks[0]!, label: "오리엔테이션" }], status, at("2026-11-09T03:00:00Z")), -1);
 });

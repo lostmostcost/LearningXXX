@@ -131,7 +131,7 @@ describe("producer → consumer round trip", () => {
       "media.storage": {}, "media.removeOriginals": { courseId: sid, assetIds: [sid] },
       "materials.choose": {}, "materials.add": { planId: sid, courseId: sid, files: [{ id: sid, title: "자료" }] }, "materials.change": { courseId: sid, resourceId: sid, weekId: null },
       "memo.get": { courseId: sid }, "memo.save": { courseId: sid, weekId: sid, text: "메모", base: null }, "memo.cleanup": { courseId: sid }, "memo.apply": { courseId: sid, action: "undo" }, "memo.pageText": { courseId: sid, assetId: sid, page: 1 },
-      "course.knowledge": { courseId: sid }, "course.makeKnowledge": { courseId: sid }, "course.cancelKnowledge": { courseId: sid },
+      "course.knowledge": { courseId: sid }, "course.makeKnowledge": { courseId: sid }, "course.cancelKnowledge": { courseId: sid }, "course.syllabus": { courseId: sid }, "course.refreshSyllabus": { courseId: sid },
       "library.pdfTranslation": { courseId: sid, assetId: sid, language: "ko" },
       "library.translatePdf": { courseId: sid, assetId: sid, language: "en", from: 1, to: 3 },
       "library.cancelPdfTranslation": {},

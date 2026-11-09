@@ -41,6 +41,7 @@ import { ChatOutputs } from "./chat-outputs.ts";
 import { MemoService } from "./memos.ts";
 import { EXTERNAL_TYPES, ExternalMaterials } from "./external-materials.ts";
 import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
+import { SyllabusService } from "./syllabus.ts";
 import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { correctionPrompt, createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
@@ -397,6 +398,11 @@ app.whenReady().then(async () => {
       mentions: (await media.mentions(courseId).catch(() => undefined))?.mentions,
     });
   };
+  // WBS-107: the syllabus read by the app (school page linked from the LMS, LMS text, posted files), read only.
+  const syllabus = new SyllabusService({
+    root: join(dataRoot, 'syllabus'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    asset: async (courseId, assetId) => (await library.asset({ courseId, assetId })).bytes, pdfPages: (bytes) => pdfPageTexts(bytes),
+  });
   // WBS-082: course.md, made on request from the syllabus, the material list and the transcripts.
   const knowledge = new CourseKnowledgeService({
     root: join(dataRoot, 'course-knowledge'), accountKey: () => library.accountKey(),
@@ -412,6 +418,7 @@ app.whenReady().then(async () => {
           if (pages?.some((p) => p.trim())) syllabusFiles.push({ title: asset.originalName, text: pages.slice(0, 15).join('\n\n') });
         }
       }
+      for (const read of await syllabus.text(courseId)) if (!syllabusFiles.some((f) => f.title === read.title)) syllabusFiles.push(read);
       return { manifest, notes: await notesFor(courseId), syllabusFiles };
     },
     write: ({ prompt, signal }) => claudeText({ prompt, what: '과목 정리 파일 만들기', signal }),
@@ -623,6 +630,8 @@ app.whenReady().then(async () => {
     "course.knowledge": ({ courseId }) => knowledge.get(courseId),
     "course.makeKnowledge": ({ courseId }) => knowledge.make(courseId),
     "course.cancelKnowledge": async ({ courseId }) => { knowledge.cancel(courseId); return {}; },
+    "course.syllabus": ({ courseId }) => syllabus.get(courseId),
+    "course.refreshSyllabus": ({ courseId }) => syllabus.refresh(courseId),
     // WBS-072: translated copies of collected PDFs.
     "library.pdfTranslation": ({ courseId, assetId, language }) => pdfTranslations.get(courseId, assetId, language),
     "library.translatePdf": ({ courseId, assetId, language, from, to }) => pdfTranslations.make(courseId, assetId, language, from, to),

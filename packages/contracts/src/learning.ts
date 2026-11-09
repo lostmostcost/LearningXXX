@@ -94,3 +94,43 @@ export const Memo = z.object({
   canUndo: z.boolean(),
 });
 export type Memo = z.infer<typeof Memo>;
+
+/**
+ * WBS-107: a course syllabus the app read itself (the school's syllabus page,
+ * the LMS syllabus text, or a syllabus file posted in the LMS), turned into
+ * sections without AI. Each school form differs, so blocks are generic:
+ * label/value fields, tables and plain text. The highlights are found by
+ * column and label names, not by course.
+ */
+export const SyllabusBlock = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("fields"), fields: z.array(z.object({ label: z.string(), value: z.string() })) }),
+  z.object({ type: z.literal("table"), head: z.array(z.string()), rows: z.array(z.array(z.string())) }),
+  z.object({ type: z.literal("text"), text: z.string() }),
+]);
+export type SyllabusBlock = z.infer<typeof SyllabusBlock>;
+export const SyllabusDoc = z.object({
+  title: z.string(),
+  sections: z.array(z.object({ heading: z.string(), blocks: z.array(SyllabusBlock) })),
+  /** Instructor, contact, time/room, credits… in the order the page gives them. */
+  facts: z.array(z.object({ label: z.string(), value: z.string(), hidden: z.boolean().optional() })),
+  grading: z.array(z.object({ item: z.string(), share: z.string(), weight: z.number().nullable(), note: z.string().optional() })),
+  weeks: z.array(z.object({ label: z.string(), date: z.string().optional(), topic: z.string(), note: z.string().optional() })),
+  books: z.array(z.string()),
+});
+export type SyllabusDoc = z.infer<typeof SyllabusDoc>;
+export const SyllabusSource = z.object({
+  id: z.string().regex(/^[0-9a-f]{16}$/),
+  /** school: the school's syllabus page linked from the LMS; lms: the LMS syllabus text itself; file: a syllabus file in the LMS. */
+  kind: z.enum(["school", "lms", "file"]),
+  label: z.string(),
+  url: z.string().url().optional(),
+  resourceId: Id.optional(),
+  fetchedAt: z.string().optional(),
+  doc: SyllabusDoc.optional(),
+  /** The page as received (HTML), for "원본 보기"; shown through the safe rich-text renderer. */
+  original: z.string().optional(),
+  error: z.string().optional(),
+});
+export type SyllabusSource = z.infer<typeof SyllabusSource>;
+export const CourseSyllabus = z.object({ sources: z.array(SyllabusSource), refreshedAt: z.string().optional() });
+export type CourseSyllabus = z.infer<typeof CourseSyllabus>;

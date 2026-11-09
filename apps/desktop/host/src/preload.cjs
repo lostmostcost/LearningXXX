@@ -55,6 +55,8 @@ const CHANNELS = new Set([
   "course.knowledge",
   "course.makeKnowledge",
   "course.cancelKnowledge",
+  "course.syllabus",
+  "course.refreshSyllabus",
   "library.pdfTranslation",
   "library.translatePdf",
   "library.cancelPdfTranslation",

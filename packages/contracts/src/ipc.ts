@@ -3,7 +3,7 @@ import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { CourseLearningStatus, CourseMeeting, Memo } from "./learning.ts";
+import { CourseLearningStatus, CourseMeeting, CourseSyllabus, Memo } from "./learning.ts";
 import { AutomationSettings, ImportedDocKind, LectureMention, LectureSourceId, PdfTranslationSkip, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
@@ -194,6 +194,10 @@ export const IpcChannels = {
     response: z.object({ markdown: z.string().optional(), generatedAt: z.string().optional(), stale: z.boolean(), meetings: z.array(CourseMeeting), running: z.boolean() }),
   },
   "course.cancelKnowledge": { request: z.object({ courseId: Id }), response: z.object({}) },
+  /** WBS-107: the course syllabus as the app keeps it (nothing is fetched). */
+  "course.syllabus": { request: z.object({ courseId: Id }), response: CourseSyllabus },
+  /** WBS-107: read the syllabus again from the school (read only) and the collected files; a failed source keeps its last copy. */
+  "course.refreshSyllabus": { request: z.object({ courseId: Id }), response: CourseSyllabus },
   /** WBS-086: memos per course week (weekId absent = "주차 없음"). */
   "memo.get": { request: z.object({ courseId: Id, weekId: Id.optional() }), response: Memo },
   "memo.save": { request: z.object({ courseId: Id, weekId: Id.optional(), text: z.string().max(200_000), base: z.string().nullable() }), response: Memo },

@@ -3157,6 +3157,42 @@
         "2026-11-09 Viewer gets an `empty` slot under the hint; WeekTasks (TaskSidebar.tsx) reuses tasksByWeek for the week chosen in the week menu: to-do, then not open yet, then submitted, with due time and LMS badges; collected items open with the same selectEntry as the 과제 list, LMS-only quizzes get 응시 창 열기, items taken off the list are only counted. Review fix: '제출함' shown twice (text and badge) → text removed. Checks: ui 136 pass, typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로 10주차 lists its two 수업요약 assignments (미제출, 11/9 23:59), 데이터베이스 10주차 lists 개념적 설계 실습 (ERD) as submitted; clicking it opened the assignment with 과제 안내/초안 미리보기 tabs and the list went away.",
         "2026-11-09 owner follow-up: the hint '왼쪽에서 자료를 선택하면…' is replaced by the week's materials and notices (non-assignment entries of the chosen week, LMS completion badge, '[공지]' prefix, file count) above the assignments; clicking uses the same selectEntry as the side list. Checks: ui 136 pass, build. Real app (test-app.sh, read-only): all six courses show '10주차 자료' / '10주차 과제' and no hint (논리회로 3 items, 데이터베이스 4, 외식메뉴 1, 웨스턴퀴진 1, 취업·창업특강 0 → '아직 자료가 없습니다', Hospitality 2). Materials were not clicked by the agent: opening an LMS PDF asks the LMS to record the view (WBS-056), same as the side list."
       ]
+    },
+    {
+      "id": "WBS-107",
+      "title": "강의 정보 탭: 앱이 강의계획서를 직접 받아 정리해 보여 주기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-082",
+        "WBS-090",
+        "WBS-106"
+      ],
+      "areas": [
+        "contracts",
+        "desktop-host",
+        "ui",
+        "pm"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "아이콘 레일의 '강의 정보' 탭에서 현재 과목의 강의계획서(교수·연락처·수업 시간·장소, 평가 비율, 교재, 주차별 계획)를 앱이 LMS 링크·LMS 본문·LMS 계획서 파일에서 읽기 전용으로 직접 받아 정리해 보여 주고, 원본 보기와 다시 받기를 제공하며, 없거나 못 읽으면 그렇다고 알린다. 특정 과목 형식 하드코딩 없음.",
+      "status": "Review",
+      "branch": "feat/WBS-107-syllabus-info",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd8182a7f7e01bbf4ccd0f?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09, 상위 세션 경유). 공유 계약(packages/contracts: SyllabusDoc·CourseSyllabus, IPC course.syllabus/course.refreshSyllabus)을 함께 바꿈 — 로컬 전용 작업이라 다른 선점자 없음. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 Found: the Canvas syllabus_body of all six courses holds only links to the school's public 강의계획서 page (sugang.khu.ac.kr lectPlan, loginYn=N); two courses also have a .docx syllabus in LearningX. Added host syllabus-parse.ts (generic HTML/docx/PDF → fields/tables/text; grid with row/col spans that stop at thead/tbody like browsers; ○/% columns become ticked names; highlights by label/column names) and syllabus.ts (sources from the manifest, one GET per page: https, host allowlist checked again after redirects, html type, 3 MB, 20 s; failure keeps the last copy; account re-checked before saving; stored 0600 under data/syllabus). course.md sources now include the read syllabus text. UI: rail '강의 정보' (info icon), left jumps, SyllabusInfo with facts, grading bars and total, weekly plan with this week marked, books, all sections, 원본 보기 via the sanitizing RichText, 원본 파일 열기 for files, 다시 받기; auto-read once only when a listed source was never read.",
+        "Review findings fixed during the work: <!DOCTYPE> leaked as text; a thead rowspan carried into tbody and shifted ○ one column (wrong 수업운영방식); week notes uncapped; books fallback tied to facts. Checks: host syllabus tests 8, ui syllabus tests 4, contracts IPC list updated; pnpm -r run check exit 0 (contracts 58, transcriber 25, collector 88, ui 140, cli-adapter 50, app-modifier 28, host 279).",
+        "Real app (test-app.sh, env -i, app was not recording; UI clicks over CDP, LMS only read): all six courses show the tab with grading totals 100% and 10주 marked 이번 주 (논리회로 4 items/15 weeks, 데이터베이스 5/16, 외식메뉴 6/15 + docx tab with 5 facts and 점 grading, 웨스턴퀴진 5/16 + docx tab, 취업·창업특강 two school pages, Hospitality 5/16); 원본 보기 shows 10 tables, no scripts/buttons; 원본 파일 열기 switches to 강의 자료 with the file selected. Limits: contact/email hidden by the school without sign-in; syllabus is read on first tab open and on 다시 받기, not during collection."
+      ]
     }
   ],
   "qaPolicy": {

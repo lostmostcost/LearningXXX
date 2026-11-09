@@ -9,6 +9,7 @@ import brandLogo from "../../../../assets/branding/yolo-univ-logo.png";
 import { RichChatPanel } from "./RichChatPanel.tsx";
 import { AssignmentPanel, useAssignment } from "./AssignmentPanel.tsx";
 import { CourseKnowledge } from "./CourseKnowledge.tsx";
+import { SyllabusInfo } from "./SyllabusInfo.tsx";
 import { MemoPanel } from "./MemoPanel.tsx";
 import { AddMaterials, ManualControls } from "./AddMaterials.tsx";
 import { buildLibrary, type Entry, type Library } from "./library.ts";
@@ -112,7 +113,7 @@ export function App() {
   const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setRightTab('transcripts');setView('chat');setTray(false);setTrayDismissed(true);};
   const { refresh: refreshMedia } = lectures;
   const recordingsChanged = useCallback(() => void refreshMedia(), [refreshMedia]);
-  const selectEntry=(entry:Entry)=>{setPlaying(undefined);setKnowledgeOpen(false);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
+  const selectEntry=(entry:Entry)=>{setPlaying(undefined);setKnowledgeOpen(false);setSection(s=>s==='info'?'book':s);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
@@ -196,10 +197,10 @@ export function App() {
   const viewing = useMemo(() => {
     if (!library) return undefined;
     const week = (selected?.resource.weekId ? library.weeks.find((w) => w.week.id === selected.resource.weekId) : weekIndex >= 0 ? library.weeks[weekIndex] : undefined)?.week.label;
-    const title = knowledgeOpen ? "과목 요약" : selected?.resource.title;
+    const title = section === "info" ? "강의 정보(강의계획서)" : knowledgeOpen ? "과목 요약" : selected?.resource.title;
     const page = !knowledgeOpen && shownPage && selected?.assets.some((a) => a.id === shownPage.assetId) ? shownPage.page : undefined;
     return week || title ? { ...(week ? { week } : {}), ...(title ? { title } : {}), ...(page ? { page } : {}) } : undefined;
-  }, [library, selected, weekIndex, knowledgeOpen, shownPage]);
+  }, [library, selected, weekIndex, knowledgeOpen, shownPage, section]);
   // WBS-088: after the library is read again (e.g. a file moved week), keep showing the same material.
   useEffect(() => {
     setSelected((current) => current && library ? [...library.notices, ...library.weeks.flatMap((w) => w.entries), ...library.other].find((e) => e.resource.id === current.resource.id) ?? current : current);
@@ -336,7 +337,7 @@ export function App() {
       {/* WBS-104: the course list opens from a half-round tab in the middle of the left edge (the rail no longer has a course button). */}
       {pinned||edge?null:<button className="edge-tab" title="과목 선택" aria-label="과목 선택 열기" aria-expanded={false} onClick={()=>{clearTimeout(edgeTimer.current);setEdge(true);setTimeout(()=>document.querySelector<HTMLButtonElement>('.course-drawer .entry')?.focus({preventScroll:true}),200);}}><Icon name="chevron"/></button>}
       {pinned?null:<div className="edge-zone" aria-hidden="true" onMouseEnter={()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>setEdge(true),EDGE_OPEN_DELAY_MS);}} onMouseLeave={()=>{if(!edge)clearTimeout(edgeTimer.current);}}/>}
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}</nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['info','강의 정보'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}</nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark"><button type="button" className="brand-home" title="홈으로" aria-label="YOLO UNIV 홈으로" onClick={()=>{setHome(true);setEdge(false);}}><img className="brand-logo" src={brandLogo} alt=""/></button>{/* Owner 2026-11-09: until the next release, the full development label stays beside the logo (WBS-098 had cut it to "개발"). */}
@@ -379,7 +380,7 @@ export function App() {
               const empty=week&&!library?.weeks[weekIndex]?.entries.length&&!videos.length&&!recs.length;
               return <>
                 {empty?<p className="meta week-empty">이 주차에는 아직 자료가 없습니다.</p>:null}
-                {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
+                {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setSelected(undefined);setSection(s=>s==='info'?'book':s);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
                   {canWatch(lmsItem)?<button className="watch-lms" title="LMS 공식 플레이어로 시청(출석 반영)" onClick={()=>void watch(lmsItem.moduleItemId)}><Icon name="play"/>LMS에서 시청</button>:null}
                   {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>;})}
                 {recs.filter(r=>!videos.some(v=>v.sourceId===r.recording.lectureSourceId)).map(r=>rec(r))}
@@ -393,7 +394,10 @@ export function App() {
         </div>
         {panel("library", "과목과 자료", library ? (
           <>
-            {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 요약</button>{IN_APP&&!FIXTURE_MODE?<details className="add-materials-box"><summary>+ 내 자료 추가</summary><AddMaterials key={library.course.id} courseId={library.course.id} weeks={weekList} weekId={weekIndex>=0?library.weeks[weekIndex]?.week.id:undefined} onDone={()=>void refresh()}/></details>:null}<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
+            {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 요약</button>{IN_APP&&!FIXTURE_MODE?<details className="add-materials-box"><summary>+ 내 자료 추가</summary><AddMaterials key={library.course.id} courseId={library.course.id} weeks={weekList} weekId={weekIndex>=0?library.weeks[weekIndex]?.week.id:undefined} onDone={()=>void refresh()}/></details>:null}<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section==='info'?<><h2>강의 정보</h2>
+              {/* WBS-107: jumps within the syllabus shown in the middle. */}
+              <nav className="syllabus-jumps" aria-label="강의 정보 바로가기">{[['syllabus-facts','교수·수업 정보'],['syllabus-grading','평가 비율'],['syllabus-weeks','주차별 계획'],['syllabus-books','교재'],['syllabus-all','전체 내용']].map(([id,label])=><button key={id} className="entry" onClick={()=>{const el=document.getElementById(id!);if(el instanceof HTMLDetailsElement)el.open=true;el?.scrollIntoView({behavior:'smooth',block:'start'});}}>{label}</button>)}</nav>
+              <p className="meta">학교 강의계획서를 앱이 직접 받아 정리했습니다. 내용이 바뀌었으면 다시 받기를 누르세요.</p></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
                 // WBS-075: by week, closed by default; to-do and submitted apart.
                 ?<TaskSidebar library={library} status={learning.status} currentWeekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
                 :entriesOf(library).filter(e=>e.resource.kind==='notice').map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
@@ -411,7 +415,9 @@ export function App() {
           </>
         ))}
         {panel("viewer", "자료 뷰어", (
-          knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weeks={weekList} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : assignmentScope ? <AssignmentPanel key={`${assignmentScope.courseId}/${assignmentScope.assignmentId}`} workspace={assignment} instructions={materialViewer} /> : materialViewer
+          section === 'info' && library ? <SyllabusInfo key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weekLabel={weekIndex >= 0 ? library.weeks[weekIndex]?.week.label : undefined}
+            onOpenFile={(resourceId) => { const entry = entriesOf(library).find((e) => e.resource.id === resourceId); if (entry) selectEntry(entry); }} />
+          : knowledgeOpen && library && !playing ? <CourseKnowledge key={library.course.id} courseId={library.course.id} courseTitle={library.course.title} weeks={weekList} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} /> : playing && library && playing.courseId === library.course.id ? <VideoViewer courseId={library.course.id} asset={playing} /> : assignmentScope ? <AssignmentPanel key={`${assignmentScope.courseId}/${assignmentScope.assignmentId}`} workspace={assignment} instructions={materialViewer} /> : materialViewer
         ))}
         {panel("chat", "학습 도구", <>
           {!narrow ? <ToolsResizer width={toolsWidth} onChange={resizeTools} onReset={resetTools} /> : null}

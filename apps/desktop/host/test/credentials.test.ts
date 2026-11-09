@@ -34,7 +34,7 @@ function service(results: SchoolLoginResult[] = ["signed_in"], opts: { signedIn?
 test("saved details are encrypted on disk, owner-only, and status never carries values", async () => {
   const { svc, file } = service();
   const status = await svc.saveSchool({ schoolId: "2026000001", password: "synthetic-pw" });
-  assert.deepEqual(status, { school: true, schoolRejected: false, canvasToken: false, available: true });
+  assert.deepEqual(status, { school: true, schoolRejected: false, canvasToken: false, heygen: false, available: true });
   const raw = readFileSync(file);
   assert.equal(raw.includes(Buffer.from("synthetic-pw")), false);
   assert.equal(raw.includes(Buffer.from("2026000001")), false);
@@ -94,8 +94,8 @@ test("Canvas token is saved only when Canvas accepts it, and can be cleared on i
   await good.svc.saveSchool({ schoolId: "id", password: "pw" });
   await good.svc.saveCanvasToken({ token: "synthetic-token-2" });
   assert.equal(good.svc.canvasToken(), "synthetic-token-2");
-  assert.deepEqual(good.svc.clear({ which: "canvasToken" }), { school: true, schoolRejected: false, canvasToken: false, available: true });
-  assert.deepEqual(good.svc.clear({ which: "school" }), { school: false, schoolRejected: false, canvasToken: false, available: true });
+  assert.deepEqual(good.svc.clear({ which: "canvasToken" }), { school: true, schoolRejected: false, canvasToken: false, heygen: false, available: true });
+  assert.deepEqual(good.svc.clear({ which: "school" }), { school: false, schoolRejected: false, canvasToken: false, heygen: false, available: true });
 });
 
 test("without Keychain-backed encryption nothing is saved", async () => {

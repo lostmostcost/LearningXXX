@@ -57,3 +57,12 @@ test('restart marks in-flight/review states interrupted without retrying', async
   const restored = new ArtifactWorkflow({ root, accountId: () => 'a', generate: async () => assert.fail('must not resume') });
   assert.equal((await restored.inspect(r.directory)).state, 'interrupted'); await assert.rejects(restored.export(r.id, r.reviewToken), { code: 'REVIEW_REQUIRED' });
 });
+test('a PPTX converter cannot replace the original and still publish a completed pair', async (t) => {
+  const { workflow } = await fixture(t, { generate: async () => plan('slides'), pptxPdf: async ({ path, directory }) => {
+    const bytes = await readFile(path); bytes[bytes.length - 1] ^= 1;
+    await writeFile(path, bytes); return pdf({ directory });
+  } });
+  const reviewed = await workflow.prepare(input('slides'));
+  await assert.rejects(workflow.export(reviewed.id, reviewed.reviewToken), { code: 'INVALID_OUTPUT' });
+  assert.equal((await workflow.inspect(reviewed.directory)).state, 'failed');
+});

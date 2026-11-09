@@ -1,7 +1,8 @@
 import { AppError } from "@learningxxx/contracts";
-import type { CredentialStatus, ErrorCode, IpcRequest } from "@learningxxx/contracts";
+import type { CredentialStatus, ErrorCode, IpcRequest, IpcResponse } from "@learningxxx/contracts";
 import type { CredentialStore } from "./credential-store.ts";
 import type { SchoolLoginResult } from "./school-login.ts";
+import { heygenPreview, listHeygenVoices, type HeygenCheck } from "./heygen-voices.ts";
 
 export interface CredentialServiceOptions {
   store: CredentialStore;
@@ -11,6 +12,8 @@ export interface CredentialServiceOptions {
   signedIn: () => Promise<boolean>;
   /** Asks Canvas whether this access token works. */
   checkCanvasToken: (token: string) => Promise<"ok" | "rejected" | "failed">;
+  /** WBS-092: lists HeyGen voices with a key (tests pass a fake). */
+  heygenVoices?: (key: string) => Promise<HeygenCheck>;
 }
 
 function fail(code: ErrorCode, message: string, retryable = false): never {
@@ -32,6 +35,11 @@ export class CredentialService {
    * dashboard all check the sign-in together).
    */
   #queue: Promise<unknown> = Promise.resolve();
+  #heygenEpoch = 0;
+
+  #heygenCurrent(epoch: number, key?: string) {
+    if (epoch !== this.#heygenEpoch || (key !== undefined && key !== this.#o.store.read().heygenKey)) fail("INVALID_REQUEST", "HeyGen 키 설정이 바뀌었습니다. 다시 확인해 주세요.");
+  }
 
   constructor(options: CredentialServiceOptions) {
     this.#o = options;
@@ -65,7 +73,59 @@ export class CredentialService {
     return this.status();
   }
 
+  /** WBS-092: checks the HeyGen key by listing voices, and saves it only if HeyGen accepts it. */
+  async saveHeygenKey({ key }: IpcRequest<"credentials.saveHeygenKey">): Promise<IpcResponse<"credentials.saveHeygenKey">> {
+    if (!this.#o.store.status().available) fail("INTERNAL", "이 Mac에서 안전한 저장소(키체인)를 쓸 수 없어 저장하지 않았습니다.");
+    const epoch = ++this.#heygenEpoch;
+    const result = await (this.#o.heygenVoices ?? listHeygenVoices)(key);
+    this.#heygenCurrent(epoch);
+    if (!result.ok && result.reason === "rejected") fail("AUTH_REQUIRED", "HeyGen이 이 API 키를 받지 않았습니다. 저장하지 않았습니다. HeyGen 설정의 API 메뉴에서 키를 다시 복사해 붙여 넣으세요.");
+    if (!result.ok) fail("DOWNLOAD_FAILED", "HeyGen에 연결하지 못해 키를 확인하지 못했습니다. 저장하지 않았습니다.", true);
+    this.#o.store.saveHeygen(key);
+    return { status: this.status(), voices: result.voices };
+  }
+
+  /** The voices the saved key can use (Korean first). */
+  async heygenVoices(signal?: AbortSignal): Promise<IpcResponse<"credentials.heygenVoices">> {
+    const key = this.#o.store.read().heygenKey;
+    const epoch = this.#heygenEpoch;
+    if (!key) fail("AUTH_REQUIRED", "HeyGen API 키를 먼저 저장하세요.");
+    const result = await (this.#o.heygenVoices ? this.#o.heygenVoices(key) : listHeygenVoices(key, fetch, signal));
+    signal?.throwIfAborted();
+    this.#heygenCurrent(epoch, key);
+    if (!result.ok) fail(result.reason === "rejected" ? "AUTH_REQUIRED" : "DOWNLOAD_FAILED", result.reason === "rejected" ? "저장된 HeyGen 키가 더 이상 받아들여지지 않습니다. 새 키를 저장하세요." : "HeyGen에 연결하지 못했습니다.", result.reason !== "rejected");
+    return { voices: result.voices };
+  }
+
+  /** Only a voice the key can use is saved. */
+  async setHeygenVoice({ voiceId }: IpcRequest<"credentials.setHeygenVoice">): Promise<CredentialStatus> {
+    const epoch = this.#heygenEpoch, key = this.#o.store.read().heygenKey;
+    const { voices } = await this.heygenVoices();
+    this.#heygenCurrent(epoch, key);
+    if (!voices.some((v) => v.voiceId === voiceId)) fail("INVALID_REQUEST", "이 키로 쓸 수 있는 음성이 아닙니다.");
+    this.#o.store.saveHeygenVoice(voiceId);
+    return this.status();
+  }
+
+  /** A voice sample to listen to before choosing; only a voice from the key's own list. */
+  async heygenPreview({ voiceId }: IpcRequest<"credentials.heygenPreview">): Promise<IpcResponse<"credentials.heygenPreview">> {
+    const epoch = this.#heygenEpoch, key = this.#o.store.read().heygenKey;
+    const voice = (await this.heygenVoices()).voices.find((v) => v.voiceId === voiceId);
+    this.#heygenCurrent(epoch, key);
+    const sample = voice?.preview ? await heygenPreview(voice.preview) : undefined;
+    this.#heygenCurrent(epoch, key);
+    if (!sample) fail("NOT_FOUND", "이 음성의 미리 듣기를 받지 못했습니다.");
+    return sample;
+  }
+
+  /** The saved key and voice for the narrator; undefined when not set up. */
+  heygen(): { key: string; voiceId?: string | undefined } | undefined {
+    const s = this.#o.store.read();
+    return s.heygenKey ? { key: s.heygenKey, ...(s.heygenVoiceId ? { voiceId: s.heygenVoiceId } : {}) } : undefined;
+  }
+
   clear({ which }: IpcRequest<"credentials.clear">): CredentialStatus {
+    if (which === "heygen") this.#heygenEpoch++;
     this.#o.store.clear(which);
     return this.status();
   }

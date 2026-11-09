@@ -1,0 +1,13 @@
+{
+  "name": "@learningxxx/learning-artifacts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "hyperframes": "0.8.181"
+  }
+}

@@ -31,7 +31,7 @@ interface Capture {
 
 export interface RecordingSnapshot {
   /** The recording under way, if any, and the course it belongs to. */
-  active?: { recordingId: string; courseId: string; paused: boolean; savedMs: number; startedAt: number; pausedTotalMs: number; pausedAt?: number | undefined } | undefined;
+  active?: { recordingId: string; courseId: string; paused: boolean; savedMs: number; /** WBS-101: already transcribed while still recording. */ transcribedMs: number; startedAt: number; pausedTotalMs: number; pausedAt?: number | undefined } | undefined;
   busy: boolean;
   /** The last message about a recording, with its course so the right screen shows it. */
   notice?: { courseId: string; text: string } | undefined;
@@ -63,8 +63,8 @@ class RecordingSession {
     for (const listener of this.#listeners) listener();
   }
 
-  #view(c: Capture | undefined, savedMs = this.#snapshot.active?.savedMs ?? 0): RecordingSnapshot["active"] {
-    return c ? { recordingId: c.recordingId, courseId: c.courseId, paused: c.pausedAt !== undefined, savedMs, startedAt: c.startedAt, pausedTotalMs: c.pausedTotalMs, pausedAt: c.pausedAt } : undefined;
+  #view(c: Capture | undefined, savedMs = this.#snapshot.active?.savedMs ?? 0, transcribedMs = this.#snapshot.active?.transcribedMs ?? 0): RecordingSnapshot["active"] {
+    return c ? { recordingId: c.recordingId, courseId: c.courseId, paused: c.pausedAt !== undefined, savedMs, transcribedMs, startedAt: c.startedAt, pausedTotalMs: c.pausedTotalMs, pausedAt: c.pausedAt } : undefined;
   }
 
   /** Once per window: the host's own stops (sleep, full disk, lost access) and closing the window. */
@@ -103,7 +103,7 @@ class RecordingSession {
     if (this.#capture !== c) return;
     if (result.ok) {
       c.seq += 1;
-      this.#set({ active: this.#view(c, result.data.savedMs) });
+      this.#set({ active: this.#view(c, result.data.savedMs, result.data.transcribedMs ?? 0) });
     } else {
       // The host already stopped and saved (e.g. low disk); stop capturing too.
       this.#release(c);
@@ -136,7 +136,7 @@ class RecordingSession {
         context.createMediaStreamSource(stream).connect(node);
         stream.getAudioTracks()[0]?.addEventListener("ended", () => { if (this.#capture === c) void this.stop("device_lost"); });
         this.#capture = c;
-        this.#set({ active: this.#view(c, 0), changes: this.#snapshot.changes + 1 });
+        this.#set({ active: this.#view(c, 0, 0), changes: this.#snapshot.changes + 1 });
         return undefined;
       } catch {
         stream?.getTracks().forEach((t) => t.stop());

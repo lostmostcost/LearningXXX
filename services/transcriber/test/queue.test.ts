@@ -224,3 +224,26 @@ test("pause stops the running job without cancelling it; resume starts it again,
   assert.equal(next.job(job.id)!.status, "running");
   await next.stop();
 });
+
+test("WBS-101: the engine's reason stays with a failed job and is cleared when it runs again; the source hash reaches the engine", async () => {
+  const { queue, calls } = setup({ maxAttempts: 2 });
+  const a = asset("long lecture");
+  const job = queue.enqueue(a);
+  queue.start();
+  await tick();
+  assert.equal(calls[0]!.input.sourceSha256, a.sha256);
+  calls[0]!.reject(new EngineError("TRANSCRIBE_FAILED", "메모리가 부족해 전사하지 못했습니다.", true, "RuntimeError: Insufficient Memory"));
+  await tick();
+  // Retryable: back in the queue, with the reason kept while it waits.
+  await tick();
+  assert.equal(calls.length, 2, "retried");
+  assert.equal(queue.job(job.id)!.status, "running");
+  assert.equal(queue.job(job.id)!.errorDetail, undefined, "a running job shows no old reason");
+  calls[1]!.reject(new EngineError("TRANSCRIBE_FAILED", "메모리가 부족해 전사하지 못했습니다.", true, "RuntimeError: Insufficient Memory"));
+  await tick();
+  const failed = queue.job(job.id)!;
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.errorCode, "TRANSCRIBE_FAILED");
+  assert.equal(failed.errorDetail, "RuntimeError: Insufficient Memory");
+  await queue.stop();
+});

@@ -214,13 +214,15 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
       const view = jobView(job);
       const act = (work: (() => Promise<void>) | undefined, failed: string) => async () => { try { await work?.(); } catch { setNotice(failed); } };
       const wait = job.status === "queued" ? props.waiting?.[job.id] : undefined;
-      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 처음부터 다시 전사" : view.label}
+      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 끝난 구간 다음부터 이어서 전사" : view.label}
         {wait && !props.paused ? <small className="queue-wait"> · 앞에 {wait.ahead}개{wait.runningTitle ? ` · 지금 "${wait.runningTitle}" 전사 중${wait.runningProgress !== undefined ? ` ${Math.round(wait.runningProgress * 100)}%` : ""}` : ""} (위 "작업"에서 순서를 볼 수 있습니다)</small> : null}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
         {job.status === "running" && props.onPause ? <button className="icon-button" title="전사 일시 정지" aria-label="전사 일시 정지" onClick={act(props.onPause, "전사를 일시 정지하지 못했습니다.")}><Icon name="pause" /></button> : null}
         {props.paused && job.status === "queued" && props.onResume ? <button className="icon-button" title="전사 재개" aria-label="전사 재개" onClick={act(props.onResume, "전사를 재개하지 못했습니다.")}><Icon name="play" /></button> : null}
         {(job.status === "running" || job.status === "queued") && props.onCancel ? <button className="icon-button" title="이 전사 중지" aria-label="이 전사 중지" onClick={act(() => props.onCancel!(job.id), "전사를 중지하지 못했습니다.")}><Icon name="stop" /></button> : null}
         {job.status === "running" ? <progress aria-label="전사 진행" max={1} value={view.progress} /> : null}
-        {job.errorCode ? <small>{job.errorCode === "RUN_INTERRUPTED" ? "앱이 꺼져 중단됐습니다. 재시도를 누르면 처음부터 다시 전사합니다." : job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {job.errorCode ? <small>{job.errorCode === "RUN_INTERRUPTED" ? "앱이 꺼져 중단됐습니다. 재시도를 누르면 끝난 구간 다음부터 이어서 전사합니다." : job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {/* WBS-101: what the engine said, so a failure is no longer a mystery. */}
+        {job.errorDetail && (job.status === "failed" || job.status === "queued") ? <small className="error-detail">{/memory|insufficient|강제로 종료/i.test(job.errorDetail) ? "메모리가 부족했던 것 같습니다. 다른 앱을 닫고 다시 시도하세요. " : ""}원인: {job.errorDetail}</small> : null}
         {view.retry ? <button className="icon-button" title="전사 재시도" aria-label="전사 재시도" disabled={!props.onRetry || props.engineReady === false || retrying !== undefined} onClick={async () => {
           if (!props.onRetry || retrying !== undefined) return;
           setRetrying(job.id);

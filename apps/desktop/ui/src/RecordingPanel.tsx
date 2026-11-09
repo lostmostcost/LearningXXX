@@ -45,6 +45,7 @@ export function RecordingPanel({ courseId, view = "recording", onOpenCourse, wee
   const active = mine?.recordingId;
   const paused = mine?.paused ?? false;
   const savedMs = mine?.savedMs ?? 0;
+  const transcribedMs = mine?.transcribedMs ?? 0;
   const [elapsedMs, setElapsedMs] = useState(0);
   const [localNotice, setNotice] = useState<string>();
   const notice = localNotice ?? (session.notice?.courseId === courseId ? session.notice.text : undefined);
@@ -112,7 +113,7 @@ export function RecordingPanel({ courseId, view = "recording", onOpenCourse, wee
       {active
         ? <p className="capture-place">{placeLabel(recordingNow, weeks, lectures) ?? ""}</p>
         : weeks.length ? <div className="capture-place"><Details title={<>{!choice && estimated ? "추천 · " : ""}{weeks.find(w=>w.id===place.weekId)?.label ?? "주차 선택"}{place.lectureSourceId ? ` · ${lectures.find(l=>l.sourceId===place.lectureSourceId)?.title ?? "강의"}` : ""}<small>변경</small></>} open={!place.weekId}><WeekPicker weeks={weeks} lectures={lectures} value={place} disabled={busy} onChange={setChoice} /></Details></div> : null}
-      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) : "종료 후 자동 전사"}</p>
+      <p className="subtle">{active ? (paused ? `일시정지 중 · 멈춘 동안은 녹음되지 않습니다 · 저장됨 ${clock(savedMs)}` : `저장됨 ${clock(savedMs)}`) + (transcribedMs > 0 ? ` · 전사됨 ${clock(transcribedMs)}` : "") : "녹음하는 동안 몇 분마다 전사"}</p>
       <div className="capture-actions">
         {active ? <button className="capture-action secondary" aria-label={paused ? "녹음 이어서 하기" : "녹음 일시정지"} title={paused ? "녹음 이어서 하기" : "녹음 일시정지"} disabled={busy} onClick={togglePause}><Icon name={paused ? "play" : "pause"} /></button> : null}
         <button className="capture-action" aria-label={active ? "녹음 끝내고 저장" : "녹음 시작"} title={active ? "녹음 끝내고 저장" : "녹음 시작"} disabled={busy || !!elsewhere} onClick={() => active ? stop() : void start()}><Icon name={active ? "stop" : "mic"} /></button>

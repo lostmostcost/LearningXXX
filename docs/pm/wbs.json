@@ -3074,6 +3074,33 @@
       "review_evidence": [
         "2026-11-09 layout.ts clampToolsWidth (280..960, middle keeps 360) and readToolsWidth (bad or blocked storage → none); ToolsResizer (separator role, pointer capture so PDFs/previews never take the drag, arrows ±16/±64, double click resets); App keeps the width in localStorage per Mac, hidden in the narrow one-column layout; CSS caps the column again by the current width so a smaller window never squeezes the middle. Checks: ui 135 pass (1 new), typecheck, build; fixture preview 1400px: handle 7px on the column's left edge with col-resize cursor, real mouse drag 389→595px saved, kept after reload, double click back to 389, dragging to the far left stops at 960 with the middle 382px. Not tried in the real app window by the owner yet."
       ]
+    },
+    {
+      "id": "WBS-104",
+      "title": "왼쪽 끝 반원 버튼으로 과목 선택, 로고 누르면 홈",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-068"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "아이콘 레일에서 과목 목록 버튼을 빼고, 화면 왼쪽 끝 한가운데 반원 버튼을 누르면 최좌단 호버와 같은 방식으로 과목 선택이 나온다. 상단 로고를 누르면 홈(대시보드)으로 간다.",
+      "status": "Review",
+      "branch": "feat/WBS-104-edge-course-button",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd810e9fb3dfe1fa5a26ce?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 왼쪽 끝 호버로 여는 기존 동작은 유지(권장안). 로컬 브랜치만, push 보류. 배포용 앱 빌드 없이 test-app.sh로만 확인.",
+      "review_evidence": [
+        "2026-11-09 App: rail drawer-toggle and the now-unused drawer state/outside-click effect removed (pinned and edge paths kept); edge-tab button (fixed, vertical middle of the left edge, half-round, above the 4px hover zone) sets the same edge slide-in, hidden while open or pinned, focuses the first course after the slide; logo wrapped in a button that sets home and closes the slide-in. Review found the tab blended into the rail (same colour) → contrasting fill/border. Checks: ui 135 pass, typecheck, build; fixture preview 1400px: rail = 대시보드·강의 자료·과제·공지·녹음, tab centre 425 = viewport middle, real mouse click opened the list (rail pushed right), choosing the course closed it and opened the course, logo click → dashboard, Escape closes. Not verified: focus moving into the list (preview pane was in the background, so CSS transitions did not run)."
+      ]
     }
   ],
   "qaPolicy": {

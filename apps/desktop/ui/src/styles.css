@@ -432,3 +432,10 @@ input,select {background:var(--bg);border:1px solid var(--line);border-radius:8p
 .study-app .panels.tools-sized{grid-template-columns:190px minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 550px)));}
 .study-app .panels.tools-sized.mode-book{grid-template-columns:minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 360px)));}
 @media(max-width:1000px){.study-app .panels.tools-sized{grid-template-columns:minmax(0,1fr) min(var(--tools-width),max(280px,calc(100% - 360px)));}}
+
+/* WBS-104: the course list opens from a half-round tab in the middle of the left edge; the logo goes home. */
+.edge-tab{position:fixed;left:0;top:50%;transform:translateY(-50%);width:18px;height:56px;padding:0 2px 0 0;border:1px solid color-mix(in srgb,var(--text) 28%,transparent);border-left:0;border-radius:0 28px 28px 0;background:var(--bg);color:color-mix(in srgb,var(--text) 75%,transparent);z-index:51;display:grid;place-items:center;cursor:pointer;box-shadow:2px 0 10px #0000002a;transition:width .12s,color .12s,background .12s;}
+.edge-tab:hover,.edge-tab:focus-visible{width:24px;color:var(--text);background:color-mix(in srgb,var(--focus) 18%,var(--bg));}
+.edge-tab .icon{width:14px;height:14px;transform:rotate(-90deg);}
+.brand-home{display:block;padding:0;border:0;background:none;cursor:pointer;border-radius:8px;}
+.brand-home:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}

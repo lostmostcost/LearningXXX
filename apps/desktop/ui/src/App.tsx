@@ -66,7 +66,6 @@ export function App() {
   const narrow = isNarrow(useWindowWidth());
   const [home,setHome]=useState(true);
   const [pinned,setPinned]=useState(false);
-  const [drawer,setDrawer]=useState(false);
   // WBS-068: the course list also slides in when the pointer rests on the screen's left edge.
   const [edge,setEdge]=useState(false);
   const edgeTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -113,14 +112,6 @@ export function App() {
   const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setRightTab('transcripts');setView('chat');setTray(false);setTrayDismissed(true);};
   const { refresh: refreshMedia } = lectures;
   const recordingsChanged = useCallback(() => void refreshMedia(), [refreshMedia]);
-  // The course list closes when the user clicks anywhere else or presses Escape (not on hover-out).
-  useEffect(()=>{
-    if(!drawer)return;
-    const outside=(event:MouseEvent)=>{const target=event.target as Element|null;if(!target?.closest('.course-drawer, .drawer-toggle'))setDrawer(false);};
-    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setDrawer(false);};
-    document.addEventListener('mousedown',outside);document.addEventListener('keydown',escape);
-    return()=>{document.removeEventListener('mousedown',outside);document.removeEventListener('keydown',escape);};
-  },[drawer]);
   const selectEntry=(entry:Entry)=>{setPlaying(undefined);setKnowledgeOpen(false);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
@@ -326,12 +317,14 @@ export function App() {
   const materialViewer = <Viewer entry={selected} lms={selected?.resource.source==='manual'&&library ? <ManualControls key={selected.resource.id} courseId={library.course.id} resourceId={selected.resource.id} weeks={weekList} weekId={selected.resource.weekId} onDone={(removed)=>{if(removed)setSelected(undefined);void refresh();}}/> : selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot} />;
 
   return (
-    <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${drawer?'sidebar-open':''} ${edge&&!pinned&&!drawer?'sidebar-edge':''}`}>
-      {pinned||drawer?null:<div className="edge-zone" aria-hidden="true" onMouseEnter={()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>setEdge(true),EDGE_OPEN_DELAY_MS);}} onMouseLeave={()=>{if(!edge)clearTimeout(edgeTimer.current);}}/>}
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setDrawer(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}<button className="drawer-toggle" title="과목 목록" aria-label="과목 목록" aria-expanded={drawer||pinned} onClick={()=>setDrawer(x=>!x)}><Icon name="menu"/></button></nav>
-      <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setDrawer(false);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setDrawer(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
+    <div className={`${narrow ? "app narrow" : "app"} study-app ${home?'at-home':''} ${pinned?'sidebar-pinned':''} ${edge&&!pinned?'sidebar-edge':''}`}>
+      {/* WBS-104: the course list opens from a half-round tab in the middle of the left edge (the rail no longer has a course button). */}
+      {pinned||edge?null:<button className="edge-tab" title="과목 선택" aria-label="과목 선택 열기" aria-expanded={false} onClick={()=>{clearTimeout(edgeTimer.current);setEdge(true);setTimeout(()=>document.querySelector<HTMLButtonElement>('.course-drawer .entry')?.focus({preventScroll:true}),200);}}><Icon name="chevron"/></button>}
+      {pinned?null:<div className="edge-zone" aria-hidden="true" onMouseEnter={()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>setEdge(true),EDGE_OPEN_DELAY_MS);}} onMouseLeave={()=>{if(!edge)clearTimeout(edgeTimer.current);}}/>}
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}</nav>
+      <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
-        <strong className="wordmark"><img className="brand-logo" src={brandLogo} alt="YOLO UNIV"/>{/* Owner 2026-11-09: until the next release, the full development label stays beside the logo (WBS-098 had cut it to "개발"). */}
+        <strong className="wordmark"><button type="button" className="brand-home" title="홈으로" aria-label="YOLO UNIV 홈으로" onClick={()=>{setHome(true);setEdge(false);}}><img className="brand-logo" src={brandLogo} alt=""/></button>{/* Owner 2026-11-09: until the next release, the full development label stays beside the logo (WBS-098 had cut it to "개발"). */}
           {devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
         {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => openRecordingCourse()} title="녹음 중인 과목의 녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
         <span role="status">수집: {status}</span>

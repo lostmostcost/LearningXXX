@@ -21,6 +21,7 @@ import { claimLaunchSync } from "./launch-sync.ts";
 import type { RecordingState } from "./recorder.ts";
 import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
+import { recordingSession, recordingState, useRecordingSession } from "./recording-session.ts";
 import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
 import { TaskSidebar } from "./TaskSidebar.tsx";
@@ -125,7 +126,9 @@ export function App() {
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
   // WBS-064: red light on the recording tab, the mic rail button and the top bar while recording.
-  const [recState, setRecState] = useState<RecordingState>("idle");
+  // WBS-102: the recording belongs to the window, not to the course on screen.
+  const recording = useRecordingSession();
+  const recState: RecordingState = recordingState(recording);
   const recLight = recState === "idle" ? null : <span className={`rec-light ${recState}`} aria-hidden="true" />;
   // WBS-061: which code this development run is, also in the window title.
   const [build, setBuild] = useState<IpcResponse<"app.build">>();
@@ -203,6 +206,12 @@ export function App() {
   }, []);
 
   /** Switching courses closes the open material; sessions stay per course in the chat panel. */
+  /** WBS-102: the top bar's 녹음 중 and the panel's note open the recording course's recording tab. */
+  const openRecordingCourse = () => {
+    const courseId = recordingSession.snapshot.active?.courseId;
+    setHome(false); setSection("book"); setRightTab("recording"); setView("chat");
+    if (courseId) void chooseCourse(courseId);
+  };
   const chooseCourse = useCallback(async (courseId: string) => {
     if(courseRef.current===courseId)return;
     setLibrary(undefined);
@@ -316,7 +325,7 @@ export function App() {
       <header className="topbar">
         <strong className="wordmark"><img className="brand-logo" src={brandLogo} alt="YOLO UNIV"/>{/* Owner 2026-11-09: until the next release, the full development label stays beside the logo (WBS-098 had cut it to "개발"). */}
           {devLabel ? <small className="build-tag" title={buildDetail(build)}>{devLabel}</small> : null}</strong>
-        {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => { setRightTab("recording"); setView("chat"); }} title="녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
+        {recState !== "idle" ? <button type="button" className={`rec-pill ${recState}`} onClick={() => openRecordingCourse()} title="녹음 중인 과목의 녹음 화면으로">{recLight}{recState === "paused" ? "녹음 일시정지" : "녹음 중"}</button> : null}
         <span role="status">수집: {status}</span>
         {library ? collectButton : null}
         {IN_APP || FIXTURE_MODE ? <JobQueue /> : null}
@@ -410,7 +419,7 @@ export function App() {
               : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 메모할 수 있습니다.</p>}
           </div>
           <div className="tool-pane recording-pane" id="tool-panel-media" role="tabpanel" aria-labelledby={rightTab === "transcripts" ? "tool-transcripts" : "tool-recording"} hidden={rightTab === "chat" || rightTab === "memo"}>
-            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onState={setRecState}
+            {(IN_APP || FIXTURE_MODE) && library ? <RecordingPanel key={library.course.id} courseId={library.course.id} view={rightTab === "transcripts" ? "transcripts" : "recording"} onOpenCourse={() => openRecordingCourse()}
               weeks={weekList} lectures={lectures.rows} status={learning.status} selectedAssetId={mediaAssetId} onSelectAsset={setMediaAssetId} onChanged={recordingsChanged} /> : <p className="empty-tool">과목을 선택한 뒤 Mac 앱에서 녹음할 수 있습니다.</p>}
           </div>
         </>)}

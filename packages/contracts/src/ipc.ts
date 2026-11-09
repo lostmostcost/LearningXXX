@@ -333,7 +333,7 @@ export const IpcChannels = {
   },
   /** Ends the recording and confirms the original; `reason` says why it stopped when the user did not. */
   "recording.stop": {
-    request: z.object({ recordingId: Id, reason: z.enum(["user", "device_lost", "app_closing"]).optional() }),
+    request: z.object({ recordingId: Id, reason: z.enum(["user", "device_lost", "app_closing", "page_closed"]).optional() }),
     response: z.object({ recording: Recording, asset: MediaAsset.optional() }),
   },
   "recording.list": {

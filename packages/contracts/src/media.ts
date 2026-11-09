@@ -12,6 +12,15 @@ import { ErrorCode } from "./errors.ts";
 export const RecordingStatus = z.enum(["recording", "finalized", "recovered_partial", "failed"]);
 /** An LMS online lecture's own id (as in `media.videos`), kept opaque. */
 export const LectureSourceId = z.string().regex(/^[\w-]{1,64}$/);
+/**
+ * WBS-102: user = the stop button; device_lost = the microphone went away;
+ * app_closing = the app quit; sleep = the Mac went to sleep; disk_full;
+ * access_lost = the course or account was no longer allowed; page_closed =
+ * the app window was closed or reloaded; crashed = found unfinished at start.
+ */
+export const RecordingStopReason = z.enum(["user", "device_lost", "app_closing", "sleep", "disk_full", "access_lost", "page_closed", "crashed"]);
+export type RecordingStopReason = z.infer<typeof RecordingStopReason>;
+
 export const Recording = z
   .object({
     schemaVersion: SchemaVersion,
@@ -36,6 +45,11 @@ export const Recording = z
     /** The confirmed original; set exactly when the recording is finalized or recovered. */
     originalAssetId: Id.optional(),
     errorCode: ErrorCode.optional(),
+    /**
+     * WBS-102: why recording ended, so an unexpected stop can be explained
+     * later. Absent on recordings made before it was kept.
+     */
+    stopReason: RecordingStopReason.optional(),
   })
   .superRefine((r, ctx) => {
     if (r.lectureSourceId !== undefined && r.weekId === undefined) ctx.addIssue({ code: "custom", message: "a lecture is chosen within a week" });

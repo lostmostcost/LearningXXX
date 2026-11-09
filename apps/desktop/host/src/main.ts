@@ -544,7 +544,7 @@ app.whenReady().then(async () => {
     if (closing) return;
     event.preventDefault(); closing = true;
     clearInterval(previewTimer); clearInterval(submitTimer); automation?.stop(); assignments.stopAll();
-    void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
+    void (async () => { try { await conversations.stopAll(); await recordings.stopActive("app_closing", "RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
     } })().catch(() => undefined).finally(() => app.quit());
@@ -552,7 +552,7 @@ app.whenReady().then(async () => {
   // Ctrl-C in a terminal or a plain `kill` quits the same way as Cmd-Q, so recordings and transcription are saved.
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => app.quit());
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
-  powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
+  powerMonitor.on("suspend", () => void recordings.stopActive("sleep", "RECORDING_INTERRUPTED").catch(() => undefined));
   // The renderer may use the microphone (audio only) for recording; no camera, no screen.
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     if (permission !== "media") return callback(true);

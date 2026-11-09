@@ -117,13 +117,23 @@ test("only one recording at a time", async () => {
 
 test("stopping before sleep confirms the original and tells the renderer", async () => {
   const stopped: string[] = [];
-  const { service } = setup({ onStopped: (r) => stopped.push(r.status) });
+  const { service } = setup({ onStopped: (r) => stopped.push(`${r.status}:${r.stopReason}`) });
   const r = await service.start({ courseId: COURSE });
   await service.chunk({ recordingId: r.id, seq: 0, pcm: pcm(300) });
-  await service.stopActive("RECORDING_INTERRUPTED");
-  assert.deepEqual(stopped, ["finalized"]);
-  await service.stopActive();
+  await service.stopActive("sleep", "RECORDING_INTERRUPTED");
+  assert.deepEqual(stopped, ["finalized:sleep"], "WBS-102: the reason is kept with the recording");
+  await service.stopActive("app_closing");
   assert.equal(stopped.length, 1, "nothing left to stop");
+});
+
+test("WBS-102: the stop button and a closed window are told apart", async () => {
+  const { service } = setup();
+  const a = await service.start({ courseId: COURSE });
+  await service.chunk({ recordingId: a.id, seq: 0, pcm: pcm(300) });
+  assert.equal((await service.stop({ recordingId: a.id })).recording.stopReason, "user");
+  const b = await service.start({ courseId: COURSE });
+  await service.chunk({ recordingId: b.id, seq: 0, pcm: pcm(300) });
+  assert.equal((await service.stop({ recordingId: b.id, reason: "page_closed" })).recording.stopReason, "page_closed");
 });
 
 test("if compression fails the WAV is kept as the original", async () => {

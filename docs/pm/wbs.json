@@ -3018,6 +3018,36 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-098.md: staged own diff/caller reviews and fixes. UI typecheck/build and existing 134 tests PASS. Actual built browser fixtures: partial-input approval/cancel request counts, PDF-step transition, automation opt-in/cancel/default restoration, /model reveals and focuses collapsed controls, chat draft survives recording tab switch, keyboard transcript version access and explicit excerpt preview. Actual 600px learning/assignment frames have scrollWidth=600; confirmation stays within viewport and Escape sends 0 requests. Real user app/recording untouched. Final frozen-container and CI results follow in PR."
       ]
+    },
+    {
+      "id": "WBS-102",
+      "title": "과목을 옮겨도 녹음 유지·멈춘 이유 기록",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [
+        "WBS-064"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "녹음 중 다른 과목·AI 대화로 옮겨도 녹음이 계속되고 상단 '녹음 중'이 녹음 과목으로 이동시킨다. 녹음마다 멈춘 이유(직접·마이크·잠자기·앱 종료·저장공간·권한·창 닫힘·비정상 종료)를 남긴다.",
+      "status": "Review",
+      "branch": "fix/WBS-102-recording-across-courses",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "이문찬 지시(2026-11-09): 외식메뉴상품기획론 녹음이 09:38에 과목 이동(논리회로 AI 대화)으로 끊긴 원인 수정. 로컬 브랜치만, push 보류. Notion 카드 미등록.",
+      "review_evidence": [
+        "2026-11-09 cause: recording 881beeca finalized 09:38:27 (29m47s, status finalized, not recovered), 논리회로 course workspace prepared 09:38:44; pmset shows no sleep 09:08-09:38; RecordingPanel (keyed by course) stopped capture on unmount and chooseCourse unmounts it. Fix: capture moved to an app-level store (recording-session.ts) the panel only displays; host push/pagehide handled there; panel shows a note and disables start when another course is recording; top-bar pill opens the recording course. Recording.stopReason (contract) set by host for user/device_lost/page_closed/sleep/app_closing/disk_full/access_lost/crashed. Review: dead onState prop removed; stop() success/failure paths release capture once. Checks: pnpm -r run check all pass (host 271 incl. 1 new reason test, ui 134, contracts 58); fixture preview (?fixture=mic, preview-only second course) — course switch unmounted the panel and saved time kept rising 0:04→0:06, stop ended it. Not tried: real microphone recording in the app across courses (owner)."
+      ]
     }
   ],
   "qaPolicy": {

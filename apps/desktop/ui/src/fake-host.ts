@@ -126,6 +126,12 @@ export function installFakeHost(courseTitle: string): void {
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),
     "recording.assign": (p) => { const i = fakeRecordings.findIndex((r) => r.id === p.recordingId); if (i < 0) return fail('NOT_FOUND', '녹음을 찾을 수 없습니다.'); const { lectureSourceId: _old, ...rest } = fakeRecordings[i]!; fakeRecordings[i] = { ...rest, weekId: String(p.weekId), ...(p.lectureSourceId ? { lectureSourceId: String(p.lectureSourceId) } : {}) }; return ok({ recording: fakeRecordings[i] }); },
     "app.build": () => ok({ dev: true, branch: "fixture", commit: "0000000", dirty: false, folder: "fixture" }),
+    // WBS-058: a synthetic submission flow; nothing leaves the preview.
+    "submit.rules": () => ok({ rules: [] }),
+    "submit.choose": () => ok({ planId: "11111111-1111-4111-8111-0000000000d1", fileName: "합성_과제.pdf", bytes: 554066, assignment: { name: "합성 과제", dueAt: "2026-11-09T14:59:00Z", lockAt: null, extensions: ["pdf"], attempt: null, allowedAttempts: null, submittedAt: null, files: [] } }),
+    "submit.confirm": async () => { await new Promise((r) => setTimeout(r, 500)); return ok({ attempt: 1, submittedAt: "2026-11-09T04:04:11Z", files: ["합성_과제.pdf"] }); },
+    "submit.schedule": () => ok({ ruleId: "11111111-1111-4111-8111-0000000000d2", at: "2026-11-09T13:59:00Z" }),
+    "submit.cancelRule": () => ok({}),
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
       schemaVersion: 1, courseId: FIXTURE_MANIFEST.course.id, fetchedAt: now(), errors: [],

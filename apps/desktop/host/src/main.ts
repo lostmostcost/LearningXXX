@@ -24,7 +24,7 @@ import { runLmsProbe } from "./lms-probe.ts";
 import { lmsSessionReport, runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, openLmsWatchWindow, windowSignInPage } from "./lms-session.ts";
+import { createCanvasHttp, createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, openLmsWatchWindow, windowSignInPage } from "./lms-session.ts";
 import { pageSchoolLogin, schoolLogin } from "./school-login.ts";
 import { readBuildInfo } from "./build-info.ts";
 import { captureRegion } from "./native-capture.ts";
@@ -47,6 +47,7 @@ import { correctionPrompt, createClaudeTextRunner, createReadableRunner, mention
 import { AutomationService } from "./automation.ts";
 import { StudyNotes } from "./study-notes.ts";
 import { Timetable } from "./timetable.ts";
+import { Submissions } from "./submissions.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
 import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
@@ -87,7 +88,7 @@ function createWindow(): BrowserWindow {
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check|assignment-submit)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
   app.exit(0);
 } else if (!diagnostic) {
@@ -192,6 +193,31 @@ app.whenReady().then(async () => {
     } else {
       await runLmsWatch(watchOut!, { ensureSignedIn });
     }
+    app.quit();
+    return;
+  }
+  // WBS-058 check: one assignment submission through the same code as the app's 제출 button,
+  // with the file given here instead of the file dialog. Without --submit-confirm it only reads
+  // the assignment (nothing is sent). Writes step statuses and the LMS result, never tokens.
+  const submitOut = process.argv.find((arg) => arg.startsWith("--assignment-submit="))?.slice("--assignment-submit=".length);
+  if (submitOut !== undefined) {
+    const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+    const steps: { step: string; status: number }[] = [];
+    const trace = (step: string, status: number) => { steps.push({ step, status }); };
+    let report: Record<string, unknown>;
+    try {
+      await credentials.ensureSignedIn();
+      const check = new Submissions({
+        root: join(dataRoot, "submissions"), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+        http: () => createCanvasHttp(() => credentials.canvasToken()), chooseFile: async () => undefined,
+      });
+      const plan = await check.prepare(arg("submit-course") ?? "", arg("submit-resource") ?? "", arg("submit-file") ?? "", trace);
+      report = { canvasToken: credentials.canvasToken() !== undefined, plan: { ...plan, planId: undefined } };
+      if (process.argv.includes("--submit-confirm") && plan.planId && !plan.problem) report.result = await check.confirm(plan.planId, trace);
+    } catch (error) {
+      report = { error: (error as { appError?: unknown }).appError ?? String(error) };
+    }
+    writeFileSync(submitOut, `${JSON.stringify({ ...report, steps }, null, 2)}\n`);
     app.quit();
     return;
   }
@@ -414,6 +440,14 @@ app.whenReady().then(async () => {
     write: ({ prompt, signal }) => claudeText({ prompt, what: '복습·예습 노트', signal }),
   });
   const weekByLabel = async (courseId: string, label: string | undefined) => label ? (await library.manifest(courseId))?.weeks.find((w) => w.label === label)?.id : undefined;
+  // WBS-058: assignment submission; rules the student confirmed are checked every minute.
+  const submissions = new Submissions({
+    root: join(dataRoot, 'submissions'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    http: () => createCanvasHttp(() => credentials.canvasToken()),
+    chooseFile: async () => { const picked = await dialog.showOpenDialog({ title: '제출할 파일 선택', properties: ['openFile'] }); return picked.canceled ? undefined : picked.filePaths[0]; },
+    onAuto: (r) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(PUSH_CHANNEL, { kind: 'submit.auto', ...r }); },
+  });
+  const submitTimer = setInterval(() => { void submissions.tick().catch(() => undefined); }, 60_000);
   // WBS-085: class times (the student's own, else from course.md).
   const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => (await knowledge.get(courseId)).meetings });
   automation = new AutomationService({
@@ -509,7 +543,7 @@ app.whenReady().then(async () => {
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    clearInterval(previewTimer); automation?.stop(); assignments.stopAll();
+    clearInterval(previewTimer); clearInterval(submitTimer); automation?.stop(); assignments.stopAll();
     void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
       await media.stop(); await stt.stop();
@@ -563,6 +597,12 @@ app.whenReady().then(async () => {
     "materials.choose": () => externals!.choose(),
     "materials.add": (request) => externals!.add(request),
     "materials.change": (request) => externals!.change(request),
+    // WBS-058: assignment submission after the student's confirmation (now, or by a confirmed rule).
+    "submit.choose": ({ courseId, resourceId }) => submissions.choose(courseId, resourceId),
+    "submit.confirm": ({ planId }) => submissions.confirm(planId),
+    "submit.schedule": ({ planId, minutesBefore }) => submissions.schedule(planId, minutesBefore),
+    "submit.rules": () => submissions.rules(),
+    "submit.cancelRule": ({ ruleId }) => submissions.cancel(ruleId),
     // WBS-085: class times.
     "timetable.get": () => timetable.get(),
     "timetable.set": ({ courseId, meetings }) => timetable.set(courseId, meetings),

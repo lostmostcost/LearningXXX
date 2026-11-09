@@ -1753,11 +1753,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "확인 대화상자를 거친 수동 제출과, 사용자가 등록 시 확인한 규칙에 따른 자동 제출을 제공한다. 시작 전 연습용 과제 제출 흐름을 실측한다.",
-      "status": "Blocked",
-      "branch": "feat/WBS-058-assignment-submit",
+      "status": "Review",
+      "branch": "feat/WBS-058-submit-v2",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행. CR-093 작업 분리: 영상 앱 연결과 분리한 WBS-097 초안 도구 뒤 지정 과제 제출 검증."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행. CR-093 작업 분리: 영상 앱 연결과 분리한 WBS-097 초안 도구 뒤 지정 과제 제출 검증. 2026-11-09 이문찬 지시로 지정 과제 실제 제출 완료(1회, 13:04:11 KST). 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 (AI 구현·실측; owner self-test pending). Ported the 11-04 draft (a47f1c5) onto main 1ad02fd and reviewed assignment-submit.ts, submissions.ts, createCanvasHttp, IPC/preload, AssignmentSubmit UI. Findings fixed: (1) Electron session fetch throws 'Redirect was cancelled' on redirect:'manual' instead of returning the 3xx, so the upload's redirect to its confirmation failed after the slot step (the 11-04 '내부 오류'); upload POST now follows, other LMS calls map a redirect to AUTH_REQUIRED; (2) cookie-authenticated JSON with the while(1); guard was not parsed; (3) a 201 upload naming a location was not confirmed; (4) the response's assignment id is checked; (5) an automatic rule that fires after the deadline (app was off) no longer hands in late; (6) window.confirm replaced by the app's ConfirmDialog with assignment, file, size, deadline, earlier attempts and late note. Real LMS: dry run (read only) then --assignment-submit --submit-confirm on 데이터베이스 00분반 10주차 '개념적 설계 실습 (ERD)' (owner's own PDF, 554066 bytes, sha256 83a2ca62…): first try stopped after slot 200 (finding 1, nothing submitted), second try read 200 → slot 200 → upload 200 → submit 201 → verify attempt 1, submitted 2026-11-09T04:04:11Z with the file; a separate read-only run confirmed the same. Checks: host submissions tests 9 pass (3 new), pnpm -r run check (host 270, ui 134, contracts 58, collector 88, cli-adapter 50, app-modifier 28, transcriber 25, all pass); UI fixture preview: choose → plan → 지금 제출 → dialog → 제출했습니다. Not done: the in-app 제출 button with the native file dialog on the real account, and a live automatic rule; Notion card not updated; nothing pushed."
+      ]
     },
     {
       "id": "WBS-059",

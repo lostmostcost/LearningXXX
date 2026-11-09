@@ -3342,6 +3342,41 @@
         "Self-review: canUseTool path untouched — the app still never answers permission requests itself (test asserts a Bash request waits for the user and is denied by the user's answer); resumed sessions are not switched (test); unsupported model stays default (test). Fixed during review: generic type of currentChatModel under exactOptionalPropertyTypes. Checks: pnpm -r run check exit 0 (contracts 58, transcriber 25, collector 88, ui 141, cli-adapter 50, app-modifier 28, host 284).",
         "Real app (test-app.sh, env -i; previous app had no recording in progress, stopped then relaunched; build label WBS-108): in 논리회로 02분반 강의 자료 → 채팅 → 대화 시작, the new conversation (새 대화 4) showed 대화 설정 '자동 판단', model 'Default (recommended)', and the line '일반 환경 · 자동 판단: …'. No message was sent; CDP used only to read. Limit: the empty conversation 새 대화 4 remains in the app."
       ]
+    },
+    {
+      "id": "WBS-109",
+      "title": "로컬 심층 리뷰·사용자 흐름 기반 텍스트 앱 제어",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/",
+        "docs/specs/SPEC-007.md",
+        "docs/DEVELOPMENT.md",
+        "apps/desktop/README.md"
+      ],
+      "spec": "SPEC-007",
+      "requirements": [
+        "REQ-003",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "debug CLI는 실제 사용자 메뉴·선택·확인 순서를 지킨다. assist CLI는 명시적으로 고른 경우 과목/자료/탭 탐색 과정을 단축한다. 둘의 실행/증거를 구분하며 권한·제출·삭제 확인을 우회하지 않는다. 동일 UI 배경 PNG와 fixture/local 검증을 제공하고 심층 리뷰 결함을 수정·회귀 확인한 뒤 로컬에서만 커밋·병합한다.",
+      "status": "Review",
+      "branch": "feat/WBS-109-agent-control",
+      "url": "https://app.notion.com/p/413bd7ec20cd81138f9ec0c29edcf461",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-109. GitHub push/PR/원격 claim 변경 금지. scripts/claim.py acquire(remote=local .git)로 task/host/ui/shared create-only 선점. 기존 로컬 claim/receipt 없음; 원격 조회는 DNS 실패로 확인하지 못했으며 변경하지 않음. 기존 untracked .pnpm-store/, docs/wiki/, output/ 보존. 기준 main 2ceb2ce; 신규 개발도구의 선행 Done 요구 없음. Notion Review인 기존 로컬 병합 작업을 Done으로 소급 표시하지 않음. 사용자 후속 지시: 기본 debug와 명시 assist를 분리(SPEC-007 v0.2.0); assist 탐색 단축 결과를 debug 검증에 쓰지 않음. 이미 보유한 shared claim 아래 apps/desktop/README.md의 낡은 구현 현황을 이력으로 표시하는 최소 문서 경로를 추가함.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-109.md"
+      ]
     }
   ],
   "qaPolicy": {

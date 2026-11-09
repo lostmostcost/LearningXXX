@@ -6,7 +6,7 @@ import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
 import { weekNotes } from "./week-notes.ts";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirectoryStore, listActiveCourses } from "@learningxxx/collector";
 import { QwenEngine } from "@learningxxx/transcriber";
@@ -53,7 +53,9 @@ import { Timetable } from "./timetable.ts";
 import { Submissions } from "./submissions.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
-import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
+import { allowsRendererPermission, WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
+import { agentFlow, agentMode, attachAgent, startFixtureAgent } from './agent-runtime.ts';
+import { assertAgentProfile } from './agent-profile.ts';
 import { AssignmentWorkspaces } from "./assignment-workspaces.ts";
 import { assignmentSources } from "./assignment-sources.ts";
 import { ASSIGNMENT_CSP, printAssignment } from "./assignment-printer.ts";
@@ -76,24 +78,44 @@ const PRIVACY_PANES = {
 const appRoot = resolve(__dirname, "../../../..");
 const brandIcon = join(appRoot, "assets/branding/yolo-univ-icon.png");
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
+const agent = agentMode();
+const flow = agent ? agentFlow() : 'debug';
+const uiUrl = pathToFileURL(uiEntry);
+if (agent && flow === 'assist') uiUrl.searchParams.set('agentFlow', flow);
+const agentOutput = process.argv.find(a => a.startsWith('--agent-output='))?.slice('--agent-output='.length);
+if (agent) {
+  const profile = process.argv.find(a => a.startsWith('--agent-profile='))?.slice('--agent-profile='.length);
+  if (!profile || !agentOutput || !isAbsolute(profile)) throw new Error('Agent requires a dedicated profile and output directory');
+  const testProfile = assertAgentProfile(profile);
+  app.setPath('userData', testProfile);
+  app.setPath('sessionData', testProfile);
+}
+const nativeRequired = () => { throw Object.assign(new Error('NATIVE_REQUIRED'), { appError: { code: 'SCOPE_VIOLATION', message: 'NATIVE_REQUIRED: 이 단계는 실제 앱의 파일 선택·시스템 권한·외부 창에서 직접 확인해야 합니다. CLI로 건너뛰지 않습니다.', retryable: false } }); };
+const agentNativeChannels = new Set([
+  'attachments.chooseLocal', 'attachments.capture', 'files.chooseFolder', 'files.trash',
+  'materials.choose', 'media.chooseAudio', 'media.open', 'recording.start', 'learning.watch', 'learning.openQuiz',
+  'modify.chooseSource', 'modify.apply', 'modify.rollback', 'app.openSettings', 'submit.choose',
+  'assignment.showPdf', 'artifacts.open', 'chat.showOutput',
+]);
 let closing = false;
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...WINDOW_SIZE,
+    useContentSize: !!agent,
     show: false,
     title: "YOLO UNIV",
     icon: brandIcon,
-    webPreferences: { ...WEB_PREFERENCES, preload: join(__dirname, "../src/preload.cjs") },
+    webPreferences: { ...WEB_PREFERENCES, backgroundThrottling: !agent, preload: join(__dirname, "../src/preload.cjs") },
   });
   // The window only ever shows the bundled UI.
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://")) void shell.openExternal(url);
+    if (!agent && url.startsWith("https://")) void shell.openExternal(url);
     return { action: "deny" };
   });
-  window.once("ready-to-show", () => window.show());
-  void window.loadFile(uiEntry);
+  if (!agent) window.once("ready-to-show", () => window.show());
+  void window.loadURL(uiUrl.href);
   return window;
 }
 
@@ -101,7 +123,7 @@ function createWindow(): BrowserWindow {
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
 const diagnostic = process.argv.some((arg) => /^--(artifact-voice-smoke|ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check|assignment-submit)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
-  app.exit(0);
+  app.exit(agent ? 1 : 0);
 } else if (!diagnostic) {
   // Launching again brings the open window forward instead of starting a second copy.
   app.on("second-instance", () => {
@@ -109,6 +131,7 @@ if (!diagnostic && !app.requestSingleInstanceLock()) {
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) return;
     if (window.isMinimized()) window.restore();
+    if (agent) return;
     window.show();
     window.focus();
   });
@@ -116,6 +139,8 @@ if (!diagnostic && !app.requestSingleInstanceLock()) {
 
 app.whenReady().then(async () => {
   if (!diagnostic && !app.hasSingleInstanceLock()) return;
+  if (agent) app.dock?.hide();
+  if (agent === 'fixture') { await startFixtureAgent(uiEntry, agentOutput!, flow); return; }
   const probeOut = process.argv.find((arg) => arg.startsWith("--probe-out="))?.split("=")[1];
   if (probeOut !== undefined) {
     await runGuiCliProbe(probeOut, "/opt/homebrew/bin/claude", tmpdir());
@@ -187,6 +212,7 @@ app.whenReady().then(async () => {
     },
     // One login window at a time; the user signs in there and runs collection again.
     openLogin: () => {
+      if (agent) nativeRequired();
       if (loginWindow && !loginWindow.isDestroyed()) return void loginWindow.focus();
       loginWindow = openLoginWindow();
     },
@@ -669,9 +695,8 @@ app.whenReady().then(async () => {
   powerMonitor.on("suspend", () => void recordings.stopActive("sleep", "RECORDING_INTERRUPTED").catch(() => undefined));
   // The renderer may use the microphone (audio only) for recording; no camera, no screen.
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    if (permission !== "media") return callback(true);
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
-    callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
+    callback(allowsRendererPermission(webContents.getURL(), uiUrl.href, permission, types, !!agent));
   });
   const learning = new LearningStatusService({
     root: join(dataRoot, "learning-status"),
@@ -755,9 +780,12 @@ app.whenReady().then(async () => {
     // WBS-071: the preferred language, kept on this Mac.
     "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
-    if (!event.senderFrame?.url.startsWith("file://")) {
+    if (event.senderFrame?.url !== uiUrl.href) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };
     }
+    // A native boundary remains a boundary. Never inject chosen file paths or silently open OS UI.
+    const channel = (envelope as { channel?: unknown } | null)?.channel;
+    if (agent && typeof channel === 'string' && agentNativeChannels.has(channel)) return { ok: false, error: { code: 'SCOPE_VIOLATION', message: 'NATIVE_REQUIRED: 이 사용자 단계는 실제 앱에서 확인해야 합니다. CLI로 우회하지 않습니다.', retryable: false } };
     return router(envelope);
   });
   const filesSmokeDir = process.argv.find((arg) => arg.startsWith("--files-smoke="))?.split("=")[1];
@@ -779,6 +807,7 @@ app.whenReady().then(async () => {
     ]));
   }
   const window = createWindow();
+  if (agent) { await new Promise<void>((resolve, reject) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.once('did-fail-load', () => reject(new Error('UI_LOAD_FAILED'))); }); await attachAgent(window, agentOutput!, agent, flow); return; }
   const smokeDir = process.argv.find((arg) => arg.startsWith("--ui-smoke="))?.split("=")[1];
   if (smokeDir !== undefined) {
     await runUiSmoke(window, smokeDir);
@@ -789,6 +818,10 @@ app.whenReady().then(async () => {
     if (closing) return;
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch(error => {
+  if (!agent) throw error;
+  console.error('[agent] startup failed; no commands were replayed');
+  app.exit(1);
 });
 
 app.on("window-all-closed", () => {

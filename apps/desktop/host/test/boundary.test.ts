@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { IpcChannels } from "@learningxxx/contracts";
-import { isAllowedLoginUrl, LOGIN_WEB_PREFERENCES, WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
+import { allowsRendererPermission, isAllowedLoginUrl, LOGIN_WEB_PREFERENCES, WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -14,6 +14,17 @@ test("renderer isolation stays on", () => {
     nodeIntegrationInWorker: false,
     webviewTag: false,
   });
+});
+
+test('only bundled UI audio and sanitized clipboard permission can be granted', () => {
+  const ui = 'file:///app/ui/index.html';
+  assert.equal(allowsRendererPermission(ui, ui, 'media', ['audio']), true);
+  assert.equal(allowsRendererPermission(ui, ui, 'clipboard-sanitized-write', []), true);
+  for (const [url, permission, types, agent] of [
+    [ui, 'notifications', [], false], [ui, 'geolocation', [], false], [ui, 'media', [], false],
+    [ui, 'media', ['audio', 'video'], false], ['file:///other.html', 'media', ['audio'], false],
+    ['https://example.com', 'media', ['audio'], false], [ui, 'media', ['audio'], true],
+  ] as const) assert.equal(allowsRendererPermission(url, ui, permission, types, agent), false);
 });
 
 test("preload exposes exactly the contract channels", () => {

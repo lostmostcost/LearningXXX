@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CollectionManifest } from "@learningxxx/contracts";
@@ -109,11 +109,65 @@ describe("Submissions service", () => {
     const user = join(root, "erd.pdf"); await writeFile(user, "%PDF demo");
     const c = canvas(over);
     let clock = now;
-    const manifest = { course: { sourceCourseId: "1001" }, items: [{ resource: { id: RES, kind: "assignment", source: "lms", sourceId: "77", title: "10주차 ERD" }, assets: [] }] } as unknown as CollectionManifest;
+    let account = 'acct_abcdefgh';
+    const manifest = { course: { id: COURSE, accountKey: 'acct_abcdefgh', sourceCourseId: "1001" }, items: [{ resource: { id: RES, kind: "assignment", source: "lms", sourceId: "77", title: "10주차 ERD" }, assets: [] }] } as unknown as CollectionManifest;
     const autos: unknown[] = [];
-    const s = new Submissions({ root, accountKey: () => "acct_abcdefgh", manifest: async () => manifest, http: () => c.http, chooseFile: async () => user, now: () => clock, onAuto: (r) => autos.push(r) });
-    return { s, c, autos, setNow: (d: Date) => { clock = d; }, done: () => rm(root, { recursive: true, force: true }) };
+    const s = new Submissions({ root, accountKey: () => account, manifest: async () => manifest, http: () => c.http, chooseFile: async () => user, now: () => clock, onAuto: (r) => autos.push(r) });
+    return { s, c, autos, root, switchAccount: () => { account = 'acct_ijklmnop'; }, setNow: (d: Date) => { clock = d; }, done: () => rm(root, { recursive: true, force: true }) };
   }
+
+  it('refuses a prior account plan before a request or rule write', async () => {
+    for (const action of ['confirm', 'schedule'] as const) {
+      const t = await setup();
+      try {
+        const plan = await t.s.choose(COURSE, RES); const calls = t.c.state.calls.length;
+        t.switchAccount();
+        await assert.rejects(action === 'confirm' ? t.s.confirm(plan.planId!) : t.s.schedule(plan.planId!, 60), /계정이 바뀌었습니다/);
+        assert.equal(t.c.state.calls.length, calls); assert.deepEqual((await t.s.rules()).rules, []);
+      } finally { await t.done(); }
+    }
+  });
+
+  it('stops further upload requests when account changes during an in-flight read', async () => {
+    const t = await setup();
+    try {
+      const plan = await t.s.choose(COURSE, RES), request = t.c.http.request;
+      t.c.http.request = async (url, init) => { const r = await request(url, init); t.switchAccount(); return r; };
+      await assert.rejects(t.s.confirm(plan.planId!), /계정이 바뀌었습니다/);
+      assert.equal(t.c.state.uploads, 0); assert.equal(t.c.state.submits, 0);
+    } finally { await t.done(); }
+  });
+
+  it('serializes simultaneous timer ticks and keeps malformed rule files intact', async () => {
+    const t = await setup();
+    try {
+      const plan = await t.s.choose(COURSE, RES); await t.s.schedule(plan.planId!, 60);
+      t.setNow(new Date('2026-11-09T14:00:00Z'));
+      await Promise.all([t.s.tick(), t.s.tick()]); assert.equal(t.c.state.uploads, 1); assert.equal(t.c.state.submits, 1);
+      t.setNow(now);
+      const next = await t.s.choose(COURSE, RES), path = join(t.root, 'acct_abcdefgh', 'rules.json');
+      await writeFile(path, '{broken');
+      await assert.rejects(t.s.schedule(next.planId!, 60), /기존 파일을 보존/);
+      assert.equal(await readFile(path, 'utf8'), '{broken');
+    } finally { await t.done(); }
+  });
+
+  it('does not cancel or confirm a plan while registration owns the submission lock', async () => {
+    const t = await setup();
+    try {
+      const firstChoice = t.s.choose(COURSE, RES);
+      await assert.rejects(t.s.choose(COURSE, RES), /작업 중/);
+      const plan = await firstChoice;
+      const saving = t.s.schedule(plan.planId!, 60);
+      await assert.rejects(t.s.confirm(plan.planId!), /제출하는 중/);
+      const rule = await saving;
+      t.setNow(new Date('2026-11-09T14:00:00Z'));
+      const ticking = t.s.tick();
+      await assert.rejects(t.s.cancel(rule.ruleId), /작업 중/);
+      await ticking;
+      assert.equal(t.c.state.submits, 1);
+    } finally { await t.done(); }
+  });
 
   it("shows what will be sent, then submits only after confirmation", async () => {
     const t = await setup();

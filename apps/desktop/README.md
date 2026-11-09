@@ -1,4 +1,8 @@
-# Desktop app (WBS-011)
+# Desktop app
+
+현재 앱은 React UI, Electron host, LMS·채팅·자료·녹음·전사·산출물 기능을 포함합니다. 기능 현황은 루트 [README](../../README.md), 텍스트 기반 배경 검증은 [개발 안내](../../docs/DEVELOPMENT.md#ai의-텍스트-기반-앱-검증-wbs-109)를 먼저 읽으세요. 아래 WBS-011/034 설명은 당시 골격·LMS 진단 절차의 이력이며 현재 전체 기능 목록이 아닙니다.
+
+## WBS-011 초기 골격 기록
 
 Electron + React 골격입니다(ADR-002). `host/`는 main process이고 `ui/`는 renderer입니다.
 

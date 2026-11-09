@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Course, IpcResponse, LectureMention, MediaAsset, PreferredLanguage } from "@learningxxx/contracts";
 import { FIXTURE_MANIFEST, loadFixtureAsset } from "./fixtures.ts";
 import { invoke, onHostPush } from "./host-api.ts";
+import { onAssistNavigation, type AssistNavigation } from './assist-navigation.ts';
 import { EDGE_OPEN_DELAY_MS, edgeClosesAt, isNarrow, nextPanel, readToolsWidth, TOOLS_WIDTH_KEY, visiblePanels } from "./layout.ts";
 import type { NarrowView, Panel } from "./layout.ts";
 import { Dashboard, Icon, entriesOf } from "./StudyUI.tsx";
@@ -49,7 +50,7 @@ const IN_APP = window.host !== undefined;
 async function loadLocalLibrary(courseId?: string): Promise<{ courses: Course[]; library?: Library }> {
   const listed = await invoke("library.courses", {});
   const courses = listed.ok ? listed.data.courses : [];
-  const course = courses.find((c) => c.id === courseId) ?? courses[0];
+  const course = courseId ? courses.find((c) => c.id === courseId) : courses[0];
   if (!course) return { courses };
   const result = await invoke("library.manifest", { courseId: course.id });
   return result.ok && result.data.manifest ? { courses, library: buildLibrary(result.data.manifest) } : { courses };
@@ -94,6 +95,7 @@ export function App() {
   const [status, setStatus] = useState(FIXTURE_MODE ? "합성 데이터(fixture) 모드" : "확인 중");
   const [collecting, setCollecting] = useState(false);
   const [library, setLibrary] = useState<Library | undefined>(FIXTURE_MODE ? buildLibrary(FIXTURE_MANIFEST) : undefined);
+  const libraryRef = useRef(library); libraryRef.current = library;
   const [selected, setSelected] = useState<Entry>();
   /** A downloaded online lecture playing in the viewer instead of a document. */
   const [playing, setPlaying] = useState<MediaAsset>();
@@ -116,7 +118,7 @@ export function App() {
   const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setRightTab('transcripts');setView('chat');setTray(false);setTrayDismissed(true);};
   const { refresh: refreshMedia } = lectures;
   const recordingsChanged = useCallback(() => void refreshMedia(), [refreshMedia]);
-  const selectEntry=(entry:Entry)=>{setExplanationOpen(false);setPlaying(undefined);setKnowledgeOpen(false);setSection(s=>s==='info'?'book':s);setSelected(entry);const index=library?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
+  const selectEntry=(entry:Entry, sourceLibrary=library)=>{setExplanationOpen(false);setPlaying(undefined);setKnowledgeOpen(false);setSection(s=>s==='info'?'book':s);setSelected(entry);const index=sourceLibrary?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
   const now = new Date();
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
@@ -208,7 +210,7 @@ export function App() {
   }, [library, selected, weekIndex, knowledgeOpen, shownPage, section, explanationOpen]);
   // WBS-088: after the library is read again (e.g. a file moved week), keep showing the same material.
   useEffect(() => {
-    setSelected((current) => current && library ? [...library.notices, ...library.weeks.flatMap((w) => w.entries), ...library.other].find((e) => e.resource.id === current.resource.id) ?? current : current);
+    setSelected((current) => current && library ? [...library.notices, ...library.weeks.flatMap((w) => w.entries), ...library.other].find((e) => e.resource.id === current.resource.id) : undefined);
   }, [library]);
   const panels = visiblePanels(narrow, view);
   const weekList = useMemo(() => library?.weeks.map((w) => w.week) ?? [], [library]);
@@ -232,16 +234,19 @@ export function App() {
     if (courseId) void chooseCourse(courseId);
   };
   const chooseCourse = useCallback(async (courseId: string) => {
-    if(courseRef.current===courseId)return;
+    if(courseRef.current===courseId)return libraryRef.current;
     setLibrary(undefined);
     const epoch=++courseEpoch.current;
     courseRef.current = courseId;
     setSelectionRequest(undefined);setShownPage(undefined);setLocation(undefined);snapshot.current=undefined;setWeekIndex(0);setMediaAssetId(undefined);
     setSelected(undefined);
+    setPlaying(undefined);
+    setKnowledgeOpen(false);
     setExplanationOpen(false);
     setActiveSessionId(undefined);
     const next=FIXTURE_MODE?buildLibrary(FIXTURE_MANIFEST):(await loadLocalLibrary(courseId)).library;
-    if(epoch===courseEpoch.current)setLibrary(next);
+    if(epoch===courseEpoch.current){setLibrary(next);return next;}
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -337,6 +342,28 @@ export function App() {
       </section>
     );
   const openExplanation = () => { if (!library?.weeks[weekIndex]) return; setExplanationOpen(true); setKnowledgeOpen(false); setPlaying(undefined); setView('materials'); setTray(false); setTrayDismissed(true); };
+  const navigateSection = (id: string) => {
+    setHome(id === 'home'); setExplanationOpen(false);
+    if (id !== 'home') { setSection(id === 'mic' ? 'book' : id); if (id === 'mic') { setRightTab('recording'); setView('chat'); } }
+  };
+  const assistHandler = useRef<(request: AssistNavigation) => Promise<unknown>>(undefined);
+  assistHandler.current = async request => {
+    if (request.op === 'catalog') return {
+      courses: courses.map(c => ({ id: c.id, title: c.title })), currentCourseId: library?.course.id,
+      resources: library ? entriesOf(library).map(e => ({ id: e.resource.id, title: e.resource.title, kind: e.resource.kind, weekId: e.resource.weekId })) : [],
+    };
+    if (request.section === 'home') { navigateSection('home'); return { destination: 'home' }; }
+    if (request.courseId && !courses.some(c => c.id === request.courseId)) throw new Error('UNKNOWN_COURSE');
+    const next = request.courseId ? await chooseCourse(request.courseId) : libraryRef.current;
+    if (!next || request.courseId && (courseRef.current !== request.courseId || next.course.id !== request.courseId)) throw new Error('COURSE_UNAVAILABLE');
+    const entry = request.resourceId ? entriesOf(next).find(e => e.resource.id === request.resourceId) : undefined;
+    if (request.resourceId && !entry) throw new Error('RESOURCE_UNAVAILABLE');
+    navigateSection(request.section ?? 'book'); setEdge(false); setTray(false); setTrayDismissed(true);
+    if (entry) { selectEntry(entry, next); setView('materials'); }
+    if (request.tab) { setRightTab(request.tab); setView('chat'); }
+    return { courseId: next.course.id, ...(entry ? { resourceId: entry.resource.id } : {}), ...(request.tab ? { tab: request.tab } : {}) };
+  };
+  useEffect(() => onAssistNavigation(request => assistHandler.current!(request)), []);
   const materialViewer = <Viewer entry={selected} lms={selected?.resource.source==='manual'&&library ? <ManualControls key={selected.resource.id} courseId={library.course.id} resourceId={selected.resource.id} weeks={weekList} weekId={selected.resource.weekId} onDone={(removed)=>{if(removed)setSelected(undefined);void refresh();}}/> : selectedItem ? <><Badges item={selectedItem}/>{selectedItem.moduleItemId ? <ViewRecordNote view={learning.views[selectedItem.moduleItemId]} onRetry={()=>void recordView(selectedItem.moduleItemId!, true)}/> : null}</> : undefined} {...(library ? { loadAsset } : {})} translator={translator} open={openPdfInBrowser} now={now} onSelectionAction={selectAction} location={location} onPage={onPage} onSnapshot={onSnapshot}
     empty={library ? <WeekTasks library={library} status={learning.status} weekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} onSelect={selectEntry} onOpenQuiz={(item) => void openQuiz(item)} /> : undefined} />;
 
@@ -345,7 +372,7 @@ export function App() {
       {/* WBS-104: the course list opens from a half-round tab in the middle of the left edge (the rail no longer has a course button). */}
       {pinned||edge?null:<button className="edge-tab" title="과목 선택" aria-label="과목 선택 열기" aria-expanded={false} onClick={()=>{clearTimeout(edgeTimer.current);setEdge(true);setTimeout(()=>document.querySelector<HTMLButtonElement>('.course-drawer .entry')?.focus({preventScroll:true}),200);}}><Icon name="chevron"/></button>}
       {pinned?null:<div className="edge-zone" aria-hidden="true" onMouseEnter={()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>setEdge(true),EDGE_OPEN_DELAY_MS);}} onMouseLeave={()=>{if(!edge)clearTimeout(edgeTimer.current);}}/>}
-      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['info','강의 정보'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>{setHome(id==='home');setExplanationOpen(false);if(id!=='home'){setSection(id==='mic'?'book':id!);if(id==='mic'){setRightTab('recording');setView('chat');}}}}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}</nav>
+      <nav className="icon-rail" aria-label="목적별 탐색">{[['home','대시보드'],['book','강의 자료'],['info','강의 정보'],['tasks','과제'],['notice','공지'],['mic','녹음']].map(([id,label])=><button key={id} title={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-label={id==='mic'&&recState!=='idle'?`${label} · ${recState==='paused'?'일시정지 중':'녹음 중'}`:label} aria-pressed={id==='home'?home:id==='mic'?!home&&rightTab==='recording':!home&&section===id} onClick={()=>navigateSection(id!)}><Icon name={id!}/>{id==='mic'?recLight:null}</button>)}</nav>
       <aside className="course-drawer" aria-label="과목 선택"><div className="drawer-heading"><strong>내 과목</strong><button title="과목 목록 고정" aria-label="과목 목록 고정" aria-pressed={pinned} onClick={()=>{setPinned(x=>!x);setEdge(false);}}><Icon name="pin"/></button></div>{courses.map(c=><button className="entry" aria-pressed={library?.course.id===c.id} key={c.id} onClick={()=>{void chooseCourse(c.id);setHome(false);setEdge(false);}}><Icon name="book"/>{c.title}</button>)}</aside>
       <header className="topbar">
         <strong className="wordmark"><button type="button" className="brand-home" title="홈으로" aria-label="YOLO UNIV 홈으로" onClick={()=>{setHome(true);setEdge(false);}}><img className="brand-logo" src={brandLogo} alt=""/></button>{/* Owner 2026-11-09: until the next release, the full development label stays beside the logo (WBS-098 had cut it to "개발"). */}

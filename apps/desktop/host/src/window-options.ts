@@ -19,3 +19,9 @@ export const LOGIN_WEB_PREFERENCES = {
 
 /** School single sign-on may cross hosts, but never leaves encrypted transport. */
 export const isAllowedLoginUrl = (url: string): boolean => url.startsWith("https://");
+
+/** Only this bundled page gets audio and sanitized clipboard writes; deny unknown permissions. */
+export function allowsRendererPermission(url: string, uiUrl: string, permission: string, mediaTypes: readonly string[], agent = false): boolean {
+  if (agent || url !== uiUrl) return false;
+  return permission === 'clipboard-sanitized-write' || permission === 'media' && mediaTypes.length > 0 && mediaTypes.every(t => t === 'audio');
+}

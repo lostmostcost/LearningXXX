@@ -29,7 +29,7 @@ const Rule = z.object({
 });
 type Rule = z.infer<typeof Rule>;
 
-interface Plan { id: string; courseId: string; resourceId: string; title: string; sourceCourseId: string; assignmentId: string; fileName: string; contentType: string; bytes: Uint8Array; check: AssignmentCheck }
+interface Plan { id: string; accountKey: string; courseId: string; resourceId: string; title: string; sourceCourseId: string; assignmentId: string; fileName: string; contentType: string; bytes: Uint8Array; check: AssignmentCheck }
 
 export interface SubmissionOptions {
   root: string;
@@ -50,18 +50,44 @@ export class Submissions {
   constructor(options: SubmissionOptions) { this.#o = options; }
 
   #now(): Date { return this.#o.now?.() ?? new Date(); }
+  async #exclusive<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#busy) fail('RUN_ALREADY_ACTIVE', '제출 작업 중입니다. 현재 작업이 끝난 뒤 다시 시도하세요.');
+    this.#busy = true;
+    try { return await work(); } finally { this.#busy = false; }
+  }
   #dir(): { key: string; dir: string } {
     const key = this.#o.accountKey();
     if (!key) fail("AUTH_REQUIRED", "학교 자료를 먼저 수집해 계정을 확인하세요.");
     return { key, dir: join(this.#o.root, AccountKey.parse(key)) };
   }
-  async #rules(dir: string): Promise<Rule[]> {
-    try { return z.array(Rule).parse(JSON.parse(await readFile(join(dir, "rules.json"), "utf8"))); } catch { return []; }
+  #assertAccount(key: string): void {
+    if (this.#o.accountKey() === key) return;
+    if (this.#plan?.accountKey === key) this.#plan = undefined;
+    fail('SCOPE_VIOLATION', '계정이 바뀌었습니다. 현재 계정에서 과제와 파일을 다시 확인하세요.');
   }
-  #update(change: (rules: Rule[]) => Rule[] | Promise<Rule[]>): Promise<Rule[]> {
+  #http(key: string): CanvasHttp {
+    this.#assertAccount(key);
+    const http = this.#o.http();
+    return { request: async (url, init) => {
+      this.#assertAccount(key);
+      const response = await http.request(url, init);
+      this.#assertAccount(key);
+      return response;
+    } };
+  }
+  async #rules(dir: string): Promise<Rule[]> {
+    try { return z.array(Rule).parse(JSON.parse(await readFile(join(dir, "rules.json"), "utf8"))); }
+    catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return [];
+      fail('INVALID_REQUEST', '자동 제출 규칙을 읽지 못했습니다. 기존 파일을 보존했습니다. 복구 후 다시 시도하세요.');
+    }
+  }
+  #update(key: string, change: (rules: Rule[]) => Rule[] | Promise<Rule[]>): Promise<Rule[]> {
     const work = this.#writes.catch(() => undefined).then(async () => {
+      this.#assertAccount(key);
       const { dir } = this.#dir();
       const next = await change(await this.#rules(dir));
+      this.#assertAccount(key);
       await mkdir(dir, { recursive: true });
       const temp = join(dir, `rules.json.${process.pid}.tmp`);
       await writeFile(temp, JSON.stringify(next), { mode: 0o600 });
@@ -73,19 +99,23 @@ export class Submissions {
   }
 
   /** The collected assignment behind a resource, with its LMS numbers. */
-  async #target(courseId: string, resourceId: string) {
+  async #target(courseId: string, resourceId: string, key: string) {
     const manifest = await this.#o.manifest(courseId) ?? fail("NOT_FOUND", "이 과목의 수집 자료가 없습니다.");
+    this.#assertAccount(key);
+    if (manifest.course.id !== courseId || manifest.course.accountKey !== key) fail('SCOPE_VIOLATION', '현재 계정의 과목 자료를 다시 수집하세요.');
     const item = manifest.items.find((i) => i.resource.id === resourceId && i.resource.kind === "assignment" && i.resource.source === "lms") ?? fail("NOT_FOUND", "LMS 과제를 찾지 못했습니다.");
     return { title: item.resource.title, sourceCourseId: manifest.course.sourceCourseId, assignmentId: item.resource.sourceId };
   }
 
   /** Picks the file and reads the assignment; nothing is sent. */
   async choose(courseId: string, resourceId: string): Promise<IpcResponse<"submit.choose">> {
-    if (this.#busy) fail("RUN_ALREADY_ACTIVE", "제출하는 중입니다.");
-    this.#dir();
-    await this.#target(courseId, resourceId);
-    const path = await this.#o.chooseFile();
-    return path ? this.prepare(courseId, resourceId, path) : {};
+    return this.#exclusive(async () => {
+      const { key } = this.#dir();
+      await this.#target(courseId, resourceId, key);
+      const path = await this.#o.chooseFile();
+      this.#assertAccount(key);
+      return path ? this.#prepare(courseId, resourceId, path) : {};
+    });
   }
 
   /**
@@ -94,17 +124,21 @@ export class Submissions {
    * sees it now. Nothing is sent; the plan waits for a confirmation.
    */
   async prepare(courseId: string, resourceId: string, path: string, trace?: SubmitTrace): Promise<IpcResponse<"submit.choose">> {
-    if (this.#busy) fail("RUN_ALREADY_ACTIVE", "제출하는 중입니다.");
-    this.#dir();
-    const target = await this.#target(courseId, resourceId);
+    return this.#exclusive(() => this.#prepare(courseId, resourceId, path, trace));
+  }
+
+  async #prepare(courseId: string, resourceId: string, path: string, trace?: SubmitTrace): Promise<IpcResponse<"submit.choose">> {
+    const { key } = this.#dir();
+    const target = await this.#target(courseId, resourceId, key);
     const stat = await lstat(path).catch(() => undefined);
     const fileName = basename(path).normalize("NFC").slice(0, 200), ext = extensionOf(fileName);
     if (!stat?.isFile()) fail("INVALID_REQUEST", "일반 파일을 골라 주세요.");
     if (stat.size === 0 || stat.size > MAX_BYTES) fail("INVALID_REQUEST", "비어 있거나 500MB보다 큰 파일은 제출할 수 없습니다.");
-    const check = await readAssignment(this.#o.http(), target.sourceCourseId, target.assignmentId, trace);
+    const check = await readAssignment(this.#http(key), target.sourceCourseId, target.assignmentId, trace);
     const bytes = new Uint8Array(await readFile(path));
+    this.#assertAccount(key);
     if (bytes.byteLength !== stat.size) fail("INVALID_REQUEST", "파일을 읽는 사이에 바뀌었습니다. 다시 골라 주세요.");
-    this.#plan = { id: randomUUID(), courseId, resourceId, ...target, fileName, contentType: TYPES[ext] ?? "application/octet-stream", bytes, check };
+    this.#plan = { id: randomUUID(), accountKey: key, courseId, resourceId, ...target, fileName, contentType: TYPES[ext] ?? "application/octet-stream", bytes, check };
     const problem = cannotSubmit(check, fileName, this.#now());
     const late = lateNote(check, this.#now());
     return {
@@ -118,6 +152,7 @@ export class Submissions {
   #take(planId: string): Plan {
     const plan = this.#plan;
     if (!plan || plan.id !== planId) fail("NOT_FOUND", "파일을 다시 골라 주세요.");
+    this.#assertAccount(plan.accountKey);
     return plan;
   }
 
@@ -127,9 +162,7 @@ export class Submissions {
     if (this.#busy) fail("RUN_ALREADY_ACTIVE", "제출하는 중입니다.");
     this.#busy = true;
     try {
-      const key = this.#dir().key;
-      const result = await submitFile(this.#o.http(), { courseId: plan.sourceCourseId, assignmentId: plan.assignmentId, file: { name: plan.fileName, bytes: plan.bytes, contentType: plan.contentType }, before: plan.check, now: this.#now(), ...(trace ? { trace } : {}) });
-      if (this.#o.accountKey() !== key) fail("SCOPE_VIOLATION", "계정이 바뀌었습니다.");
+      const result = await submitFile(this.#http(plan.accountKey), { courseId: plan.sourceCourseId, assignmentId: plan.assignmentId, file: { name: plan.fileName, bytes: plan.bytes, contentType: plan.contentType }, before: plan.check, now: this.#now(), ...(trace ? { trace } : {}) });
       this.#plan = undefined;
       return result;
     } finally { this.#busy = false; }
@@ -137,20 +170,22 @@ export class Submissions {
 
   /** Confirmed by the student: submits this file `minutesBefore` the deadline if still not submitted then. */
   async schedule(planId: string, minutesBefore: number): Promise<IpcResponse<"submit.schedule">> {
-    const plan = this.#take(planId);
-    const due = plan.check.dueAt ?? fail("INVALID_REQUEST", "마감이 없는 과제는 자동 제출을 걸 수 없습니다.");
-    const at = new Date(Date.parse(due) - minutesBefore * 60_000);
-    if (at.getTime() <= this.#now().getTime()) fail("INVALID_REQUEST", "자동 제출 시각이 이미 지났습니다. 지금 제출하세요.");
-    const problem = cannotSubmit({ ...plan.check, unlockAt: null }, plan.fileName, at);
-    if (problem && !/아직 제출 기간/.test(problem)) fail("INVALID_REQUEST", problem);
-    const { dir } = this.#dir();
-    const id = randomUUID(), ext = extensionOf(plan.fileName).replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
-    await mkdir(join(dir, "files"), { recursive: true });
-    await writeFile(join(dir, "files", `${id}.${ext}`), plan.bytes, { mode: 0o600 });
-    const rule: Rule = { id, courseId: plan.courseId, resourceId: plan.resourceId, title: plan.title, fileName: plan.fileName, contentType: plan.contentType, stored: `${id}.${ext}`, sourceCourseId: plan.sourceCourseId, assignmentId: plan.assignmentId, at: at.toISOString().replace(/\.\d{3}Z$/, "Z"), beforeAttempt: plan.check.submission.attempt ?? 0, state: "waiting" };
-    await this.#update((rules) => [...rules.filter((r) => !(r.resourceId === plan.resourceId && r.state === "waiting")), rule]);
-    this.#plan = undefined;
-    return { ruleId: id, at: rule.at };
+    return this.#exclusive(async () => {
+      const plan = this.#take(planId);
+      const due = plan.check.dueAt ?? fail("INVALID_REQUEST", "마감이 없는 과제는 자동 제출을 걸 수 없습니다.");
+      const at = new Date(Date.parse(due) - minutesBefore * 60_000);
+      if (at.getTime() <= this.#now().getTime()) fail("INVALID_REQUEST", "자동 제출 시각이 이미 지났습니다. 지금 제출하세요.");
+      const problem = cannotSubmit({ ...plan.check, unlockAt: null }, plan.fileName, at);
+      if (problem && !/아직 제출 기간/.test(problem)) fail("INVALID_REQUEST", problem);
+      const { dir } = this.#dir();
+      const id = randomUUID(), ext = extensionOf(plan.fileName).replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+      await mkdir(join(dir, "files"), { recursive: true });
+      await writeFile(join(dir, "files", `${id}.${ext}`), plan.bytes, { mode: 0o600 });
+      const rule: Rule = { id, courseId: plan.courseId, resourceId: plan.resourceId, title: plan.title, fileName: plan.fileName, contentType: plan.contentType, stored: `${id}.${ext}`, sourceCourseId: plan.sourceCourseId, assignmentId: plan.assignmentId, at: at.toISOString().replace(/\.\d{3}Z$/, "Z"), beforeAttempt: plan.check.submission.attempt ?? 0, state: "waiting" };
+      await this.#update(plan.accountKey, (rules) => [...rules.filter((r) => !(r.resourceId === plan.resourceId && r.state === "waiting")), rule]);
+      this.#plan = undefined;
+      return { ruleId: id, at: rule.at };
+    });
   }
 
   async rules(): Promise<IpcResponse<"submit.rules">> {
@@ -160,48 +195,52 @@ export class Submissions {
   }
 
   async cancel(ruleId: string): Promise<IpcResponse<"submit.cancelRule">> {
-    const { dir } = this.#dir();
-    let stored: string | undefined;
-    await this.#update((rules) => rules.map((r) => {
-      if (r.id !== ruleId || r.state !== "waiting") return r;
-      stored = r.stored;
-      return { ...r, state: "cancelled" as const, finishedAt: this.#now().toISOString() };
-    }));
-    if (!stored) fail("NOT_FOUND", "기다리는 자동 제출이 없습니다.");
-    await rm(join(dir, "files", stored), { force: true });
-    return {};
+    return this.#exclusive(async () => {
+      const { key, dir } = this.#dir();
+      let stored: string | undefined;
+      await this.#update(key, (rules) => rules.map((r) => {
+        if (r.id !== ruleId || r.state !== "waiting") return r;
+        stored = r.stored;
+        return { ...r, state: "cancelled" as const, finishedAt: this.#now().toISOString() };
+      }));
+      if (!stored) fail("NOT_FOUND", "기다리는 자동 제출이 없습니다.");
+      await rm(join(dir, "files", stored), { force: true });
+      return {};
+    });
   }
 
   /** Checked every minute: rules whose time came are submitted, unless the student already submitted. */
   async tick(): Promise<void> {
     if (this.#busy) return;
-    let dir: string;
-    try { dir = this.#dir().dir; } catch { return; }
-    const now = this.#now();
-    // "submitting" too: a run cut off by a quit is finished now (the attempt check prevents a second submission).
-    for (const rule of (await this.#rules(dir)).filter((r) => (r.state === "waiting" || r.state === "submitting") && Date.parse(r.at) <= now.getTime())) {
-      this.#busy = true;
-      let state: Rule["state"] = "failed", message: string | undefined;
-      try {
-        await this.#update((rules) => rules.map((r) => (r.id === rule.id ? { ...r, state: "submitting" as const } : r)));
-        const http = this.#o.http();
-        const check = await readAssignment(http, rule.sourceCourseId, rule.assignmentId);
-        if ((check.submission.attempt ?? 0) > rule.beforeAttempt) { state = "already"; message = "그 사이에 직접 제출해 자동 제출은 하지 않았습니다."; }
-        // The rule was "before the deadline"; an app that was off until after it does not hand in late on its own.
-        else if (check.dueAt && Date.parse(check.dueAt) <= now.getTime()) { message = "앱이 꺼져 있어 마감 전에 제출하지 못했습니다. 지각 제출은 직접 하세요."; }
-        else {
-          const bytes = new Uint8Array(await readFile(join(dir, "files", rule.stored)));
-          await submitFile(http, { courseId: rule.sourceCourseId, assignmentId: rule.assignmentId, file: { name: rule.fileName, bytes, contentType: rule.contentType }, before: { ...check, submission: { ...check.submission, attempt: rule.beforeAttempt } }, now });
-          state = "done";
+    let dir: string, key: string;
+    try { ({ dir, key } = this.#dir()); } catch { return; }
+    this.#busy = true;
+    try {
+      const now = this.#now();
+      // "submitting" too: a run cut off by a quit is finished now (the attempt check prevents a second submission).
+      for (const rule of (await this.#rules(dir)).filter((r) => (r.state === "waiting" || r.state === "submitting") && Date.parse(r.at) <= now.getTime())) {
+        this.#assertAccount(key);
+        let state: Rule["state"] = "failed", message: string | undefined;
+        try {
+          await this.#update(key, (rules) => rules.map((r) => (r.id === rule.id ? { ...r, state: "submitting" as const } : r)));
+          const http = this.#http(key);
+          const check = await readAssignment(http, rule.sourceCourseId, rule.assignmentId);
+          if ((check.submission.attempt ?? 0) > rule.beforeAttempt) { state = "already"; message = "그 사이에 직접 제출해 자동 제출은 하지 않았습니다."; }
+          // The rule was "before the deadline"; an app that was off until after it does not hand in late on its own.
+          else if (check.dueAt && Date.parse(check.dueAt) <= now.getTime()) { message = "앱이 꺼져 있어 마감 전에 제출하지 못했습니다. 지각 제출은 직접 하세요."; }
+          else {
+            const bytes = new Uint8Array(await readFile(join(dir, "files", rule.stored)));
+            await submitFile(http, { courseId: rule.sourceCourseId, assignmentId: rule.assignmentId, file: { name: rule.fileName, bytes, contentType: rule.contentType }, before: { ...check, submission: { ...check.submission, attempt: rule.beforeAttempt } }, now });
+            state = "done";
+          }
+        } catch (error) {
+          message = (error as { appError?: { message: string } }).appError?.message ?? "자동 제출에 실패했습니다. LMS에서 확인하세요.";
+        } finally {
+          await this.#update(key, (rules) => rules.map((r) => (r.id === rule.id ? { ...r, state, ...(message ? { message } : {}), finishedAt: new Date().toISOString() } : r))).catch(() => undefined);
+          if (state !== "failed") await rm(join(dir, "files", rule.stored), { force: true }).catch(() => undefined);
+          if (this.#o.accountKey() === key) this.#o.onAuto?.({ courseId: rule.courseId, title: rule.title, ok: state !== "failed", ...(message ? { message } : {}) });
         }
-      } catch (error) {
-        message = (error as { appError?: { message: string } }).appError?.message ?? "자동 제출에 실패했습니다. LMS에서 확인하세요.";
-      } finally {
-        this.#busy = false;
-        await this.#update((rules) => rules.map((r) => (r.id === rule.id ? { ...r, state, ...(message ? { message } : {}), finishedAt: new Date().toISOString() } : r))).catch(() => undefined);
-        if (state !== "failed") await rm(join(dir, "files", rule.stored), { force: true }).catch(() => undefined);
-        this.#o.onAuto?.({ courseId: rule.courseId, title: rule.title, ok: state !== "failed", ...(message ? { message } : {}) });
       }
-    }
+    } finally { this.#busy = false; }
   }
 }

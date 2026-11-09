@@ -10,4 +10,6 @@ export function commandItems(commands: { name: string; description: string; argu
   return [...core, ...clean.filter(c => !core.some(v => v.name === c.name || v.vendorName === c.name)).map(c => ({ name: c.name, label: c.argumentHint, description: c.description, action: 'sdk', vendorName: c.name, available: true }))];
 }
 export const MODE_LABEL: Record<string, string> = { default: '일반', plan: '계획', acceptEdits: '편집 자동 승인', auto: '자동 판단' };
+/** The model in use: the chosen one, or Claude Code's "default" entry before anything is chosen or reported (WBS-108). */
+export function currentChatModel<M extends { value: string; resolvedModel?: string | undefined }>(state: { model: string; models: M[] } | undefined) { return !state ? undefined : state.model ? state.models.find(m => m.value === state.model || m.resolvedModel === state.model) : state.models.find(m => m.value === 'default'); }
 export function chatMarkdown(messages: { role: string; text: string }[]) { return messages.map(m => `## ${m.role === 'user' ? '나' : m.role === 'assistant' ? 'Claude' : '안내'}\n\n${m.text}`).join('\n\n'); }

@@ -32,7 +32,7 @@ export function installFakeHost(courseTitle: string): void {
   type Chat = IpcResponse<'chat.state'>;
   const chats = new Map<string, Chat>();
   const chatTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const freshChat = (): Chat => ({ messages: [], busy: false, connected: true, error: '', model: 'sonnet', effort: 'default', mode: 'default', models: [
+  const freshChat = (): Chat => ({ messages: [], busy: false, connected: true, error: '', model: 'sonnet', effort: 'default', mode: 'auto', models: [
     { value: 'sonnet', displayName: 'Sonnet · 합성', supportedEffortLevels: ['low', 'medium', 'high'], supportsAutoMode: true },
     { value: 'haiku', displayName: 'Haiku · 합성' },
   ], commands: [{ name: 'compact', description: '대화 문맥 압축', argumentHint: '' }, { name: 'code-review', description: '변경 사항 검토', argumentHint: '' }, { name: 'init', description: 'CLAUDE.md 작성', argumentHint: '' }], permissions: [], totalCost: 0, tokens: 0, sessionId: crypto.randomUUID() });

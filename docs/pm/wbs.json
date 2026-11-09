@@ -3194,6 +3194,38 @@
         "Real app (test-app.sh, env -i, app was not recording; UI clicks over CDP, LMS only read): all six courses show the tab with grading totals 100% and 10주 marked 이번 주 (논리회로 4 items/15 weeks, 데이터베이스 5/16, 외식메뉴 6/15 + docx tab with 5 facts and 점 grading, 웨스턴퀴진 5/16 + docx tab, 취업·창업특강 two school pages, Hospitality 5/16); 원본 보기 shows 10 tables, no scripts/buttons; 원본 파일 열기 switches to 강의 자료 with the file selected. Limits: contact/email hidden by the school without sign-in; syllabus is read on first tab open and on 다시 받기, not during collection.",
         "2026-11-09 owner follow-up (timetable): syllabus-parse.syllabusMeetings reads only explicit day + start–end times from a 강의시간/수업시간 field (room after the time, else a 강의실 field; '요일' is not Sunday; two instructors of one class deduped; 온라인/교시 give none). SyllabusService.meetings(courseId, readIfUnread) reads a never-read syllabus once; Timetable.get looks courses up in parallel, order manual > syllabus > course.md, re-checks the account; contract source enum gains 'syllabus'; panel labels '강의계획서에서 찾음' and '자동 값으로'. Review fix: 월요일 counted as 월+일. Checks: pnpm -r run check exit 0 (host 281, ui 140, contracts 58 …). Real app (test-app.sh, app not recording, my own syllabus copies from today set aside to reproduce a first load, then restored): dashboard timetable read the two non-manual courses' syllabi by itself — 논리회로 '강의계획서에서 찾음 · 월 18:00, 수 18:00' (전220), 데이터베이스 stays '시간 없음' (syllabus says 온라인); the owner's four entered courses stayed '직접 입력' and were not fetched."
       ]
+    },
+    {
+      "id": "WBS-108",
+      "title": "채팅: 새 대화의 기본 실행 모드를 '자동 판단'으로",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-051"
+      ],
+      "areas": [
+        "desktop-host",
+        "ui",
+        "pm"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "이어 갈 Claude Code 세션도 저장된 메시지도 없는 새 채팅 대화는, 현재 모델(아직 고르지 않았으면 Claude Code의 'default' 항목)이 auto 모드를 지원할 때 공식 setPermissionMode('auto')로 '자동 판단' 모드에서 시작한다. 재개된 대화와 지원하지 않는 모델은 '일반'. 사용자는 대화 설정에서 언제든 바꿀 수 있고, Claude Code가 묻는 권한 요청은 앱이 대신 승인하지 않고 사용자에게 그대로 보인다(CR-050).",
+      "status": "Review",
+      "branch": "feat/WBS-108-chat-auto-mode",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd811790aaf603f1c6aa3c?pvs=204",
+      "scope_note": "이문찬 요청(2026-11-09, 상위 세션 경유): \"채팅에서 기본 모드를 자동 판단 모드로 해줘\". '자동 판단'은 WBS-051부터 있던 Claude Code auto 권한 모드의 앱 표시 이름. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 Found: the host always started chats with permissionMode 'default' and the mode is not persisted; the UI hid the auto option until a model was reported (state.model '' for new chats). Probe of the installed CLI (2.1.319, env -i, no prompt sent): models list has a 'default' entry with supportsAutoMode true. Change: conversation-service modelInfo() (chosen model, else the 'default' entry); after initialization a new conversation (no resume, no messages, mode default) whose model supports auto calls q.setPermissionMode('auto'), failure keeps default; effort/auto validation use the same lookup. UI currentChatModel() mirrors it; environment line explains auto mode; fake host starts in auto.",
+        "Self-review: canUseTool path untouched — the app still never answers permission requests itself (test asserts a Bash request waits for the user and is denied by the user's answer); resumed sessions are not switched (test); unsupported model stays default (test). Fixed during review: generic type of currentChatModel under exactOptionalPropertyTypes. Checks: pnpm -r run check exit 0 (contracts 58, transcriber 25, collector 88, ui 141, cli-adapter 50, app-modifier 28, host 284).",
+        "Real app (test-app.sh, env -i; previous app had no recording in progress, stopped then relaunched; build label WBS-108): in 논리회로 02분반 강의 자료 → 채팅 → 대화 시작, the new conversation (새 대화 4) showed 대화 설정 '자동 판단', model 'Default (recommended)', and the line '일반 환경 · 자동 판단: …'. No message was sent; CDP used only to read. Limit: the empty conversation 새 대화 4 remains in the app."
+      ]
     }
   ],
   "qaPolicy": {

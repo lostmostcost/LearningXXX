@@ -45,6 +45,8 @@ const sdkSessions = async (): Promise<SessionStoreAccess> => {
   };
 };
 const UUID = /^[0-9a-f-]{36}$/i;
+/** The model in use: the chosen one, or Claude Code's "default" entry before anything is chosen or reported. */
+const modelInfo = (state: Pick<ChatState, 'model' | 'models'>) => state.model ? state.models.find(m => m.value === state.model || m.resolvedModel === state.model) : state.models.find(m => m.value === 'default');
 const sameDir = (a: string, b: string) => { try { return realpathSync(a) === realpathSync(b); } catch { return a === b; } };
 const fail: (message: string) => never = (message) => { throw Object.assign(new Error(message), { appError: { code: 'INVALID_REQUEST', message, retryable: false } }); };
 export class ConversationService {
@@ -136,6 +138,12 @@ export class ConversationService {
     try {
       const initialized = await q.initializationResult();
       state.connected = true; state.models = initialized.models; state.commands = initialized.commands;
+      // WBS-108: a brand-new conversation starts in Claude Code's own auto mode ("자동 판단") when the
+      // model supports it. Resumed conversations keep the engine's default. Approvals Claude Code still
+      // asks for keep going through canUseTool to the user; the app never answers them itself.
+      if (!resume && !state.messages.length && state.mode === 'default' && modelInfo(state)?.supportsAutoMode) {
+        try { await q.setPermissionMode('auto'); state.mode = 'auto'; } catch { /* stays in the default mode */ }
+      }
       return this.state(id);
     } catch { await this.#closeEntry(id); fail('Claude Code 채팅 연결을 시작하지 못했습니다. 구독 로그인과 CLI 버전을 확인하세요.'); }
   }
@@ -241,13 +249,13 @@ export class ConversationService {
         await e.q.applyFlagSettings({ model: model.value, effortLevel: null }); e.state.model = model.value; e.state.effort = 'default';
       }
       if (change.effort !== undefined) {
-        const model = e.state.models.find(m => m.value === e.state.model || m.resolvedModel === e.state.model);
+        const model = modelInfo(e.state);
         if (change.effort !== 'default' && !model?.supportedEffortLevels?.includes(change.effort)) fail('이 모델에서 지원하지 않는 추론 강도입니다.');
         await e.q.applyFlagSettings({ effortLevel: change.effort === 'default' ? null : change.effort as 'low' }); e.state.effort = change.effort;
       }
       if (change.mode !== undefined) {
         if (!['default', 'plan', 'acceptEdits', 'auto'].includes(change.mode)) fail('지원하지 않는 실행 모드입니다.');
-        if (change.mode === 'auto' && !e.state.models.find(m => m.value === e.state.model || m.resolvedModel === e.state.model)?.supportsAutoMode) fail('이 모델은 자동 모드를 지원하지 않습니다.');
+        if (change.mode === 'auto' && !modelInfo(e.state)?.supportsAutoMode) fail('이 모델은 자동 모드를 지원하지 않습니다.');
         await e.q.setPermissionMode(change.mode as 'default'); e.state.mode = change.mode;
       }
       this.#save(e); return this.state(id);

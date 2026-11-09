@@ -7,7 +7,7 @@ import { ChatOutputs } from './ChatOutputs.tsx';
 import { Icon } from './StudyUI.tsx';
 import type { SelectionRequest } from './selection.ts';
 import { INTENT_LABEL } from './selection.ts';
-import { chatMarkdown, commandItems, MODE_LABEL, parseChatCommand } from './conversation-commands.ts';
+import { chatMarkdown, commandItems, currentChatModel, MODE_LABEL, parseChatCommand } from './conversation-commands.ts';
 
 type State = IpcResponse<'chat.state'>;
 type Attachment = { id: string; name: string; text: string };
@@ -177,7 +177,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       else tell(id, '전송 실패', r.error.message);
     });
   };
-  const currentModel = state?.models.find(m => m.value === state.model || m.resolvedModel === state.model);
+  const currentModel = currentChatModel(state);
   const disabled = blocked || busy || !!state?.busy || !state?.connected;
 
   return <section className="rich-chat" aria-label="Claude Code 채팅">
@@ -211,7 +211,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
         }} />
         <div className="composer-actions"><button disabled={busy || !!pending} aria-label="파일 첨부" title="파일 첨부" onClick={() => void attach('local')}><Icon name="plus" /></button><button disabled={busy || !!pending} aria-label="화면 캡처" title="화면 캡처" onClick={() => void attach('capture')}><Icon name="capture" /></button>{selectedAssets.map(a => <button key={a.id} disabled={busy || !!pending} title={`자료 첨부: ${a.name}`} aria-label={`자료 첨부: ${a.name}`} onClick={() => void attach('asset', a.id)}><Icon name="book" /></button>)}<span className="composer-spacer" />{state?.busy ? <button disabled={busy} className="send-button" aria-label="응답 중지" title="응답 중지" onClick={() => { const id = activeId; void action(id, async () => { const r = await invoke('chat.interrupt', { appSessionId: id }); if (r.ok) accept(id, r.data); else tell(id, '중지 실패', r.error.message); }); }}><Icon name="stop" /></button> : <button className="send-button" disabled={blocked || busy || !state?.connected || !!pending || !draft.text.trim() && !draft.attachments.length} aria-label="메시지 전송" title="메시지 전송" onClick={() => void send()}><Icon name="send" /></button>}</div>
-      </div><Details title={<>대화 설정 <small>{MODE_LABEL[state?.mode ?? "default"]}</small></>} className="chat-settings"><div className="chat-controls"><select ref={modelPicker} aria-label="모델" title="/model" disabled={disabled} value={currentModel?.value ?? ''} onChange={e => configure({ model: e.target.value })}><option value="" disabled>기본 모델</option>{state?.models.map(m => <option key={m.value} value={m.value}>{m.displayName}</option>)}</select><select ref={effortPicker} aria-label="추론 강도" title="/effort · 다음 요청부터" disabled={disabled || !currentModel} value={state?.effort ?? 'default'} onChange={e => configure({ effort: e.target.value })}><option value="default">기본 강도</option>{currentModel?.supportedEffortLevels?.map(l => <option key={l} value={l}>{l}</option>)}</select><select ref={modePicker} aria-label="실행 모드" title="/plan · /permissions" disabled={disabled} value={state?.mode ?? 'default'} onChange={e => configure({ mode: e.target.value })}>{Object.entries(MODE_LABEL).filter(([key]) => key !== 'auto' || currentModel?.supportsAutoMode).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div></Details><div className="chat-environment" title="Claude Code 구독 로그인 · 전역 설정을 사용하는 일반 환경">일반 환경{state?.mode === 'acceptEdits' ? ' · 파일 편집 자동 승인' : ''}</div></div> : null}
+      </div><Details title={<>대화 설정 <small>{MODE_LABEL[state?.mode ?? "default"]}</small></>} className="chat-settings"><div className="chat-controls"><select ref={modelPicker} aria-label="모델" title="/model" disabled={disabled} value={currentModel?.value ?? ''} onChange={e => configure({ model: e.target.value })}><option value="" disabled>기본 모델</option>{state?.models.map(m => <option key={m.value} value={m.value}>{m.displayName}</option>)}</select><select ref={effortPicker} aria-label="추론 강도" title="/effort · 다음 요청부터" disabled={disabled || !currentModel} value={state?.effort ?? 'default'} onChange={e => configure({ effort: e.target.value })}><option value="default">기본 강도</option>{currentModel?.supportedEffortLevels?.map(l => <option key={l} value={l}>{l}</option>)}</select><select ref={modePicker} aria-label="실행 모드" title="/plan · /permissions" disabled={disabled} value={state?.mode ?? 'default'} onChange={e => configure({ mode: e.target.value })}>{Object.entries(MODE_LABEL).filter(([key]) => key !== 'auto' || currentModel?.supportsAutoMode).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div></Details><div className="chat-environment" title="Claude Code 구독 로그인 · 전역 설정을 사용하는 일반 환경">일반 환경{state?.mode === 'acceptEdits' ? ' · 파일 편집 자동 승인' : state?.mode === 'auto' ? ' · 자동 판단: 위험한 작업은 Claude Code가 묻거나 막음' : ''}</div></div> : null}
     </>}
   </section>;
 }

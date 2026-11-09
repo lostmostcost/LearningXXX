@@ -11,7 +11,8 @@ class FakeQuery {
   stopped = false; wake?: (() => void) | undefined; frames: SDKMessage[] = []; changes: unknown[] = []; rejects = false;
   async *[Symbol.asyncIterator]() { while (!this.stopped) { const f = this.frames.shift(); if (f) yield f; else await new Promise<void>(r => this.wake = r); } }
   emit(frame: unknown) { this.frames.push(frame as SDKMessage); this.wake?.(); }
-  async initializationResult() { return { commands: [{ name: 'compact', description: 'Compact', argumentHint: '' }], models: [{ value: 'sonnet', displayName: 'Sonnet', supportedEffortLevels: ['low', 'high'] }, { value: 'haiku', displayName: 'Haiku', supportedEffortLevels: ['low'] }] }; }
+  static models: unknown[] | undefined;
+  async initializationResult() { return { commands: [{ name: 'compact', description: 'Compact', argumentHint: '' }], models: FakeQuery.models ?? [{ value: 'sonnet', displayName: 'Sonnet', supportedEffortLevels: ['low', 'high'] }, { value: 'haiku', displayName: 'Haiku', supportedEffortLevels: ['low'] }] }; }
   async applyFlagSettings(change: unknown) { this.changes.push(change); if (this.rejects) throw new Error('vendor rejected'); }
   async setPermissionMode(mode: string) { this.changes.push({ mode }); }
   async interrupt(options: unknown) { this.changes.push(options); return { still_queued: [], cancelled: [] }; }
@@ -171,4 +172,30 @@ test('WBS-060: with no session anywhere, an old conversation still says it canno
   mkdirSync(f.cwd, { recursive: true });
   writeFileSync(join(f.cwd, '.chat-ui.json'), JSON.stringify({ messages: [{ id: sid(), role: 'user', text: '예전 대화', tools: [] }], busy: false, connected: false, error: '', model: '', effort: 'default', mode: 'default', models: [], commands: [], permissions: [], totalCost: 0, tokens: 0, sessionId: '' }));
   await assert.rejects(f.service.open(f.id), /원본 이력이 없어/);
+});
+
+// WBS-108: new conversations start in Claude Code's own auto mode ("자동 판단").
+const autoModels = [{ value: 'default', resolvedModel: 'claude-sonnet-test', displayName: 'Default', supportedEffortLevels: ['low', 'medium'], supportsAutoMode: true }, { value: 'old', displayName: 'Old', supportedEffortLevels: ['low'] }];
+function withModels(t: { after: (f: () => void) => void }, models: unknown[]) { FakeQuery.models = models; t.after(() => { FakeQuery.models = undefined; }); }
+test('WBS-108: a brand-new conversation starts in auto mode, yet permission requests still wait for the user', async t => {
+  withModels(t, autoModels); const f = setup(t); const state = await f.service.open(f.id);
+  assert.equal(state.mode, 'auto'); assert.deepEqual(f.q.changes, [{ mode: 'auto' }]);
+  assert.equal(f.options().permissionMode, 'default', 'the engine starts normally; auto is the official live control');
+  const asked = f.options().canUseTool!('Bash', { command: 'fixture' }, { signal: new AbortController().signal, toolUseID: 'tool-auto', requestId: 'req-auto' });
+  await tick(); assert.equal(f.service.state(f.id).permissions.length, 1, 'the app never answers on its own');
+  f.service.answer(f.id, f.service.state(f.id).permissions[0]!.id, false); assert.equal((await asked)?.behavior, 'deny');
+  await f.service.configure(f.id, { mode: 'default' }); assert.equal(f.service.state(f.id).mode, 'default', 'the user can still pick another mode');
+  await f.service.configure(f.id, { effort: 'medium' }); assert.equal(f.service.state(f.id).effort, 'medium', 'the default model is the model in use');
+});
+test('WBS-108: a model without auto mode keeps the normal mode', async t => {
+  withModels(t, autoModels); const f = setup(t);
+  f.q.initializationResult = async () => ({ commands: [], models: [{ value: 'default', displayName: 'Default', supportsAutoMode: false }] }) as never;
+  const state = await f.service.open(f.id); assert.equal(state.mode, 'default'); assert.deepEqual(f.q.changes, []);
+});
+test('WBS-108: a resumed conversation is not switched to auto mode', async t => {
+  withModels(t, autoModels); const id = sid();
+  const f = resumeSetup(t, { info: async s => s === id ? { sessionId: s } : undefined, list: async () => [], messages: async () => [{ uuid: sid(), type: 'user', parent_tool_use_id: null, message: { role: 'user', content: '이전 질문' } }] });
+  mkdirSync(f.cwd, { recursive: true }); writeFileSync(join(f.cwd, '.learningxxx-session.json'), JSON.stringify({ sessionId: id }));
+  const state = await f.service.open(f.id); assert.equal(f.options().resume, id);
+  assert.equal(state.mode, 'default'); assert.deepEqual(f.queries[0]!.changes, []);
 });

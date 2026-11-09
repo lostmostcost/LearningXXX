@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chatMarkdown, commandItems, parseChatCommand } from '../src/conversation-commands.ts';
+import { chatMarkdown, commandItems, currentChatModel, parseChatCommand } from '../src/conversation-commands.ts';
 test('core controls coexist with actual engine commands without duplicates; review resolves to the real skill', () => {
  const items = commandItems([{name:'model',description:'vendor model',argumentHint:''},{name:'code-review',description:'real review',argumentHint:''},{name:'custom-skill',description:'installed',argumentHint:'file'}]);
  assert.equal(items.filter(c=>c.name==='model').length,1);
@@ -17,4 +17,11 @@ test('paths are not mistaken for commands and command arguments survive parsing'
 });
 test('export preserves Markdown rather than stripping its meaning',()=>{
  assert.equal(chatMarkdown([{role:'user',text:'why?'},{role:'assistant',text:'**A**\n\n```ts\nconst x=1;\n```'}]),'## 나\n\nwhy?\n\n## Claude\n\n**A**\n\n```ts\nconst x=1;\n```');
+});
+test('WBS-108: before a model is chosen or reported, the default entry is the model in use (so auto mode can be shown)',()=>{
+ const models=[{value:'default',resolvedModel:'claude-x'},{value:'haiku',resolvedModel:'claude-h'}];
+ assert.equal(currentChatModel({model:'',models})?.value,'default');
+ assert.equal(currentChatModel({model:'claude-h',models})?.value,'haiku');
+ assert.equal(currentChatModel({model:'gone',models}),undefined);
+ assert.equal(currentChatModel(undefined),undefined);
 });

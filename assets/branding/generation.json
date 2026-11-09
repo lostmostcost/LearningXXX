@@ -19,5 +19,13 @@
     "yolo-univ-icon.png",
     "yolo-univ.icns"
   ],
-  "packaging": "bash assets/branding/build-icon.sh"
+  "packaging": "bash assets/branding/build-icon.sh",
+  "macosIcon": {
+    "task": "WBS-099",
+    "date": "2026-11-04",
+    "script": "make-macos-icon.swift",
+    "grid": "1024 canvas, 824 body centred, superellipse n=5 corners, shadow y-10 blur 24 black 30%, hairline edge 8%",
+    "artworkShare": 0.78,
+    "reason": "source is an opaque white square; Dock/Finder showed a square instead of a Mac-style rounded tile"
+  }
 }

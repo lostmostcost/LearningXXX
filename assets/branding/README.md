@@ -5,7 +5,8 @@ CR-093 / 사용자 직접 승인. 학사모를 쓴 YOLO를 글자 캐릭터로 �
 
 - `yolo-univ-logo.png`: 투명 배경의 가로 로고, YOLO UNIV 전체 이름.
 - `yolo-univ-icon-source.png`: 원본 앱 아이콘. YO / LO 두 줄과 학사모, 원본 보존.
-- `yolo-univ-icon.png`: 1024×1024 앱 적용용 PNG.
+- `yolo-univ-icon.png`: 1024×1024 앱 적용용 PNG. WBS-099부터 macOS 아이콘 격자를 따릅니다: 투명 캔버스, 가운데 824×824 본체, 연속 곡률(squircle) 모서리, 본체 아래 옅은 그림자. 글자·학사모는 원본 그대로 본체의 약 78% 크기로 가운데 놓습니다.
+- `make-macos-icon.swift`: 원본에서 위 PNG를 만드는 스크립트(CoreGraphics, 설치 불필요). 원본의 흰 정사각형 배경과 아이보리 타일을 투명하게 빼고 글자만 새 타일에 다시 그립니다.
 - `yolo-univ.icns`: macOS 네이티브 아이콘, 16/32/128/256/512 및 각 @2x 크기 포함.
 - `generation.json`: 내장 image_gen 도구에 사용한 최종 프롬프트와 제작 경로.
 
@@ -19,7 +20,7 @@ macOS에서 원본을 변형하지 않고 파생 크기를 다시 만들려면:
 bash assets/branding/build-icon.sh
 ```
 
-`/usr/bin/sips`와 `/usr/bin/iconutil`을 사용합니다. 네트워크·패키지 설치는 필요하지 않습니다.
+`/usr/bin/swift`(Command Line Tools), `/usr/bin/sips`, `/usr/bin/iconutil`을 사용합니다. 네트워크·패키지 설치는 필요하지 않습니다.
 자기 임시 폴더에서 크기별 PNG와 ICNS를 만들고 성공한 결과만 자산 폴더로 복사합니다.
 실패하면 원본과 기존 결과를 보존하고 임시 폴더는 정리됩니다. 샌드박스에서 iconutil이
 정상 iconset에도 Invalid Iconset을 반환했으나 동일 명령의 허용된 host 실행은 통과했습니다.

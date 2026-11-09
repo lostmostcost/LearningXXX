@@ -150,11 +150,11 @@ test("WBS-071: preferences default to Korean and survive a restart", async () =>
   const { Preferences } = await import("../src/preferences.ts");
   const root = await mkdtemp(join(tmpdir(), "wbs071-pref-")); roots.push(root);
   const file = join(root, "preferences.json");
-  assert.deepEqual(new Preferences(file).get(), { language: "ko", automation: DEFAULT_AUTOMATION });
+  assert.deepEqual(new Preferences(file).get(), { language: "ko", automation: DEFAULT_AUTOMATION, theme: "system" });
   new Preferences(file).set({ language: "en" });
-  assert.deepEqual(new Preferences(file).get(), { language: "en", automation: DEFAULT_AUTOMATION });
+  assert.deepEqual(new Preferences(file).get(), { language: "en", automation: DEFAULT_AUTOMATION, theme: "system" });
   new Preferences(file).set({ automation: { review: true } });
-  assert.deepEqual(new Preferences(file).get(), { language: "en", automation: { ...DEFAULT_AUTOMATION, review: true } }, "one setting changes, the rest stay");
+  assert.deepEqual(new Preferences(file).get(), { language: "en", automation: { ...DEFAULT_AUTOMATION, review: true }, theme: "system" }, "one setting changes, the rest stay");
   await writeFile(file, "{ broken");
-  assert.deepEqual(new Preferences(file).get(), { language: "ko", automation: DEFAULT_AUTOMATION }, "an unreadable file falls back to defaults");
+  assert.deepEqual(new Preferences(file).get(), { language: "ko", automation: DEFAULT_AUTOMATION, theme: "system" }, "an unreadable file falls back to defaults");
 });

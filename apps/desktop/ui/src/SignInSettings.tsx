@@ -5,6 +5,8 @@ import { invoke } from "./host-api.ts";
 import { Icon } from "./StudyUI.tsx";
 import { signInSummary } from "./signin.ts";
 import { Details } from './Details.tsx';
+import { ThemeSetting } from "./ThemeControls.tsx";
+import { PREFERENCES_EVENT } from "./theme.ts";
 
 /**
  * Saves the school ID/password and the Canvas access token on this Mac
@@ -75,6 +77,7 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
         <p role="status">{message}</p>
         {!status && message ? <button onClick={() => setReload(v => v + 1)}>연결 다시 확인</button> : null}
         <LanguageSetting />
+        <ThemeSetting />
         <Details title="자동화 설정"><AutomationSettings /></Details>
         <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
       </dialog>
@@ -91,7 +94,7 @@ function LanguageSetting() {
     <h3>선호 언어</h3>
     <select aria-label="선호 언어" value={language ?? ""} disabled={!language} onChange={(e) => {
       const next = PreferredLanguage.parse(e.target.value);
-      void invoke("app.setPreferences", { language: next }).then((r) => { if (r.ok) { setLanguage(r.data.language); setNote("저장했습니다."); window.dispatchEvent(new Event("learningxxx:preferences")); } else setNote(r.error.message); });
+      void invoke("app.setPreferences", { language: next }).then((r) => { if (r.ok) { setLanguage(r.data.language); setNote("저장했습니다."); window.dispatchEvent(new Event(PREFERENCES_EVENT)); } else setNote(r.error.message); });
     }}>{PreferredLanguage.options.map((code) => <option key={code} value={code}>{LANGUAGE_NAMES[code]}</option>)}</select>
     {note ? <span className="meta"> {note}</span> : null}
   </section>;

@@ -11,7 +11,7 @@ import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirect
 import { QwenEngine } from "@learningxxx/transcriber";
 import { MediaService } from "./media-service.ts";
 import { statfsSync } from "node:fs";
-import { app, BrowserWindow, Menu, protocol, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, Menu, nativeTheme, protocol, desktopCapturer, dialog, ipcMain, powerMonitor, safeStorage, session, shell, systemPreferences } from "electron";
 import { AppModifier, createDockerVerifier, launchWatchdog, locateDocker } from "@learningxxx/app-modifier";
 import { AttachmentService } from "./attachment-service.ts";
 import { runGuiCliProbe } from "./gui-cli-probe.ts";
@@ -65,7 +65,10 @@ const PRIVACY_PANES = {
   microphone: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
 } as const;
 // Keep the legacy internal app name: Electron uses it for userData and macOS Safe Storage.
-const brandIcon = join(__dirname, "../../../../assets/branding/yolo-univ-icon.png");
+// dist/main.cjs → repository root. WBS-099: the packaged app mirrors the same layout under
+// Contents/Resources/app, so files are found from the bundle, never from a source checkout.
+const appRoot = resolve(__dirname, "../../../..");
+const brandIcon = join(appRoot, "assets/branding/yolo-univ-icon.png");
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
 
 function createWindow(): BrowserWindow {
@@ -141,6 +144,10 @@ app.whenReady().then(async () => {
   });
   // WBS-071/083: preferred language and automation settings.
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
+  // WBS-100: one theme for every window, the native frame and dialogs; "system" follows macOS.
+  // Set before any window opens so the first paint already has it.
+  nativeTheme.themeSource = preferences.get().theme;
+  preferences.onChange((value) => { nativeTheme.themeSource = value.theme; });
   // WBS-083: the automatic steps; created once everything they use exists.
   let automation: AutomationService | undefined;
   // WBS-088: the student's own files, added to the served course material (declared before the library uses it).
@@ -291,8 +298,8 @@ app.whenReady().then(async () => {
   const dockerPath = locateDocker();
   const modifier = new AppModifier({
     root: join(dataRoot, "app-modifier"),
-    // apps/desktop/host → repository root. Only this app's own source can be changed.
-    expectedSource: resolve(app.getAppPath(), "../../.."),
+    // Only this app's own git checkout can be changed; the packaged app is not one, so it refuses.
+    expectedSource: appRoot,
     startCli,
     verifier: createDockerVerifier(dockerPath),
     chooseFolder: async () => {
@@ -334,8 +341,8 @@ app.whenReady().then(async () => {
     },
   });
   const sttRoot = join(app.getPath("userData"), "stt");
-  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: resolve(app.getAppPath(), "../../../services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") });
-  const stt = new SttRuntimeService({ root: sttRoot, source: resolve(app.getAppPath(), "../../../services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
+  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: join(appRoot, "services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") });
+  const stt = new SttRuntimeService({ root: sttRoot, source: join(appRoot, "services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
   media = new MediaService({
     dataRoot, accountKey: () => library.accountKey(), courses: () => library.courses(),
     originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
@@ -521,7 +528,7 @@ app.whenReady().then(async () => {
     }),
     generate: async (input, signal, assertCurrent) => {
       // WBS-091 is a dependency-free engine; keep its source beside the local app, not in a global cache.
-      const engine = join(__dirname, '../../../../packages/learning-artifacts/src');
+      const engine = join(appRoot, 'packages/learning-artifacts/src');
       const model = await import(pathToFileURL(join(engine, 'model.mjs')).href) as { snapshot(x: unknown): unknown; generationPrompt(x: unknown): string; validatePlan(x: unknown, s: unknown): unknown };
       const documents = await import(pathToFileURL(join(engine, 'documents.mjs')).href) as { documentHtml(p: unknown, s: unknown): string };
       assertCurrent();

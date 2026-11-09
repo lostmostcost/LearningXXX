@@ -107,3 +107,36 @@ export function placeLabel(recording: Recording | undefined, weeks: readonly Wee
   const lecture = lectures.find((l) => l.sourceId === recording.lectureSourceId);
   return lecture ? `${week.label} · ${lecture.title}` : week.label;
 }
+
+/**
+ * WBS-105: when no LMS week has an opening time, the academic calendar's rule
+ * gives the start: week 1 is the week (Monday, Seoul) holding 1 September for
+ * the second semester and 2 March for the first. February 15 – July belongs to
+ * the first semester, August – February 14 to the second (January and early
+ * February count toward the previous year's second semester).
+ */
+export function calendarSemesterStart(at: Date): number {
+  const seoul = new Date(at.getTime() + SEOUL);
+  const year = seoul.getUTCFullYear(), month = seoul.getUTCMonth() + 1, day = seoul.getUTCDate();
+  const spring = (month > 2 || (month === 2 && day >= 15)) && month < 8;
+  const anchor = spring ? Date.UTC(year, 2, 2) : Date.UTC(month < 3 ? year - 1 : year, 8, 1);
+  return seoulMonday(anchor - SEOUL);
+}
+
+/**
+ * WBS-105: the week a course screen opens on. The LMS's own week openings
+ * decide the semester start (estimateWeek); without them the academic
+ * calendar does. A week the course has no module for (an exam week, say)
+ * falls back to the closest earlier week; before week 1 → the first week,
+ * after the last → the last. Index into `weeks`, or -1 when no week is numbered.
+ */
+export function currentWeekIndex(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): number {
+  const numbered = weeks.flatMap((w, i) => { const n = weekNumber(w.label); return n === undefined ? [] : [{ i, n }]; }).sort((a, b) => a.n - b.n);
+  if (!numbered.length) return -1;
+  const start = semesterStart(weeks, status) ?? calendarSemesterStart(at);
+  const n = Math.floor((at.getTime() - start) / (7 * DAY)) + 1;
+  if (n <= numbered[0]!.n) return numbered[0]!.i;
+  let best = numbered[0]!;
+  for (const x of numbered) if (x.n <= n) best = x;
+  return best.i;
+}

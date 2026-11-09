@@ -3101,6 +3101,33 @@
       "review_evidence": [
         "2026-11-09 App: rail drawer-toggle and the now-unused drawer state/outside-click effect removed (pinned and edge paths kept); edge-tab button (fixed, vertical middle of the left edge, half-round, above the 4px hover zone) sets the same edge slide-in, hidden while open or pinned, focuses the first course after the slide; logo wrapped in a button that sets home and closes the slide-in. Review found the tab blended into the rail (same colour) → contrasting fill/border. Checks: ui 135 pass, typecheck, build; fixture preview 1400px: rail = 대시보드·강의 자료·과제·공지·녹음, tab centre 425 = viewport middle, real mouse click opened the list (rail pushed right), choosing the course closed it and opened the course, logo click → dashboard, Escape closes. Not verified: focus moving into the list (preview pane was in the background, so CSS transitions did not run)."
       ]
+    },
+    {
+      "id": "WBS-105",
+      "title": "과목 화면을 현재 주차로 열기(학사 일정 기준)",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-065"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "과목의 자료·과제 등 탭을 열면 1주차가 아니라 오늘이 속한 주차가 기본으로 열린다. 학기 시작은 LMS 주차 공개 일정, 없으면 학사 일정 규칙으로 정한다.",
+      "status": "Review",
+      "branch": "feat/WBS-105-current-week-default",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd813a8886c253c32d9ce3?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 결정(권장안): 학교 날짜를 코드에 박지 않고 LMS 주차 공개 일정(학사 일정을 따름)을 우선, 없으면 2학기 9/1·1학기 3/2이 든 주의 월요일. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 recording-weeks.ts calendarSemesterStart (Seoul Monday of the week holding 9/1 or 3/2; Jan–Feb 14 → previous fall) and currentWeekIndex (LMS semesterStart first, calendar else; a week with no module → closest earlier week; before/after → first/last; -1 when no week is numbered). App: on opening a course the week tray goes to it; refined once the LMS status arrives unless the user picked a week or an item meanwhile; an item already selected keeps its week. TaskSidebar opens the current week's group. Data check: LMS openings put week 1 at Mon 2026-08-31 for all five dated courses (vote counts 9/14/13/7/4). Checks: ui 136 pass (1 new), typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로·데이터베이스·외식메뉴상품기획론·웨스턴퀴진·취업·창업특강(no LMS dates → calendar)·Hospitality all opened on 11주차; 과제 tab opened 11주차 where that week has tasks. Limit: a course with no tasks in this week shows all groups closed, as before."
+      ]
     }
   ],
   "qaPolicy": {

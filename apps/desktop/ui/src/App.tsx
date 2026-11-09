@@ -27,7 +27,7 @@ import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
 import { TaskSidebar } from "./TaskSidebar.tsx";
 import { JobQueue } from "./JobQueue.tsx";
-import { unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
+import { currentWeekIndex, unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
 import { openPdfInBrowser } from "./pdf-browser.ts";
@@ -117,6 +117,20 @@ export function App() {
   const refs = useRef<Partial<Record<Panel, HTMLElement | null>>>({});
   // LMS completion/attendance/submission badges; read again after each collection (WBS-055).
   const learning = useLearningStatus(library?.course.id, status);
+  // WBS-105: a course opens on this week (the LMS's week openings, else the academic calendar), not on week 1.
+  // When the LMS status arrives later the guess is refined, unless the user picked a week or an item meanwhile.
+  const autoWeek = useRef<{ courseId: string; index: number; withStatus: boolean } | undefined>(undefined);
+  useEffect(() => {
+    if (!library) return;
+    const id = library.course.id, withStatus = learning.status?.courseId === id;
+    const prev = autoWeek.current;
+    if (prev?.courseId === id && (prev.withStatus || !withStatus)) return;
+    if (prev?.courseId === id && weekIndex !== prev.index) { autoWeek.current = { ...prev, withStatus: true }; return; }
+    const chosen = selected?.resource.weekId ? library.weeks.findIndex((w) => w.week.id === selected.resource.weekId) : -1;
+    const index = chosen >= 0 ? chosen : currentWeekIndex(library.weeks.map((w) => w.week), withStatus ? learning.status : undefined, new Date());
+    autoWeek.current = { courseId: id, index: index >= 0 ? index : weekIndex, withStatus: withStatus || chosen >= 0 };
+    if (index >= 0 && index !== weekIndex) setWeekIndex(index);
+  }, [library, learning.status, weekIndex, selected]);
   // WBS-064: red light on the recording tab, the mic rail button and the top bar while recording.
   // WBS-103: the tools column's width, dragged by the user and kept on this Mac.
   const [toolsWidth, setToolsWidth] = useState<number | undefined>(() => readToolsWidth(typeof localStorage === "undefined" ? undefined : localStorage));
@@ -380,7 +394,7 @@ export function App() {
           <>
             {section==='book'?<><button className="entry knowledge-entry" aria-pressed={knowledgeOpen} onClick={()=>{setPlaying(undefined);setKnowledgeOpen(true);setView('materials');}}><Icon name="file"/>과목 요약</button>{IN_APP&&!FIXTURE_MODE?<details className="add-materials-box"><summary>+ 내 자료 추가</summary><AddMaterials key={library.course.id} courseId={library.course.id} weeks={weekList} weekId={weekIndex>=0?library.weeks[weekIndex]?.week.id:undefined} onDone={()=>void refresh()}/></details>:null}<LibraryPanel library={library} selectedId={selected?.resource.id} onSelect={selectEntry} now={now} status={learning.status} /></>:section!=='mic'?<><h2>{section==='tasks'?'과제':'공지'}</h2>{section==='tasks'
                 // WBS-075: by week, closed by default; to-do and submitted apart.
-                ?<TaskSidebar library={library} status={learning.status} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
+                ?<TaskSidebar library={library} status={learning.status} currentWeekId={weekIndex >= 0 ? library.weeks[weekIndex]?.week.id : undefined} selectedId={selected?.resource.id} onSelect={selectEntry} onOpenQuiz={(item)=>void openQuiz(item)}/>
                 :entriesOf(library).filter(e=>e.resource.kind==='notice').map(e=><button className="entry" key={e.resource.id} onClick={()=>selectEntry(e)}>{e.resource.title}</button>)}
               {section==='tasks'?<MentionList mentions={mentions.filter(m=>m.courseId===library.course.id)} sourceTitle={(id)=>lectures.media?.assets.find(a=>a.id===id)?.title??'녹음'}
                 onOpen={(m)=>{setMediaAssetId(m.assetId);setRightTab('transcripts');setView('chat');}}

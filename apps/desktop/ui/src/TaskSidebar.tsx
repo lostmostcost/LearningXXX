@@ -10,7 +10,7 @@ import { useHiddenTodos } from "./hidden-todos.ts";
  * items come first, then work not open yet, submitted ones, and items the
  * student took off the list (WBS-084).
  */
-export function TaskSidebar({ library, status, selectedId, onSelect, onOpenQuiz }: { library: Library; status: CourseLearningStatus | undefined; selectedId: string | undefined; onSelect: (entry: Entry) => void; onOpenQuiz: (item: LearningItem) => void }) {
+export function TaskSidebar({ library, status, currentWeekId, selectedId, onSelect, onOpenQuiz }: { library: Library; status: CourseLearningStatus | undefined; /** WBS-105: the week open by default (this week). */ currentWeekId?: string | undefined; selectedId: string | undefined; onSelect: (entry: Entry) => void; onOpenQuiz: (item: LearningItem) => void }) {
   // WBS-084: items taken off the list (this Mac only) and work not open yet are shown apart.
   const account = library.course.accountKey;
   const hidden = useHiddenTodos([account]);
@@ -26,7 +26,7 @@ export function TaskSidebar({ library, status, selectedId, onSelect, onOpenQuiz 
   );
   return <div className="task-weeks">
     {weeks.map((w) => (
-      <details key={w.key} className="task-week">
+      <details key={w.key} className={`task-week${w.key === currentWeekId ? " is-current" : ""}`} open={w.key === currentWeekId || undefined}>
         <summary><strong>{w.label}</strong> <span className={w.todo.length ? "todo-count" : "meta"}>해야 함 {w.todo.length}</span> <span className="meta">· 제출 {w.done.length}{w.later.length ? ` · 열리기 전 ${w.later.length}` : ""}</span></summary>
         {w.todo.length ? <><p className="task-group">해야 할 과제</p><ul>{w.todo.map((r) => row(r))}</ul></> : null}
         {w.later.length ? <><p className="task-group">열리기 전</p><ul>{w.later.map((r) => row(r, "later"))}</ul></> : null}

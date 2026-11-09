@@ -3044,7 +3044,8 @@
       "status": "Review",
       "branch": "fix/WBS-102-recording-across-courses",
       "qa_mode": "appropriate_checks_only",
-      "scope_note": "이문찬 지시(2026-11-09): 외식메뉴상품기획론 녹음이 09:38에 과목 이동(논리회로 AI 대화)으로 끊긴 원인 수정. 로컬 브랜치만, push 보류. Notion 카드 미등록.",
+      "url": "https://app.notion.com/p/413bd7ec20cd8145ac41f6488a7d47d1?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09): 외식메뉴상품기획론 녹음이 09:38에 과목 이동(논리회로 AI 대화)으로 끊긴 원인 수정. 로컬 브랜치만, push 보류.",
       "review_evidence": [
         "2026-11-09 cause: recording 881beeca finalized 09:38:27 (29m47s, status finalized, not recovered), 논리회로 course workspace prepared 09:38:44; pmset shows no sleep 09:08-09:38; RecordingPanel (keyed by course) stopped capture on unmount and chooseCourse unmounts it. Fix: capture moved to an app-level store (recording-session.ts) the panel only displays; host push/pagehide handled there; panel shows a note and disables start when another course is recording; top-bar pill opens the recording course. Recording.stopReason (contract) set by host for user/device_lost/page_closed/sleep/app_closing/disk_full/access_lost/crashed. Review: dead onState prop removed; stop() success/failure paths release capture once. Checks: pnpm -r run check all pass (host 271 incl. 1 new reason test, ui 134, contracts 58); fixture preview (?fixture=mic, preview-only second course) — course switch unmounted the panel and saved time kept rising 0:04→0:06, stop ended it. Not tried: real microphone recording in the app across courses (owner)."
       ]

@@ -100,3 +100,11 @@ Package checks do not by themselves establish successful real LMS/Claude calls, 
 상단 채팅/메모는 독립 토글이며 닫거나 화면을 옮겨도 채팅 초안과 요청을 유지한다. 녹음·전사는 좌측 버튼의 독립 화면이다. `tab: recording/transcripts` assist 요청은 그 화면의 호환 별칭이며 두 개의 우측 탭을 만들지 않는다. 화면 문맥 표시와 대화 소속은 구분하며 화면 이동으로 세션을 자동 재배정하지 않는다.
 
 레이아웃 사용자 흐름 확인: `node apps/desktop/host/scripts/layout-smoke.mjs`, `node apps/desktop/host/scripts/layout-smoke.mjs --assist`. 출력된 private 임시 경로에서 trace와 배경 PNG를 확인한다. fixture는 UI 흐름 증거이며 실제 녹음·전사·Claude 동작의 증거로 쓰지 않는다.
+
+
+## Claude 업데이트와 텍스트 작업 (WBS-113)
+정리본·번역 등의 단발 작업은 파일 도구 없는 text 프로필을 쓴다. 새로운 CLI 바이너리의 최초 작업에서 합성 호환성을 자동 확인하고 성공 metadata를 `<앱 데이터>/cli-text-compatibility`에 보관한다. 업데이트/바이너리/검사 정책이 바뀌면 자동 재검사한다. 로그인·구독 한도·연결 오류는 별도로 표시하고 검사 실패를 통과로 저장하지 않는다. 최초 확인에는 소량의 구독 사용량과 추가 시간이 들며 앱 시작/업데이트만으로 모델 요청을 보내지 않는다.
+
+`packages/cli-adapter/src/text-compatibility.ts`의 검사 또는 스트림 해석을 바꾸면 TEXT_COMPAT_POLICY revision도 올린다(flags는 해시에 포함). 검증 metadata에 사용자 텍스트·인증/원시 응답을 넣지 않는다. 재확인이 필요하면 해당 private 캐시 JSON만 지울 수 있으며 다음 작업에서 다시 검사한다. legacy independent/app_modify 버전 목록과 기존 G0 증거를 이 캐시로 확장하지 않는다. 일반 SDK/native 채팅의 환경·권한 정책도 별개다.
+
+실제 합성 확인: `node --experimental-strip-types apps/desktop/host/scripts/text-compat-smoke.ts`. 별도 임시 캐시를 사용하며 구독 사용량을 소량 쓴다. API/provider 환경 검사를 우회하지 않는다. 사용자 강의는 보내지 않으며, 결과는 CLI 엔진 확인과 UI fixture 검사로 각각 기록한다.

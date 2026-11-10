@@ -3490,6 +3490,53 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-112.md"
       ]
+    },
+    {
+      "id": "WBS-113",
+      "title": "Claude 텍스트 작업 자동 호환성 검사와 캐시",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-112"
+      ],
+      "areas": [
+        "cli",
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "packages/cli-adapter/",
+        "apps/desktop/host/src/cli-runner.ts",
+        "apps/desktop/host/src/readable-note.ts",
+        "apps/desktop/host/src/main.ts",
+        "apps/desktop/host/test/",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "apps/desktop/host/scripts/text-compat-smoke.ts",
+        "apps/desktop/ui/src/fake-host.ts",
+        "docs/specs/SPEC-002.md",
+        "docs/specs/SPEC-007.md",
+        "docs/decisions/ADR-002-runtime-placement.md",
+        "docs/DEVELOPMENT.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-001",
+        "REQ-005",
+        "REQ-007",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "텍스트 전용 작업은 새 공식 CLI 실행 파일/검사 정책에 대해 합성 입력으로 자동 호환성을 검사하고 성공만 private cache한다. 새 버전·같은 버전 바이너리 변경·정책 변경·재시작·취소/동시성·auth/usage/network/도구/MCP/응답 형식 실패를 구분한다. legacy G0/버전 정책 및 일반 SDK/native 권한은 유지한다. 실제 CLI 2.1.322 합성 정리본과 캐시 재사용, debug/assist 정리본 생성 UI를 검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-113-text-cli-compatibility",
+      "url": "https://app.notion.com/p/414bd7ec20cd81449211cf89dafee18e",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-113. 최신 Notion WBS-112 Done 및 main 4ee34e7 확인 후 task/cli/host/ui/shared를 scripts/claim.py로 local .git에만 create-only 선점. GitHub push/PR/원격 claim 변경 금지. root manifest/lockfile/공유 IPC schema/legacy isolation 증거/전역 Claude 설정/사용자 강의 파일은 변경하지 않는다. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. 자동 모델 검사는 실제 텍스트 작업 최초 실행 때만 합성 입력으로 수행하며 소량의 구독 사용량을 쓴다.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-113.md"
+      ]
     }
   ],
   "qaPolicy": {

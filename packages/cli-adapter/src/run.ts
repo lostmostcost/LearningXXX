@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { createInterface } from "node:readline";
 import { Id, RunEvent, SCHEMA_VERSION, type AppError } from "@learningxxx/contracts";
 import { MESSAGES, appError, classifyFailure } from "./classify.ts";
+import { textProofVersion, type TextCliProof } from './text-proof.ts';
 import {
   COURSE_TOOLS,
   INDEPENDENT_TOOLS,
@@ -21,6 +22,7 @@ export interface RunRequest {
   runId: string;
   appSessionId: string;
   mode: Mode;
+  profile?: 'text';
   /** New UUID for a first run, or the session's own ID with resume=true. */
   cliSessionId: string;
   resume: boolean;
@@ -42,6 +44,8 @@ export interface RunOptions {
   env: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   verifiedVersions?: readonly string[];
+  /** Issued by the automatic text compatibility checker for this executable. */
+  textProof?: TextCliProof;
   /** SIGTERM → SIGKILL delay on cancel. */
   killGraceMs?: number;
   now?: () => Date;
@@ -109,6 +113,9 @@ function validate(req: RunRequest, env: NodeJS.ProcessEnv): AppError | undefined
   if (forbidden.length) {
     return appError("FORBIDDEN_CREDENTIAL_ENV", MESSAGES.FORBIDDEN_CREDENTIAL_ENV, { names: forbidden.join(",") });
   }
+  if (req.profile !== undefined && (req.profile !== 'text' || req.mode !== 'independent' || req.resume || req.attachmentDirs?.length || req.writableDirs?.length || req.contextFile)) {
+    return appError('INVALID_REQUEST', '텍스트 작업에는 새 세션과 입력 텍스트만 사용할 수 있습니다.');
+  }
   const ids = [req.runId, req.appSessionId, req.cliSessionId].every((v) => Id.safeParse(v).success);
   const dirs = isDir(req.workspacePath) && [...(req.attachmentDirs ?? []), ...(req.writableDirs ?? [])].every(isDir);
   if (!ids || !dirs || req.prompt.trim() === "") {
@@ -137,6 +144,8 @@ function validate(req: RunRequest, env: NodeJS.ProcessEnv): AppError | undefined
 export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcome> {
   const invalid = validate(req, opts.env);
   if (invalid) return Promise.resolve({ ok: false, error: invalid });
+  const textVersion = textProofVersion(opts.textProof, opts.cliPath);
+  if (req.profile === 'text' && !textVersion) return Promise.resolve({ ok: false, error: appError('CLI_VERSION_MISMATCH', 'Claude Code 텍스트 호환성을 먼저 확인해야 합니다.') });
   if (opts.signal?.aborted) {
     return Promise.resolve({ ok: false, error: appError("RUN_INTERRUPTED", MESSAGES.RUN_INTERRUPTED) });
   }
@@ -145,7 +154,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   const newId = opts.newId ?? randomUUID;
   const grace = opts.killGraceMs ?? 3000;
   const verified = opts.verifiedVersions ?? VERIFIED_CLI_VERSIONS;
-  const expectedTools = new Set<string>(req.mode === "independent" ? INDEPENDENT_TOOLS : COURSE_TOOLS);
+  const expectedTools = new Set<string>(req.profile === 'text' ? [] : req.mode === "independent" ? INDEPENDENT_TOOLS : COURSE_TOOLS);
   const violation = req.mode === "independent" ? "ISOLATION_VIOLATION" : "SCOPE_VIOLATION";
   const workspace = nfc(realpathSync(req.workspacePath));
   const attachments = (req.attachmentDirs ?? []).map((d) => nfc(realpathSync(d)));
@@ -259,6 +268,9 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   };
 
   const onInit = (init: Json) => {
+    if (req.profile === 'text' && (!Array.isArray(init.tools) || !Array.isArray(init.mcp_servers))) {
+      return fail(appError('CLI_VERSION_MISMATCH', 'Claude Code의 도구·MCP 목록 응답 형식을 확인할 수 없습니다.'));
+    }
     const toolList = Array.isArray(init.tools) ? init.tools.map(String) : [];
     const mcp = Array.isArray(init.mcp_servers)
       ? init.mcp_servers.map((s) => (typeof s === "string" ? s : str((s as Json).name) ?? "?"))
@@ -267,16 +279,17 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
       return fail(appError("FORBIDDEN_CREDENTIAL_ENV", MESSAGES.API_KEY_SOURCE, { apiKeySource: String(init.apiKeySource) }));
     }
     const version = str(init.claude_code_version) ?? "unknown";
-    if (req.mode !== "course" && !verified.includes(version)) {
-      return fail(appError("CLI_VERSION_MISMATCH", MESSAGES.CLI_VERSION_MISMATCH, { found: version }));
+    if (req.profile === 'text' ? version !== textVersion : req.mode !== "course" && !verified.includes(version)) {
+      return fail({ ...appError("CLI_VERSION_MISMATCH", req.profile === 'text' ? '호환성을 확인한 Claude Code와 실행 버전이 다릅니다. 다시 시도하면 업데이트된 실행 파일을 확인합니다.' : MESSAGES.CLI_VERSION_MISMATCH, { found: version }), ...(req.profile === 'text' ? { retryable: true } : {}) });
     }
     const sameTools = toolList.length === expectedTools.size && toolList.every((t) => expectedTools.has(t));
     if (!sameTools || mcp.length > 0) {
-      return fail(appError(violation, MESSAGES[violation], { tools: toolList.length, mcpServers: mcp.length }));
+      return fail(appError(violation, req.profile === 'text' ? '텍스트 전용 실행에 허용하지 않은 도구나 MCP 연결이 있어 중단했습니다.' : MESSAGES[violation], { tools: toolList.length, mcpServers: mcp.length }));
     }
     if (init.session_id !== req.cliSessionId) {
       return fail(appError("ISOLATION_VIOLATION", MESSAGES.ISOLATION_VIOLATION, { reason: "session id" }));
     }
+    if (req.profile === 'text' && init.permissionMode !== 'dontAsk') return fail(appError('ISOLATION_VIOLATION', '텍스트 전용 실행의 권한 설정이 달라 중단했습니다.'));
     phase = "running";
     emit("run.started", {
       appSessionId: req.appSessionId,
@@ -290,6 +303,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
   };
 
   const onToolUse = (block: Json) => {
+    if (req.profile === 'text') return fail(appError('ISOLATION_VIOLATION', '텍스트 전용 실행에서 도구 호출이 감지되어 중단했습니다.'));
     const id = str(block.id) ?? "";
     const name = str(block.name) ?? "";
     const input = (block.input ?? {}) as Json;
@@ -328,6 +342,7 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
       opts.onDiagnostic?.(`unparsed stdout: ${mask(line).slice(0, 200)}`);
       return;
     }
+    if (!event || typeof event !== 'object' || Array.isArray(event)) return fail(appError('CLI_VERSION_MISMATCH', 'Claude Code 응답 형식을 확인할 수 없습니다.'));
     if (event.type === "result") result = event;
     if (event.type === "rate_limit_event") {
       const info = (event.rate_limit_info ?? {}) as Json;
@@ -359,7 +374,10 @@ export function startRun(req: RunRequest, opts: RunOptions): Promise<StartOutcom
     }
   };
 
-  createInterface({ input: child.stdout }).on("line", onLine);
+  createInterface({ input: child.stdout }).on("line", (line: string) => {
+    try { onLine(line); }
+    catch { fail(appError('CLI_VERSION_MISMATCH', 'Claude Code 응답 형식이 앱의 처리 계약과 다릅니다.')); }
+  });
   child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
     if (stderr.length < 8192) stderr += chunk.slice(0, 8192 - stderr.length);
     for (const line of chunk.split("\n")) if (line.trim()) opts.onDiagnostic?.(`stderr: ${mask(line).slice(0, 500)}`);

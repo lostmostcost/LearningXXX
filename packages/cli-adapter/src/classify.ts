@@ -53,6 +53,9 @@ export function classifyFailure(s: FailureSignals): AppError {
     if (code === "USAGE_LIMIT") return usageLimit(undefined, detail);
     return appError(code, MESSAGES[code as keyof typeof MESSAGES], detail);
   }
+  if (/ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ENETUNREACH|fetch failed|network error|connection error|unable to connect/i.test(text)) {
+    return { code: 'INTERNAL', message: 'Claude Code에 연결하지 못했습니다. 네트워크 상태를 확인하고 다시 시도하세요.', retryable: true, detail };
+  }
   return appError("INTERNAL", MESSAGES.INTERNAL, detail);
 }
 

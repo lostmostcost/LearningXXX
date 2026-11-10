@@ -31,21 +31,23 @@ export function readablePrompt(title: string, text: string): string {
 
 /**
  * WBS-069/070: one answer in text from the official Claude Code (the user's
- * subscription login), in an independent session: the most restricted mode
- * (read-only tools, no MCP, no slash commands) with an empty working folder,
+ * subscription login), in the automatically checked text-only profile
+ * (no tools, no MCP, no slash commands or session persistence),
  * so the run can only answer. `what` names the job in messages.
  */
 export function createClaudeTextRunner(startCli: StartCli, root: string, newId: () => string = randomUUID) {
   return async ({ prompt, what, signal }: { prompt: string; what: string; signal: AbortSignal }): Promise<string> => {
+    if (signal.aborted) throw Object.assign(new Error(`${what}를 취소했습니다.`), { appError: AppError.parse({ code: 'RUN_INTERRUPTED', message: `${what}를 취소했습니다.`, retryable: true }) });
     const id = newId();
     const workspace = join(root, id);
     await mkdir(workspace, { recursive: true, mode: 0o700 });
     const abort = new AbortController();
     const stop = () => abort.abort();
     signal.addEventListener("abort", stop, { once: true });
+    if (signal.aborted) stop(); // Cancellation may have arrived while mkdir was pending.
     const timer = setTimeout(stop, TIME_LIMIT_MS);
     try {
-      const outcome = await startCli({ runId: newId(), appSessionId: id, mode: "independent", cliSessionId: newId(), resume: false, workspacePath: workspace, prompt }, abort.signal);
+      const outcome = await startCli({ runId: newId(), appSessionId: id, mode: "independent", profile: 'text', cliSessionId: newId(), resume: false, workspacePath: workspace, prompt }, abort.signal);
       if (!outcome.ok) throw Object.assign(new Error(outcome.error.message), { appError: outcome.error });
       let answer = "";
       for await (const event of outcome.events) {

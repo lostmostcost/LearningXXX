@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { AppError, RunEvent, checkEventStream } from "@learningxxx/contracts";
 import * as A from "../src/index.ts";
+import { issueTextProof } from '../src/text-proof.ts';
 
 const FAKE_SOURCE = readFileSync(join(import.meta.dirname, "fake-claude.mjs"), "utf8");
 const TOOLCHAIN = JSON.parse(readFileSync(join(import.meta.dirname, "../../../infra/dev/toolchain.json"), "utf8"));
@@ -81,6 +82,36 @@ const last = (events: RunEvent[]) => events[events.length - 1]!;
 const text = (events: RunEvent[]) => events.flatMap((e) => (e.type === "text.delta" ? [e.payload.text] : [])).join("");
 
 describe("argument policy", () => {
+  it('text operations have no tools or persisted session and require checker-issued evidence', async () => {
+    const f = fixture();
+    const req = request(f, { profile: 'text' });
+    assert.equal(startError(await A.startRun(req, { cliPath: f.cli, env: env(f, 'ok') })).code, 'CLI_VERSION_MISMATCH');
+    assert.equal(startError(await A.startRun(req, { cliPath: f.cli, env: env(f, 'ok'), textProof: {} as NonNullable<A.RunOptions['textProof']> })).code, 'CLI_VERSION_MISMATCH');
+    assert.deepEqual(invocations(f), []);
+    const events = await collect(await A.startRun(req, { cliPath: f.cli, env: env(f, 'ok'), textProof: issueTextProof(f.cli, '2.1.316') }));
+    assert.equal(last(events).type, 'run.completed');
+    const args = invocations(f)[0]!.argv;
+    assert.equal(args[args.indexOf('--tools') + 1], '');
+    assert(args.includes('--no-session-persistence'));
+  });
+
+  it('text operations reject resume, attachments and other execution modes before spawning', async () => {
+    const f = fixture();
+    for (const over of [{ resume: true }, { attachmentDirs: [f.outside] }, { writableDirs: [f.outside] }, { mode: 'course' as const }]) {
+      assert.equal(startError(await run(f, 'ok', { profile: 'text', ...over })).code, 'INVALID_REQUEST');
+    }
+    assert.deepEqual(invocations(f), []);
+  });
+
+  it('text execution rejects tools and a different init version even with evidence', async () => {
+    const f = fixture();
+    for (const scenario of ['extra_tool', 'extra_mcp', 'old_version', 'outside_denied']) {
+      const outcome = await run(f, scenario, { profile: 'text' }, { textProof: issueTextProof(f.cli, '2.1.316') });
+      if (outcome.ok) assert.equal(last(await collect(outcome)).type, 'run.failed');
+      else assert(['ISOLATION_VIOLATION', 'CLI_VERSION_MISMATCH'].includes(outcome.error.code));
+    }
+  });
+
   it("independent sessions carry the full WBS-002 isolation flag set and no prompt", () => {
     const id = randomUUID();
     const args = A.buildArgs({ mode: "independent", cliSessionId: id, resume: false, attachmentDirs: ["/a"] });

@@ -47,9 +47,9 @@ export interface CliProbe {
   subscriptionType?: string;
 }
 
-const run = (path: string, args: string[], env: NodeJS.ProcessEnv) =>
+const run = (path: string, args: string[], env: NodeJS.ProcessEnv, signal?: AbortSignal) =>
   new Promise<{ code: number; stdout: string; spawnError?: NodeJS.ErrnoException }>((resolve) => {
-    execFile(path, args, { env: childEnv(env), timeout: 30_000 }, (error, stdout) => {
+    execFile(path, args, { env: childEnv(env), signal, timeout: 30_000 }, (error, stdout) => {
       const err = error as (NodeJS.ErrnoException & { code?: unknown }) | null;
       if (err && typeof err.code === "string") resolve({ code: -1, stdout: "", spawnError: err });
       else resolve({ code: err ? Number(err.code ?? 1) : 0, stdout: String(stdout) });
@@ -66,18 +66,23 @@ export async function probeCli(
   path: string,
   env: NodeJS.ProcessEnv,
   verified: readonly string[] = VERIFIED_CLI_VERSIONS,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; probe: CliProbe } | { ok: false; error: AppError }> {
+  const cancelled = () => ({ ok: false as const, error: { ...appError('RUN_INTERRUPTED', 'Claude Code 실행 준비를 취소했습니다.'), retryable: true } });
+  if (signal?.aborted) return cancelled();
   const forbidden = findForbiddenEnv(env);
   if (forbidden.length) {
     return { ok: false, error: appError("FORBIDDEN_CREDENTIAL_ENV", MESSAGES.FORBIDDEN_CREDENTIAL_ENV, { names: forbidden.join(",") }) };
   }
-  const version = await run(path, ["--version"], env);
+  const version = await run(path, ["--version"], env, signal);
+  if (signal?.aborted) return cancelled();
   if (version.spawnError) return { ok: false, error: appError("CLI_NOT_INSTALLED", MESSAGES.CLI_NOT_INSTALLED) };
   const parsed = parseCliVersion(version.stdout);
   if (version.code !== 0 || !parsed) {
     return { ok: false, error: appError("CLI_VERSION_MISMATCH", MESSAGES.CLI_VERSION_MISMATCH, { exitCode: version.code }) };
   }
-  const status = await run(path, ["auth", "status"], env);
+  const status = await run(path, ["auth", "status"], env, signal);
+  if (signal?.aborted) return cancelled();
   let auth: Record<string, unknown> = {};
   try {
     auth = JSON.parse(status.stdout) as Record<string, unknown>;
@@ -86,7 +91,7 @@ export async function probeCli(
   }
   const authMethod = String(auth.authMethod ?? "");
   const apiProvider = String(auth.apiProvider ?? "");
-  if (auth.loggedIn !== true || authMethod !== "claude.ai" || apiProvider !== "firstParty") {
+  if (status.code !== 0 || auth.loggedIn !== true || authMethod !== "claude.ai" || apiProvider !== "firstParty") {
     return {
       ok: false,
       error: appError("CLI_AUTH_REQUIRED", MESSAGES.CLI_AUTH_REQUIRED, {

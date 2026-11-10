@@ -205,6 +205,15 @@ try {
       assert.equal(find('녹음·전사 원본 선택').value, original.value);
       await scrollMedia(350);
       assert(snapshot.text.includes('논리 회로의 입력과 출력을 살펴봅니다.'));
+      await click('전사 도구 · 수정·번역·정리');
+      await click('Claude Code(구독)로 읽기 쉬운 정리본 만들기');
+      await until(s => s.text.includes('정리본을 만들었습니다.'));
+      await click('앱 정리본(Claude)');
+      await until(s => s.text.includes('합성 UI 예제 문서입니다.'));
+      await command({ op: 'render', name: 'readable-note-created' });
+      await click('앱 정리본(Claude)');
+      await click('전사 도구 · 수정·번역·정리');
+      checks.push('Visible transcript tools generate and open a readable note through the same public UI flow');
       await scrollMedia(-350);
       checks.push('Media week filters, empty and unfiled weeks, transcript reset and reassignment follow the selected original');
       await command({ op: 'render', name: 'layout-media' });

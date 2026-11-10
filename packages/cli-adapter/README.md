@@ -56,3 +56,11 @@
 - `docker compose run --rm tools`: 가짜 CLI(`test/fake-claude.mjs`)로 정상, 실패 경로별 오류 코드, 격리·범위 위반, 취소(SIGTERM·SIGKILL), 경로 탐지, 점검을 실제 하위 프로세스로 시험한다.
 - 가짜 CLI의 출력 형태는 2026-11-01 Mac에서 Claude Code 2.1.316 실제 호출로 확인했다: stdin 프롬프트, 격리 플래그와 `--resume`, 과목 모드 인자의 init 도구 목록, partial message, Write 결과.
 - 미검증: 실제 로그인 만료·사용량 한도 출력 문구(가짜 CLI 문구는 추정), Electron 앱 프로세스에서의 실행, 2.1.316 외 버전.
+
+
+## WBS-113 · text 프로필
+정리본·번역 등의 host 작업은 `profile: "text"`로 도구 없이 실행한다. text 전용 인자와 새로운 UUID/세션 비저장 정책을 적용하며 resume·추가 폴더·다른 mode는 거부한다. `startRun`은 checker가 발급한 프로세스 내 proof가 없으면 이 경로를 시작하지 않는다. renderer나 IPC의 새 설정이 아니다.
+
+`createTextCompatibility`는 realpath·바이너리 해시·버전·검사 정책에 결합한 합성 검사를 수행한다. 실제 인자/응답/도구·MCP/권한/세션과 canary·hook/MCP 표식을 확인하고 성공만 private cache한다. help의 옵션 나열만으로 판정하지 않는다. 원시 응답/사용자 텍스트/인증은 저장하지 않는다. 로그인 상태는 호출자가 매 요청 `probeCli`로 확인한다. host `createCliRunner`는 text 캐시를 연결하고 실제 init/stream 위반 시 증거를 무효화한다.
+
+동시 확인 공유·취소·재시작 캐시·파일 교체/정책 변경·실패/깨진 cache/심볼릭 링크·과거 경로 회귀는 adapter/host 테스트에서 확인한다. 검사/프로토콜 정책 변경 시 TEXT_COMPAT_POLICY revision을 갱신한다. 위 기존 독립 실행의 고정 버전/G0 정책은 유지하며 text 검사 통과를 legacy 실행에 승계하지 않는다. 악성 CLI에 대한 OS 격리 보증이 아니다.

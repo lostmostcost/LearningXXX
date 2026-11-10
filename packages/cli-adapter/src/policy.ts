@@ -26,6 +26,11 @@ export const SESSION_ENV = ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"] as const;
  */
 export const VERIFIED_CLI_VERSIONS: readonly string[] = ["2.1.316", "2.1.317"];
 
+/** Separate from legacy sessions. Changing this policy invalidates text compatibility evidence. */
+export const TEXT_CLI_FLAGS = ["--restricted", "--safe-mode", "--strict-mcp-config", "--disable-slash-commands",
+  "--permission-mode", "dontAsk", "--tools", "", "--no-session-persistence", "--max-turns", "1",
+  "--system-prompt", "Process only the text supplied in this request. Return the requested text. Do not use tools."] as const;
+
 export const INDEPENDENT_TOOLS = ["Read", "Glob", "Grep"] as const;
 export const COURSE_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit"] as const;
 
@@ -39,6 +44,8 @@ export type Mode = "course" | "independent" | "app_modify";
 
 export interface ArgsInput {
   mode: Mode;
+  /** Trusted host text operations only; never a session/renderer setting. */
+  profile?: 'text';
   cliSessionId: string;
   resume: boolean;
   attachmentDirs: readonly string[];
@@ -56,7 +63,9 @@ export interface ArgsInput {
 export function buildArgs(input: ArgsInput): string[] {
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"];
   if (input.model) args.push("--model", input.model);
-  if (input.mode === "independent") {
+  if (input.profile === 'text') {
+    args.push(...TEXT_CLI_FLAGS);
+  } else if (input.mode === "independent") {
     // ISOLATION.md: the whole set, verified together on two Macs.
     args.push(
       "--restricted",

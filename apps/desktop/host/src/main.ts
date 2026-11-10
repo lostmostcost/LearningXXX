@@ -331,7 +331,7 @@ app.whenReady().then(async () => {
     },
     trash: (path) => shell.trashItem(path),
   });
-  const startCli = createCliRunner();
+  const startCli = createCliRunner(process.env, undefined, join(dataRoot, 'cli-text-compatibility'));
   const claudeText = createClaudeTextRunner(startCli, join(dataRoot, "readable-runs"));
   // WBS-072: the original is looked up through the manifest and re-hashed, like any viewer request.
   const pdfTranslations = new PdfTranslationService({

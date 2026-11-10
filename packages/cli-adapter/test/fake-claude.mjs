@@ -17,6 +17,10 @@ if (argv[0] === "--version") {
   process.stdout.write(`${process.env.FAKE_VERSION ?? "2.1.316"} (Claude Code)\n`);
   process.exit(0);
 }
+if (argv[0] === '--help') {
+  process.stdout.write('-p --output-format --verbose --include-partial-messages --session-id --model --restricted --safe-mode --strict-mcp-config --disable-slash-commands --permission-mode --tools --no-session-persistence --max-turns --system-prompt');
+  process.exit(0);
+}
 if (argv[0] === "auth" && argv[1] === "status") {
   const auth = {
     loggedIn: scenario !== "logged_out",
@@ -27,7 +31,7 @@ if (argv[0] === "auth" && argv[1] === "status") {
     orgId: "org-synthetic",
   };
   process.stdout.write(JSON.stringify(auth));
-  process.exit(0);
+  process.exit(scenario === 'auth_status_error' ? 2 : 0);
 }
 
 const stdin = readFileSync(0, "utf8");
@@ -45,9 +49,9 @@ const init = {
   tools: scenario === "extra_tool" ? [...tools, "Bash"] : tools,
   mcp_servers: scenario === "extra_mcp" ? [{ name: "synthetic-connector", status: "connected" }] : [],
   model: "claude-haiku-5-5",
-  permissionMode: "dontAsk",
+  permissionMode: scenario === 'bad_permission' ? 'default' : 'dontAsk',
   apiKeySource: scenario === "api_key" ? "ANTHROPIC_API_KEY" : "none",
-  claude_code_version: scenario === "old_version" ? "2.0.1" : "2.1.316",
+  claude_code_version: scenario === "old_version" ? "2.0.1" : process.env.FAKE_VERSION ?? "2.1.316",
 };
 const result = (fields) =>
   out({ type: "result", subtype: "success", is_error: false, result: "", session_id: sessionId, permission_denials: [], ...fields });
@@ -60,6 +64,8 @@ const partial = (id, text) => {
 };
 
 switch (scenario) {
+  case 'null_json': out(null); await sleep(5000); process.exit(0);
+  case 'network_error': result({ is_error: true, result: 'Connection error. ECONNRESET' }); process.exit(1);
   case "unknown_option":
     process.stderr.write("error: unknown option '--safe-mode'\n");
     process.exit(1);
@@ -69,8 +75,23 @@ switch (scenario) {
     process.exit(1);
 }
 
+if (scenario === 'missing_tools') delete init.tools;
+if (scenario === 'bad_mcp_metadata') init.mcp_servers = 'unknown';
 out(init);
 switch (scenario) {
+  case 'text_ok':
+  case 'text_slow':
+  case 'text_leak':
+  case 'text_marker': {
+    if (scenario === 'text_slow') await sleep(350);
+    let answer = /COMPAT-OK-[0-9a-f-]+/.exec(stdin)?.[0] ?? '# Synthetic note\n[00:00] Text-only result.';
+    if (scenario === 'text_leak') answer += readFileSync(join(process.cwd(), 'CLAUDE.md'), 'utf8');
+    if (scenario === 'text_marker') {
+      const config = JSON.parse(readFileSync(join(process.cwd(), '../.mcp.json'), 'utf8'));
+      writeFileSync(config.mcpServers.canary.args.at(-1), 'unexpected');
+    }
+    assistant('msg_text', [{ type: 'text', text: answer }]); result({ result: answer }); process.exit(0);
+  }
   case "ok":
   case "old_version":
     partial("msg_1", `echo:${stdin}`);

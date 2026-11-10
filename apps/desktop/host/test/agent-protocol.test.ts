@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { AgentLines, parseAgentCommand } from '../src/agent-protocol.ts';
 
 test('agent language is closed and requires explicit user operations', () => {
+  assert.equal(parseAgentCommand({ op: 'navigate', section: 'media' }, 'assist').section, 'media');
   for (const c of [{ op: 'eval', code: 'x' }, { op: 'click', selector: 'button' }, { op: 'snapshot', state: {} }, { op: '__proto__' }, { op: 'key', key: 'A' }, { op: 'click' }, { op: 'fill', target: 'a', text: 2 }, { op: 'resize', width: 0, height: 800 }, { op: 'render', name: '../private' }, { op: 'wait', ms: Infinity }]) assert.throws(() => parseAgentCommand(c));
   assert.deepEqual(parseAgentCommand({ op: 'click', target: 'revision:1' }), { op: 'click', target: 'revision:1' });
   assert.deepEqual(parseAgentCommand({ op: 'key', key: 'Tab', shift: true }), { op: 'key', key: 'Tab', shift: true });

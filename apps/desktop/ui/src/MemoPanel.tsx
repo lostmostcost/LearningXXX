@@ -22,34 +22,52 @@ export function MemoPanel({ courseId, weeks, weekId: shownWeek, page }: {
 }) {
   const [weekId, setWeekId] = useState(shownWeek);
   useEffect(() => setWeekId(shownWeek), [shownWeek]);
+  // A scope owns its base version, pending save and async replies. Old replies
+  // must never replace another course/week's text or optimistic-lock version.
+  return <MemoEditor key={`${courseId}/${weekId ?? ''}`} courseId={courseId} weeks={weeks} weekId={weekId} page={page} onWeekChange={setWeekId} />;
+}
+
+function MemoEditor({ courseId, weeks, weekId, page, onWeekChange }: {
+  courseId: string; weeks: readonly Week[]; weekId: string | undefined;
+  page: { assetId: string; title: string; page: number } | undefined;
+  onWeekChange(week: string | undefined): void;
+}) {
   const [memo, setMemo] = useState<Memo>();
   const [text, setText] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const saves = useRef<Promise<void>>(Promise.resolve());
   const base = useRef<string | null>(null);
   const pending = useRef<{ text: string; timer: ReturnType<typeof setTimeout> } | undefined>(undefined);
   const where = { courseId, ...(weekId ? { weekId } : {}) };
 
   const accept = (m: Memo) => { setMemo(m); base.current = m.updatedAt; };
-  const save = useCallback(async (value: string) => {
-    setStatus('저장 중…');
-    const r = await invoke('memo.save', { courseId, ...(weekId ? { weekId } : {}), text: value, base: base.current });
-    if (r.ok) { accept(r.data); setStatus(`저장됨 · ${formatSeoul(r.data.updatedAt!)}`); setError(''); }
-    else { setStatus(''); setError(r.error.message); }
+  const save = useCallback((value: string) => {
+    // Serialize this editor's saves so each uses the previous response's base.
+    const next = saves.current.then(async () => {
+      setStatus('저장 중…');
+      const r = await invoke('memo.save', { courseId, ...(weekId ? { weekId } : {}), text: value, base: base.current });
+      if (r.ok) { accept(r.data); setStatus(`저장됨 · ${formatSeoul(r.data.updatedAt!)}`); setError(''); }
+      else { setStatus(''); setError(r.error.message); }
+    });
+    saves.current = next.catch(() => {});
+    return next;
   }, [courseId, weekId]);
   /** Saves now what is waiting to be saved (before switching week or tidying). */
   const flush = useCallback(async () => {
     const p = pending.current;
-    if (!p) return;
+    if (!p) return saves.current;
     clearTimeout(p.timer); pending.current = undefined;
     await save(p.text);
   }, [save]);
 
   const load = useCallback(async () => {
-    setError(''); setStatus('');
+    setError(''); setStatus(''); setLoaded(false);
+    await saves.current;
     const r = await invoke('memo.get', { courseId, ...(weekId ? { weekId } : {}) });
-    if (r.ok) { accept(r.data); setText(r.data.text); } else setError(r.error.message);
+    if (r.ok) { accept(r.data); setText(r.data.text); setLoaded(true); } else setError(r.error.message);
   }, [courseId, weekId]);
   useEffect(() => { void load(); return () => { void flush(); }; }, [load, flush]);
 
@@ -80,17 +98,17 @@ export function MemoPanel({ courseId, weeks, weekId: shownWeek, page }: {
 
   return <div className="memo-panel">
     <div className="memo-head">
-      <Details title={<>{weeks.find(w=>w.id===weekId)?.label ?? "주차 없음"}<small>변경</small></>}><select aria-label="메모 주차" value={weekId ?? ''} onChange={(e) => { void flush(); setWeekId(e.target.value || undefined); }}>
+      <Details title={<>{weeks.find(w=>w.id===weekId)?.label ?? "주차 없음"}<small>변경</small></>}><select aria-label="메모 주차" value={weekId ?? ''} onChange={(e) => { void flush(); onWeekChange(e.target.value || undefined); }}>
         {weeks.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
         <option value="">주차 없음</option>
       </select></Details>
-      <button disabled={!page} title={page ? `${page.title} ${page.page}쪽을 메모에 넣기` : '자료 보기에서 PDF를 열면 쓸 수 있습니다'} onClick={() => void addPage()}>쪽 추가</button>
-      <button disabled={busy || !text.trim()} title="과목 정리와 이 주차 자료를 참고해 정리본을 만듭니다(메모는 그대로)" onClick={() => void tidy()}>{busy ? '정리하는 중…' : 'AI로 정리'}</button>
+      <button aria-label="쪽 추가" disabled={!loaded || !page} title={page ? `${page.title} ${page.page}쪽을 메모에 넣기` : '자료 보기에서 PDF를 열면 쓸 수 있습니다'} onClick={() => void addPage()}>쪽 추가</button>
+      <button disabled={!loaded || busy || !text.trim()} title="과목 정리와 이 주차 자료를 참고해 정리본을 만듭니다(메모는 그대로)" onClick={() => void tidy()}>{busy ? '정리하는 중…' : 'AI로 정리'}</button>
       {memo?.canUndo ? <button onClick={() => void apply('undo')} title="정리본으로 바꾸기 전 메모로">되돌리기</button> : null}
     </div>
-    <textarea aria-label="메모" value={text} placeholder="메모하세요. 자동으로 저장됩니다." onChange={(e) => edit(e.target.value)} onBlur={() => void flush()} />
+    <textarea aria-label="메모" disabled={!loaded} value={text} placeholder="메모하세요. 자동으로 저장됩니다." onChange={(e) => edit(e.target.value)} onBlur={() => void flush()} />
     <p className="meta" role="status">{error ? null : status}</p>
-    {error ? <p className="chat-error" role="alert">{error}{error.includes('다른 곳에서') ? <> <button className="link-button" onClick={() => void load()}>다시 불러오기</button></> : null}</p> : null}
+    {error ? <p className="chat-error" role="alert">{error}{!loaded || error.includes('다른 곳에서') ? <> <button className="link-button" onClick={() => void load()}>다시 불러오기</button></> : null}</p> : null}
     {memo?.cleaned ? <section className="memo-cleaned" aria-label="AI 정리본">
       <div className="memo-head"><strong>AI 정리본</strong><span className="meta">{formatSeoul(memo.cleaned.at)}</span><button onClick={() => void apply('use_cleaned')}>이 정리본으로 바꾸기</button><button onClick={() => void apply('discard_cleaned')}>버리기</button></div>
       <MarkdownAnswer text={memo.cleaned.text} />

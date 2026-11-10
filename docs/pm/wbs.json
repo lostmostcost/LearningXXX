@@ -3411,6 +3411,48 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-110.md"
       ]
+    },
+    {
+      "id": "WBS-111",
+      "title": "녹음·전사 독립 화면과 전역 채팅·메모 토글",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-110"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/src/agent-protocol.ts",
+        "apps/desktop/host/test/agent-protocol.test.ts",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "apps/desktop/host/scripts/layout-smoke.mjs",
+        "docs/specs/SPEC-003.md",
+        "docs/specs/SPEC-007.md",
+        "docs/DEVELOPMENT.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "녹음·전사를 좌측 독립 화면에 통합하고 채팅·메모를 모든 화면에서 각각 켜고 끈다. 초안·응답·녹음을 화면 전환으로 중단하지 않는다. 화면 문맥과 세션 소속을 구분하고 이전 PDF를 다른 화면 문맥으로 보내지 않는다. 사용자 여정 debug CLI 및 명시 assist를 갱신·검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-111-global-tools-layout",
+      "url": "https://app.notion.com/p/414bd7ec20cd816ebc33f916c31c9fad",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-111. Notion Ready 및 WBS-110 Done, 의존 main 4a39bbe 확인 후 scripts/claim.py로 task/ui/host/shared를 local .git에만 create-only 선점. GitHub push/PR/원격 claim 변경 금지. 사용자 요청에 따라 읽기 전용 설계 에이전트와 문맥 설계를 상의함. 자동 세션 분리·본문 자동 첨부 정책은 별도 후속 협의 사항으로 보존. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. SPEC-003 v0.4.4 승인 추가 절과 SPEC-007 v0.3.0을 동기화함. 영역 밖 변경 없음.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-111.md"
+      ]
     }
   ],
   "qaPolicy": {

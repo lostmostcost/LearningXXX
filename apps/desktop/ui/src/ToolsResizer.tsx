@@ -9,8 +9,8 @@ import { clampToolsWidth, TOOLS_MIN_WIDTH } from './layout.ts';
  */
 export function ToolsResizer({ width, onChange, onReset }: { width: number | undefined; onChange(width: number, done: boolean): void; onReset(): void }) {
   const drag = useRef<{ id: number; right: number; total: number } | undefined>(undefined);
-  const area = (el: Element) => el.closest('.panels')?.getBoundingClientRect();
-  const current = (el: Element) => width ?? el.parentElement?.getBoundingClientRect().width ?? TOOLS_MIN_WIDTH;
+  const area = (el: Element) => el.closest('[data-tools-layout],.panels')?.getBoundingClientRect();
+  const current = (el: Element) => el.parentElement?.getBoundingClientRect().width ?? width ?? TOOLS_MIN_WIDTH;
   return <div className="tools-resizer" role="separator" aria-orientation="vertical" aria-label="학습 도구 너비 조절" title="끌어서 너비 조절 · 두 번 누르면 기본 너비"
     aria-valuenow={width === undefined ? undefined : Math.round(width)} aria-valuemin={TOOLS_MIN_WIDTH} tabIndex={0}
     onPointerDown={(event) => {

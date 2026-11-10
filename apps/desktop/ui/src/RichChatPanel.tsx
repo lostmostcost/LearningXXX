@@ -18,11 +18,12 @@ type Note = { title: string; text: string; settings?: 'screen' | undefined };
 type Rewind = { id: string; result: IpcResponse<'chat.rewind'> };
 
 /** Session IDs are captured before every async action; switching views never retargets a send. */
-export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing, fixed = false, blocked = false }: {
+export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing, screenLabel, fixed = false, blocked = false }: {
   courseId: string | undefined; courseTitle: string | undefined; activeId: string | undefined; onActiveId: (id: string) => void;
   selectedAssets: { id: string; name: string }[]; selectionRequest: SelectionRequest | undefined; onSelectionUsed: (id: string) => void;
   /** WBS-082: what is open in the viewer, sent with each message. */
   viewing?: { week?: string; title?: string; page?: number } | undefined;
+  screenLabel?: string | undefined;
   fixed?: boolean; blocked?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -172,7 +173,8 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       }
       const key = JSON.stringify(content);
       if (requests.current.get(id)?.key !== key) requests.current.set(id, { key, requestId: crypto.randomUUID() });
-      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n'), ...(viewing ? { viewing } : {}) });
+      const sameCourse = active?.mode === 'course' && active.courseId === courseId;
+      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n'), ...(sameCourse && viewing ? { viewing } : {}) });
       if (r.ok) { requests.current.delete(id); accept(id, r.data); setDraft(id, old => ({ text: old.text === draft.text ? '' : old.text, attachments: old.attachments.filter(a => !content.attachments.some(b => b.id === a.id)) })); nearBottom.current = true; }
       else tell(id, '전송 실패', r.error.message);
     });
@@ -181,6 +183,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
   const disabled = blocked || busy || !!state?.busy || !state?.connected;
 
   return <section className="rich-chat" aria-label="Claude Code 채팅">
+    {screenLabel ? <div className="chat-screen-context" aria-label="채팅 화면 문맥"><span>현재 화면 · {screenLabel}</span><span>대화 소속 · {active ? active.mode === 'independent' ? '일반 대화' : active.courseId === courseId ? courseTitle ?? '과목 대화' : '다른 과목 대화' : '선택 안 됨'}</span></div> : null}
     {fixed ? <div className="session-toolbar assignment-chat-heading"><strong>과제 전용 · 전체 주차</strong><small>{active?.title ?? '과제 대화 준비 중…'}</small></div> : <div className="session-toolbar"><div className="session-menu" ref={menu}>
       <button className="session-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span>{active?.title ?? '대화 선택'}</span><Icon name="chevron" /></button>
       {menuOpen ? <div className="session-dropdown" role="menu"><button aria-pressed={showArchived} title="보관한 대화 포함" aria-label="보관한 대화 포함" onClick={() => setShowArchived(!showArchived)}><Icon name="archive" />보관한 대화</button>{sessions.filter(s => (!s.archivedAt || showArchived) && (s.mode === 'independent' || s.courseId === courseId)).map(s => <button key={s.appSessionId} role="menuitem" aria-current={s.appSessionId === activeId} onClick={async () => { if (s.archivedAt) { const r = await invoke('session.archive', { appSessionId: s.appSessionId, archived: false }); if (!r.ok) return tell(s.appSessionId, '보관 해제 실패', r.error.message); await reload(); } onActiveId(s.appSessionId); setMenuOpen(false); }}><Icon name={s.mode === 'course' ? 'book' : 'chat'} /><span>{s.title}{s.archivedAt ? " · 보관됨" : ""}</span></button>)}{!sessions.length ? <p>새 대화를 시작하세요.</p> : null}</div> : null}

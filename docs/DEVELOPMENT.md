@@ -43,7 +43,7 @@ node apps/desktop/host/scripts/app-control.mjs --flow assist
 node apps/desktop/host/scripts/app-control-smoke.mjs --assist
 ```
 
-assist에서 `{"op":"catalog"}`로 과목과 현재 자료 ID를 읽은 뒤 `{"op":"navigate","courseId":"목록의 UUID","resourceId":"자료의 UUID","tab":"memo"}`처럼 바로 이동할 수 있습니다. `section`은 home/book/info/tasks/notice, `tab`은 chat/memo/recording/transcripts입니다. debug는 이 두 명령을 거부합니다. assist 결과에는 flow/단축 사용 횟수가 남으며 사용자 여정 검증의 통과 근거로 쓰지 않습니다. 제출·삭제·권한 등은 단축하지 않습니다. 이 CLI는 실행한 세션을 제어하며 기존 일반 앱 채팅에 자동 연결되는 도구 등록은 포함하지 않습니다.
+assist에서 `{"op":"catalog"}`로 과목과 현재 자료 ID를 읽은 뒤 `{"op":"navigate","courseId":"목록의 UUID","resourceId":"자료의 UUID","tab":"memo"}`처럼 바로 이동할 수 있습니다. `section`은 home/book/info/tasks/notice/media, `tab`은 chat/memo/recording/transcripts입니다. debug는 이 두 명령을 거부합니다. assist 결과에는 flow/단축 사용 횟수가 남으며 사용자 여정 검증의 통과 근거로 쓰지 않습니다. 제출·삭제·권한 등은 단축하지 않습니다. 이 CLI는 실행한 세션을 제어하며 기존 일반 앱 채팅에 자동 연결되는 도구 등록은 포함하지 않습니다.
 
 기본 `fixture`는 실제 UI 코드와 합성 서비스를 씁니다. 실제 LMS·Claude·녹음 검증과 구분하세요. `local`은 전용 프로필의 실제 host를 씁니다. 마이크·파일 선택·학교 로그인·외부 창은 `NATIVE_REQUIRED`로 멈추며 별도 실제 앱 확인이 필요합니다. 일반 앱 프로필을 복사하거나 CLI에 넘기지 마세요. 자세한 명령·증거·제약은 [SPEC-007](specs/SPEC-007.md), 검토/검사 결과는 [WBS-109 리뷰](pm/reviews/WBS-109.md)에 있습니다.
 
@@ -94,3 +94,9 @@ Self-review + passing CI → author may merge their own PR. Routine tasks then p
 Notion dates, assignees and QA outcomes are blank until real work occurs.
 Package checks do not by themselves establish successful real LMS/Claude calls, microphone capture or transcription quality. WBS-109 adds explicit background renderer checks; it does not replace those native/service checks.
 
+
+
+## 전역 패널과 녹음·전사 화면 (WBS-111)
+상단 채팅/메모는 독립 토글이며 닫거나 화면을 옮겨도 채팅 초안과 요청을 유지한다. 녹음·전사는 좌측 버튼의 독립 화면이다. `tab: recording/transcripts` assist 요청은 그 화면의 호환 별칭이며 두 개의 우측 탭을 만들지 않는다. 화면 문맥 표시와 대화 소속은 구분하며 화면 이동으로 세션을 자동 재배정하지 않는다.
+
+레이아웃 사용자 흐름 확인: `node apps/desktop/host/scripts/layout-smoke.mjs`, `node apps/desktop/host/scripts/layout-smoke.mjs --assist`. 출력된 private 임시 경로에서 trace와 배경 PNG를 확인한다. fixture는 UI 흐름 증거이며 실제 녹음·전사·Claude 동작의 증거로 쓰지 않는다.

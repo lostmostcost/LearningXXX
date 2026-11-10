@@ -1,5 +1,5 @@
 /** Navigation intents for an explicitly enabled assistant session, never debug evidence. */
-export type AssistNavigation = { op: 'catalog' } | { op: 'navigate'; courseId?: string; resourceId?: string; section?: 'home' | 'book' | 'info' | 'tasks' | 'notice'; tab?: 'chat' | 'memo' | 'recording' | 'transcripts' };
+export type AssistNavigation = { op: 'catalog' } | { op: 'navigate'; courseId?: string; resourceId?: string; section?: 'home' | 'book' | 'info' | 'tasks' | 'notice' | 'media'; tab?: 'chat' | 'memo' | 'recording' | 'transcripts' };
 export const ASSIST_NAVIGATION_EVENT = 'learningxxx:assist-navigation';
 
 export function parseAssistNavigation(value: unknown): AssistNavigation {
@@ -8,7 +8,7 @@ export function parseAssistNavigation(value: unknown): AssistNavigation {
   const allowed = v.op === 'catalog' ? ['op'] : v.op === 'navigate' ? ['op', 'courseId', 'resourceId', 'section', 'tab'] : [];
   if (!allowed.length || Object.keys(v).some(k => !allowed.includes(k))) throw new Error('INVALID_NAVIGATION');
   for (const k of ['courseId', 'resourceId']) if (v[k] !== undefined && (typeof v[k] !== 'string' || !/^[0-9a-f-]{36}$/i.test(v[k] as string))) throw new Error('INVALID_NAVIGATION');
-  if (v.section !== undefined && (typeof v.section !== 'string' || !['home', 'book', 'info', 'tasks', 'notice'].includes(v.section))) throw new Error('INVALID_NAVIGATION');
+  if (v.section !== undefined && (typeof v.section !== 'string' || !['home', 'book', 'info', 'tasks', 'notice', 'media'].includes(v.section))) throw new Error('INVALID_NAVIGATION');
   if (v.tab !== undefined && (typeof v.tab !== 'string' || !['chat', 'memo', 'recording', 'transcripts'].includes(v.tab))) throw new Error('INVALID_NAVIGATION');
   if (v.op === 'navigate' && !v.courseId && !v.resourceId && !v.section && !v.tab) throw new Error('INVALID_NAVIGATION');
   if (v.resourceId && v.section && v.section !== 'book' || v.section === 'home' && (v.resourceId || v.courseId || v.tab)) throw new Error('INVALID_NAVIGATION');

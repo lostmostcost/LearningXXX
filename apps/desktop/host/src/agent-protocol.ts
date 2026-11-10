@@ -20,7 +20,7 @@ export function parseAgentCommand(raw: unknown, flow: AgentFlow = 'debug'): Agen
   if (c.op === 'key' && (typeof c.key !== 'string' || !['Tab', 'Enter', 'Escape', 'Space', 'Up', 'Down', 'Left', 'Right', 'Home', 'End', 'PageUp', 'PageDown', 'F6'].includes(c.key) || c.shift !== undefined && typeof c.shift !== 'boolean')) throw new Error('INVALID_KEY');
   if (c.op === 'navigate') {
     for (const k of ['courseId', 'resourceId']) if (c[k] !== undefined && (typeof c[k] !== 'string' || !/^[0-9a-f-]{36}$/i.test(c[k] as string))) throw new Error('INVALID_NAVIGATION');
-    if (c.section !== undefined && (typeof c.section !== 'string' || !['home', 'book', 'info', 'tasks', 'notice'].includes(c.section))) throw new Error('INVALID_NAVIGATION');
+    if (c.section !== undefined && (typeof c.section !== 'string' || !['home', 'book', 'info', 'tasks', 'notice', 'media'].includes(c.section))) throw new Error('INVALID_NAVIGATION');
     if (c.tab !== undefined && (typeof c.tab !== 'string' || !['chat', 'memo', 'recording', 'transcripts'].includes(c.tab))) throw new Error('INVALID_NAVIGATION');
     if (!c.courseId && !c.resourceId && !c.section && !c.tab || c.resourceId && c.section && c.section !== 'book' || c.section === 'home' && (c.resourceId || c.courseId || c.tab)) throw new Error('INVALID_NAVIGATION');
   }

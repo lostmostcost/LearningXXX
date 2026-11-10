@@ -5,7 +5,7 @@ import { invoke } from "./host-api.ts";
 import { TranscriptPanel } from "./TranscriptPanel.tsx";
 import { Icon } from "./StudyUI.tsx";
 
-export function MediaLibrary({ courseId, view = "recording", selectedAssetId, place }: { courseId: string; view?: "recording" | "transcripts"; selectedAssetId?: string | undefined; place?: (asset: MediaAsset) => ReactNode }) {
+export function MediaLibrary({ courseId, view = "recording", selectedAssetId, place, onSelectAsset }: { courseId: string; view?: "recording" | "transcripts"; selectedAssetId?: string | undefined; place?: (asset: MediaAsset) => ReactNode; onSelectAsset?: ((id: string | undefined) => void) | undefined }) {
   const [data, setData] = useState<IpcResponse<"media.list">>();
   const [engine, setEngine] = useState<IpcResponse<"stt.status">>();
   const [preparing, setPreparing] = useState(false);
@@ -56,6 +56,10 @@ export function MediaLibrary({ courseId, view = "recording", selectedAssetId, pl
   };
   const runtimeControl = engine && engine.state !== "unsupported" ? <button className="icon-button" aria-label={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} title={engine.state === "installing" ? "엔진 준비 취소" : engine.state === "ready" ? "전사 엔진 복구" : "전사 엔진 준비"} disabled={preparing} onClick={() => void action(() => setup(engine.state === "installing"))}><Icon name={engine.state === "installing" ? "stop" : engine.state === "ready" ? "refresh" : "download"} /></button> : null;
   return <section className="media-workspace" aria-label="원본과 전사">
+    {onSelectAsset ? <label className="media-source-select">녹음·전사 원본<select aria-label="녹음·전사 원본 선택" value={selectedAssetId ?? ''} onChange={event => onSelectAsset(event.target.value || undefined)}>
+      <option value="">확인할 원본을 선택하세요</option>
+      {data?.assets.filter(asset => asset.courseId === courseId && asset.role === 'original').map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}
+    </select></label> : null}
     <div className={`engine-card ${engine?.state ?? "checking"}`} role="status">
       <span className="engine-light" /><div><strong>{engine?.state === "ready" ? "로컬 전사 준비 완료" : engine?.state === "installing" ? "전사 엔진 준비 중" : engine?.state === "unsupported" ? "지원하지 않는 Mac" : "전사 엔진 준비 필요"}</strong>{engine?.state !== "ready" ? <small>{engine?.message ?? "이 Mac의 엔진을 확인하고 있습니다…"}</small> : <small>로컬 처리</small>}</div>
       {engine?.state === "ready" ? <Details title="전사 설정">{runtimeControl}</Details> : runtimeControl}

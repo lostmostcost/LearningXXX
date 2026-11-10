@@ -1,8 +1,8 @@
 # SPEC-007 · 사용자 흐름을 따르는 개발용 텍스트 제어
 
-Source: https://app.notion.com/p/413bd7ec20cd8156b3a3c442acbf095d
-Version: 0.2.0 · 2026-11-09 · CR-109 및 사용자 debug/assist 분리 추가 승인 · WBS-109
-REQ-003/009/010. SPEC-003 v0.4.3의 제품 흐름과 CR-050을 보존한다.
+Sources: CR-109 https://app.notion.com/p/413bd7ec20cd8156b3a3c442acbf095d · CR-111 https://app.notion.com/p/414bd7ec20cd81309eb7e0124da99737
+Version: 0.3.0 · 2026-11-10 · CR-109/111 및 사용자 debug/assist 분리 추가 승인 · WBS-109/111
+REQ-003/009/010. SPEC-003 v0.4.4의 제품 흐름과 CR-050을 보존한다.
 
 ## 목적과 구현
 
@@ -59,3 +59,11 @@ PNG와 JSON에는 모드, 생성 시각, CSS 크기와 실제 PNG 픽셀 크기,
 ## 수용 검증
 
 공개 CLI만 이용해 닫힌 메뉴→과목→주차→PDF 열기→문장 선택→대화 생성→빈 전송 잠금→문자 입력→전송→합성 응답→좁은 화면 전환→PNG를 확인한다. 오래된 대상/임의 JS 거부도 검사한다. local에서는 새 프로필의 실제 IPC 설정 저장, 모달 배경 차단, native 로그인 경계, 정상 종료를 검증한다. 전용 프로필 재사용/일반 프로필 거부는 자동 검사한다. 사람의 사용·실제 학교 로그인·실제 구독 응답을 실행했다고 기록하지 않는다.
+
+
+## CR-111 · 새 레이아웃의 사용자 흐름
+`debug`는 과목 선택 열기 → 과목 선택 → 주차 열기 → 자료 선택 순서를 지킨다. 상단 채팅/메모 열기·닫기는 실제 버튼이며 모든 주 화면에서 접근한다. 녹음·전사는 좌측 목적별 버튼 → 원본 선택 → 전사 확인 순서다. 좁은 화면에서는 도구를 닫아 콘텐츠로 돌아온다. 이미 열린 패널은 화면 이동 중 유지한다.
+
+`assist`의 `section`은 `home/book/info/tasks/notice/media`다. `tab: chat/memo`는 해당 전역 패널을 열며 다른 패널을 닫지 않는다. courseId/resourceId/section 없이 tab만 요청하면 현재 주 화면을 유지하고 과목 미선택 상태에서도 열 수 있다. 이전 `tab: recording/transcripts`는 통합 `media` 화면으로 연결하는 호환 별칭이다. `home` 단독 탐색은 유지하며, 다른 화면에서도 채팅/메모는 동일한 실제 토글 버튼으로 닫는다. 탐색 단축 이외의 권한·전송·제출 확인 규칙은 그대로다.
+
+수용 시나리오: `node apps/desktop/host/scripts/layout-smoke.mjs`(debug), 같은 명령 `--assist`(별도 증거). 같은 React/CSS의 배경 PNG로 자료+채팅·두 도구·녹음/전사·좁은 화면을 검토한다. 합성 데이터 확인은 실제 마이크 권한·실음 녹음·Claude 응답·전사 엔진 실행의 입증이 아니다.

@@ -69,7 +69,17 @@ export function installFakeHost(courseTitle: string): void {
   let fixtureEngine = new URLSearchParams(window.location.search).has('engineMissing') ? 'missing' : 'ready';
   let fixtureJob = new URLSearchParams(window.location.search).has('engineMissing') ? { ...SAMPLE_JOBS[3]!, errorCode: 'ENGINE_UNAVAILABLE' } : SAMPLE_JOBS[2]!;
   const engineStatus = () => ({ state: fixtureEngine, message: fixtureEngine === 'installing' ? '음성 모델 준비 중 · 합성 예시' : fixtureEngine === 'ready' ? '이 Mac에서 자동 전사할 준비가 됐습니다.' : '전사 엔진 또는 음성 모델 준비가 필요합니다.' });
+  const fixtureMemos = new Map<string, { text: string; updatedAt: string | null; canUndo: boolean }>();
+  const memoKey = (p: Record<string, unknown>) => `${String(p.courseId)}/${String(p.weekId ?? '')}`;
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
+    'memo.get': p => ok(fixtureMemos.get(memoKey(p)) ?? { text: '', updatedAt: null, canUndo: false }),
+    'memo.save': p => {
+      const key = memoKey(p), previous = fixtureMemos.get(key);
+      if ((previous?.updatedAt ?? null) !== p.base) return fail('INVALID_REQUEST', '다른 곳에서 바뀐 합성 메모입니다. 다시 불러오세요.');
+      const memo = { text: String(p.text), updatedAt: new Date().toISOString(), canUndo: false };
+      fixtureMemos.set(key, memo); return ok({ ...memo });
+    },
+    'memo.pageText': () => ok({ text: 'Synthetic PDF page text · 합성 메모 예제' }),
     'stt.status': () => ok(engineStatus()),
     'stt.prepare': () => { fixtureEngine = 'installing'; setTimeout(() => { if (fixtureEngine === 'installing') { fixtureEngine = 'ready'; fixtureJob = SAMPLE_JOBS[2]!; } }, 1800); return ok(engineStatus()); },
     'stt.cancel': () => { fixtureEngine = 'missing'; return ok(engineStatus()); },

@@ -12,7 +12,7 @@ import { elapsedOf, recordingSession, useRecordingSession } from "./recording-se
 
 export interface RecordingPanelProps {
   courseId: string;
-  view?: "recording" | "transcripts";
+  view?: "recording" | "transcripts" | "combined";
   /** WBS-102: go to the course whose recording is running (when it is another course). */
   onOpenCourse?: (courseId: string) => void;
   /** WBS-065: the course's collected weeks, its LMS lectures (when known) and LMS opening times for "this week". */
@@ -105,7 +105,7 @@ export function RecordingPanel({ courseId, view = "recording", onOpenCourse, wee
   }, [mine]);
 
   return <section className="recordings" aria-label="녹음과 전사">
-    <div className="recording-capture" hidden={view !== "recording"}>
+    <div className="recording-capture" hidden={view === "transcripts"}>
       {elsewhere ? <p className="notice-box" role="status">다른 과목에서 녹음하고 있습니다(과목을 옮겨도 녹음은 계속됩니다).{onOpenCourse ? <> <button className="link-button" onClick={() => onOpenCourse(elsewhere.courseId)}>그 과목으로 가기</button></> : null}</p> : null}
       <div className={active ? (paused ? "capture-symbol paused" : "capture-symbol active") : "capture-symbol"}><Icon name="mic" /></div>
       <h3>{active ? (paused ? "녹음을 잠시 멈췄어요" : "강의를 녹음하고 있어요") : "강의 녹음"}</h3>
@@ -120,9 +120,9 @@ export function RecordingPanel({ courseId, view = "recording", onOpenCourse, wee
       </div>
     </div>
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
-    {view === "recording" ? <UnfiledRecordings recordings={recordings} weeks={weeks} lectures={lectures} status={status} onAssign={assign} /> : null}
-    {view === "recording" && !session.active ? <details className="import-details"><summary>다른 앱으로 녹음한 파일 가져오기</summary><ImportPanel courseId={courseId} weeks={weeks} lectures={lectures} status={status} onDone={() => void reload()} /></details> : null}
-    <MediaLibrary key={courseId} courseId={courseId} view={view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} />
+    {view !== "transcripts" ? <UnfiledRecordings recordings={recordings} weeks={weeks} lectures={lectures} status={status} onAssign={assign} /> : null}
+    {view !== "transcripts" && !session.active ? <details className="import-details"><summary>다른 앱으로 녹음한 파일 가져오기</summary><ImportPanel courseId={courseId} weeks={weeks} lectures={lectures} status={status} onDone={() => void reload()} /></details> : null}
+    <MediaLibrary key={courseId} courseId={courseId} view={view === 'combined' ? 'transcripts' : view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} onSelectAsset={view === 'combined' ? onSelectAsset : undefined} />
   </section>;
 }
 

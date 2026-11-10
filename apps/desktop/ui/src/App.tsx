@@ -27,11 +27,10 @@ import { ModifyPanel } from "./ModifyPanel.tsx";
 import { RecordingPanel } from "./RecordingPanel.tsx";
 import { ToolsResizer } from "./ToolsResizer.tsx";
 import { recordingSession, recordingState, useRecordingSession } from "./recording-session.ts";
-import { RecordingFile } from "./RecordingPlace.tsx";
 import { MentionList } from "./Mentions.tsx";
 import { TaskSidebar, WeekTasks } from "./TaskSidebar.tsx";
 import { JobQueue } from "./JobQueue.tsx";
-import { currentWeekIndex, unfiledRecordings, weekRecordings, type RecordingRow } from "./recording-weeks.ts";
+import { currentWeekIndex } from "./recording-weeks.ts";
 import { VideoFile, VideoViewer, useVideoLectures } from "./VideoLectures.tsx";
 import { rowsForWeek } from "./video-lectures.ts";
 import { openPdfInBrowser } from "./pdf-browser.ts";
@@ -122,7 +121,6 @@ export function App() {
   const lectures=useVideoLectures(IN_APP||FIXTURE_MODE?library?.course.id:undefined,tray||(!home&&section==='media'));
   /** The recording or lecture selected in the independent media screen. */
   const [mediaAssetId, setMediaAssetId] = useState<string>();
-  const openRecording=(row:RecordingRow)=>{if(!row.asset)return;setMediaAssetId(row.asset.id);setSection('media');setHome(false);setTray(false);setTrayDismissed(true);};
   const { refresh: refreshMedia } = lectures;
   const recordingsChanged = useCallback(() => void refreshMedia(), [refreshMedia]);
   const selectEntry=(entry:Entry, sourceLibrary=library)=>{setExplanationOpen(false);setPlaying(undefined);setKnowledgeOpen(false);setHome(false);setSection(s=>s==='tasks'&&entry.resource.kind==='assignment'||s==='notice'&&entry.resource.kind==='notice'?s:'book');setSelected(entry);const index=sourceLibrary?.weeks.findIndex(w=>w.week.id===entry.resource.weekId)??-1;setWeekIndex(index);};
@@ -426,21 +424,17 @@ export function App() {
           <button className="week-handle" onMouseEnter={() => { setTrayDismissed(false); setTray(true); }} onFocus={() => { setTrayDismissed(false); setTray(true); }} aria-expanded={tray} onClick={()=>{setTrayDismissed(false);setTray(true);}} onKeyDown={(event)=>{if(event.key==="Escape"){setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}}>{library?.weeks[weekIndex]?.week.label??'학습 자료'} <span>⌄</span></button>
           <div className="week-drop"><div className="week-tabs">{library?.weeks.map((w,i)=><button key={w.week.id} aria-pressed={i===weekIndex} onClick={()=>setWeekIndex(i)}>{w.week.label}</button>)}</div><button aria-pressed={weekIndex===-1} onClick={()=>setWeekIndex(-1)}>기타 자료</button>{IN_APP&&!FIXTURE_MODE&&library?.weeks[weekIndex]?<button onClick={openExplanation}>이 주차 설명 영상 만들기</button>:null}<div className="week-files">{(weekIndex===-1?library?.other:library?.weeks[weekIndex]?.entries)?.map(e=><button key={e.resource.id} aria-pressed={selected?.resource.id===e.resource.id} onClick={(event)=>{selectEntry(e);setTray(false);setTrayDismissed(true);event.currentTarget.blur();}}><Icon name={e.resource.kind==='assignment'?'tasks':'book'}/>{e.resource.title}<Badges item={itemForResource(learning.status,e.resource)}/></button>)}
             {(()=>{
-              // WBS-065: a week's recordings sit under the lecture they were filed with, the rest under the week.
+              // Only collected study materials and online lectures belong here.
+              // Saved recordings and transcripts are browsed in the media screen.
               const week=weekIndex===-1?undefined:library?.weeks[weekIndex]?.week;
               const videos=rowsForWeek(lectures.rows, week?.label, library?.weeks.map(w=>w.week.label)??[]);
-              const recs=week?weekRecordings(lectures.media, week.id):[];
-              const rec=(r:RecordingRow,nested?:boolean)=><RecordingFile key={r.recording.id} row={r} nested={nested} selected={r.asset!==undefined&&r.asset.id===mediaAssetId} onOpen={openRecording}/>;
-              const unfiled=week||!library?[]:unfiledRecordings(lectures.media?.recordings??[], library.weeks.map(w=>w.week), learning.status);
               // WBS-074: every week shows, also one with nothing in it yet.
-              const empty=week&&!library?.weeks[weekIndex]?.entries.length&&!videos.length&&!recs.length;
+              const empty=week&&!library?.weeks[weekIndex]?.entries.length&&!videos.length;
               return <>
                 {empty?<p className="meta week-empty">이 주차에는 아직 자료가 없습니다.</p>:null}
-                {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setExplanationOpen(false);setSelected(undefined);setHome(false);setSection('book');setKnowledgeOpen(false);setPlaying(asset);setMediaAssetId(asset.id);setTray(false);setTrayDismissed(true);}} />
+                {videos.map(row=>{const lmsItem=learning.status?.items.find(i=>i.sourceRef===`commons:${row.sourceId}`);return <div className="lecture-group" key={row.sourceId}><VideoFile row={row} lms={<Badges item={lmsItem}/>} playing={playing?.id!==undefined&&playing.id===row.asset?.id} onDownload={(id)=>void lectures.download(id)} onPlay={(asset)=>{setExplanationOpen(false);setSelected(undefined);setHome(false);setSection('book');setKnowledgeOpen(false);setPlaying(asset);setTray(false);setTrayDismissed(true);}} />
                   {canWatch(lmsItem)?<button className="watch-lms" title="LMS 공식 플레이어로 시청(출석 반영)" onClick={()=>void watch(lmsItem.moduleItemId)}><Icon name="play"/>LMS에서 시청</button>:null}
-                  {recs.filter(r=>r.recording.lectureSourceId===row.sourceId).map(r=>rec(r,true))}</div>;})}
-                {recs.filter(r=>!videos.some(v=>v.sourceId===r.recording.lectureSourceId)).map(r=>rec(r))}
-                {unfiled.length?<button className="recording-file unfiled" onClick={()=>{setSection('media');setTray(false);setTrayDismissed(true);}}><Icon name="mic"/><span><span className="video-title">주차를 확인할 녹음 {unfiled.length}개</span><small>녹음 탭에서 추정 주차를 확인하고 옮기세요</small></span></button>:null}
+                </div>;})}
               </>;
             })()}</div>
           {upNext?<p className="up-next">다음 미시청 강의: {upNext.weekLabel?`${upNext.weekLabel} · `:''}{upNext.title}{upNext.dueAt?` · 출석 마감 ${new Date(upNext.dueAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}`:''} <button className="link-button" onClick={()=>void watch(upNext.moduleItemId)}>LMS에서 시청</button></p>:null}

@@ -52,6 +52,16 @@ export function installFakeHost(courseTitle: string): void {
   const fakeMentions: Record<string, unknown>[] = [];
   // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
   let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
+  // Distinct synthetic weeks exercise browsing without real microphone/files.
+  const weekSources = FIXTURE_MANIFEST.weeks.slice(0, 2).map((week, index) => {
+    const assetId = `26000000-0000-4000-8000-${String(90 + index).padStart(12, '0')}`;
+    const recordingId = `26000000-0000-4000-8000-${String(92 + index).padStart(12, '0')}`;
+    const asset = { ...SAMPLE_MEDIA, id: assetId, courseId: FIXTURE_MANIFEST.course.id, title: `합성 ${week.label} 녹음`, source: { type: 'recording' as const, recordingId } };
+    const recording = { ...SAMPLE_RECORDINGS[0]!, id: recordingId, courseId: FIXTURE_MANIFEST.course.id, title: asset.title, weekId: week.id, originalAssetId: asset.id };
+    const transcript = { ...SAMPLE_TRANSCRIPT, id: `26000000-0000-4000-8000-${String(94 + index).padStart(12, '0')}`, sourceAssetId: asset.id, segments: [{ startMs: 0, endMs: 2500, text: `${week.label} 녹음의 전사 예제입니다.` }] };
+    return { asset, recording, transcript };
+  });
+  fakeRecordings.push(...weekSources.map(source => source.recording));
   const forCourse = (courseId: unknown) => fakeRecordings.filter((r) => r.courseId === String(courseId) || r.id === SAMPLE_RECORDINGS[0]!.id).map((r) => ({ ...r, courseId: String(courseId) }));
   // `?fixture=mic` (WBS-064 checks): recording works with a generated tone in place of the
   // microphone, so the recording screen can be tried without opening a real one.
@@ -87,7 +97,7 @@ export function installFakeHost(courseTitle: string): void {
     'media.pauseTranscription': () => ok({ paused: true }),
     'media.resumeTranscription': () => ok({ paused: false }),
     'media.cancelTranscription': () => ok({}),
-    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: fakeReadable ? ['readable', 'corrections', 'readable_app'] : ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT, ...fakeCorrections] : [], downloads: [] }),
+    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }, ...weekSources.filter(source => source.asset.courseId === p.courseId).map(source => source.asset)], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: fakeReadable ? ['readable', 'corrections', 'readable_app'] : ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT, ...fakeCorrections, ...weekSources.map(source => source.transcript)] : [], downloads: [] }),
     'media.original': async () => ok({ bytes: new Uint8Array(await syntheticAudio().arrayBuffer()), mediaType: 'audio/wav' }),
     'media.retry': () => { fixtureJob = SAMPLE_JOBS[2]!; return ok({}); },
     'media.open': () => ok({}),

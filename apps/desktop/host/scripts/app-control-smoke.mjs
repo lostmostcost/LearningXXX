@@ -41,6 +41,12 @@ const click = async (name, context) => {
   await command({ op: 'snapshot' });
   return command({ op: 'click', target: find(name, context).id });
 };
+const scrollMedia = async dy => {
+  await command({ op: 'snapshot' });
+  const panel = snapshot.controls.find(c => c.role === 'section' && c.name === '녹음·전사');
+  assert(panel, 'The visible media screen is the scroll target');
+  await command({ op: 'scroll', target: panel.id, dy });
+};
 const until = async (predicate) => {
   for (let i = 0; i < 30; i++) { if (predicate(snapshot)) return; await command({ op: 'wait', ms: 100 }); }
   throw new Error('Expected UI state did not arrive: ' + snapshot.text);
@@ -85,6 +91,12 @@ try {
     await click(/주차 ⌄$/);
     await until(s => s.controls.some(c => c.name === '1주차'));
     await click('1주차');
+    await until(s => s.controls.some(c => c.name.startsWith('동영상 강의 합성 1차시')));
+    assert(!snapshot.controls.some(c => /녹음본|합성.*녹음|주차를 확인할 녹음/.test(c.name)));
+    await click('기타 자료');
+    assert(!snapshot.controls.some(c => /녹음본|합성.*녹음|주차를 확인할 녹음/.test(c.name)));
+    await click('1주차');
+    checks.push('Materials week and other-material menus contain no saved recordings; PDFs and online lectures remain');
     await click(/^불 대수 기초 \(텍스트 PDF\)/);
     await until(s => !s.text.includes('LMS 열람 기록 중') && s.controls.some(c => c.selectableText && c.ready));
     assert.equal(find('이전 쪽').disabled, true);
@@ -158,12 +170,43 @@ try {
       await click('녹음·전사');
       await until(s => s.controls.some(c => c.name === '녹음·전사 원본 선택' && c.options?.length > 1));
       assert(snapshot.controls.some(c => c.name === '녹음 시작'));
-      const picker = find('녹음·전사 원본 선택');
-      // Select a visible option using the public snapshot, never fixture IDs.
-      const original = picker.options?.find(o => o.value && !o.disabled);
-      assert(original, 'The public select snapshot must expose a collected original');
-      await command({ op: 'select', target: picker.id, value: original.value });
+      const first = find('녹음·전사 주차').options.find(o => o.name.startsWith('1주차 ('));
+      const second = find('녹음·전사 주차').options.find(o => o.name.startsWith('2주차 ('));
+      const empty = find('녹음·전사 주차').options.find(o => o.name.startsWith('3주차 ('));
+      assert(first && second && empty);
+      await command({ op: 'select', target: find('녹음·전사 주차').id, value: first.value });
+      assert(find('녹음·전사 원본 선택').options.filter(o => o.value).every(o => o.name.startsWith('1주차 ·')));
+      const firstSource = find('녹음·전사 원본 선택').options.find(o => o.name.includes('합성 1주차 녹음'));
+      assert(firstSource);
+      await command({ op: 'select', target: find('녹음·전사 원본 선택').id, value: firstSource.value });
+      await until(s => s.text.includes('1주차 녹음의 전사 예제입니다.'));
+      await command({ op: 'select', target: find('녹음·전사 주차').id, value: second.value });
+      assert.equal(find('녹음·전사 원본 선택').value, '');
+      assert(!snapshot.text.includes('1주차 녹음의 전사 예제입니다.'));
+      const secondSource = find('녹음·전사 원본 선택').options.find(o => /합성 2주차.*녹음/.test(o.name));
+      assert(secondSource);
+      await command({ op: 'select', target: find('녹음·전사 원본 선택').id, value: secondSource.value });
+      await until(s => s.text.includes('2주차 (보강) 녹음의 전사 예제입니다.'));
+      await command({ op: 'render', name: 'media-week-2' });
+      await command({ op: 'select', target: find('녹음·전사 주차').id, value: empty.value });
+      assert.equal(find('녹음·전사 원본 선택').options.length, 1);
+      assert(snapshot.text.includes('저장한 원본이 없습니다'));
+      assert(!snapshot.text.includes('2주차 (보강) 녹음의 전사 예제입니다.'));
+      await command({ op: 'select', target: find('녹음·전사 주차').id, value: 'unfiled' });
+      const original = find('녹음·전사 원본 선택').options.find(o => o.name.includes('합성 강의 녹음'));
+      assert(original, 'An unfiled original remains available');
+      await command({ op: 'select', target: find('녹음·전사 원본 선택').id, value: original.value });
+      await scrollMedia(350);
       await until(s => s.text.includes('논리 회로의 입력과 출력을 살펴봅니다.'));
+      await scrollMedia(-350);
+      await command({ op: 'select', target: find('이 녹음 주차').id, value: first.value });
+      await click('이 주차로 옮기기');
+      await until(s => s.controls.some(c => c.name === '녹음·전사 주차' && c.value === first.value));
+      assert.equal(find('녹음·전사 원본 선택').value, original.value);
+      await scrollMedia(350);
+      assert(snapshot.text.includes('논리 회로의 입력과 출력을 살펴봅니다.'));
+      await scrollMedia(-350);
+      checks.push('Media week filters, empty and unfiled weeks, transcript reset and reassignment follow the selected original');
       await command({ op: 'render', name: 'layout-media' });
       await click('메모 열기');
       assert.equal(find('메모').value, '레이아웃 검증 메모 · 주차별 자동 저장');
@@ -196,7 +239,16 @@ try {
       await click('녹음·전사');
       assert(snapshot.controls.some(c => c.name === '녹음 시작'));
       await command({ op: 'render', name: 'layout-narrow-media' });
-      checks.push('Narrow media page uses a single scrollable content column');
+      await scrollMedia(500);
+      await until(s => s.controls.some(c => c.name === '녹음·전사 주차'));
+      const narrowWeek = find('녹음·전사 주차').options.find(o => o.name.startsWith('2주차 ('));
+      await command({ op: 'select', target: find('녹음·전사 주차').id, value: narrowWeek.value });
+      const narrowSource = find('녹음·전사 원본 선택').options.find(o => /합성 2주차.*녹음/.test(o.name));
+      await command({ op: 'select', target: find('녹음·전사 원본 선택').id, value: narrowSource.value });
+      await command({ op: 'render', name: 'media-narrow-week-picker' });
+      await scrollMedia(350);
+      await until(s => s.text.includes('2주차 (보강) 녹음의 전사 예제입니다.'));
+      checks.push('Narrow media page uses a single scrollable column; week/source selectors and transcript remain reachable');
     }
   } else {
     assert(!snapshot.text.includes('합성 데이터'));

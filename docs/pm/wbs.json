@@ -3453,6 +3453,43 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-111.md"
       ]
+    },
+    {
+      "id": "WBS-112",
+      "title": "녹음 탭 주차별 탐색과 자료 탭 녹음 제거",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-111"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "docs/specs/SPEC-003.md",
+        "docs/specs/SPEC-007.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-007",
+        "REQ-008",
+        "REQ-010"
+      ],
+      "acceptance": "자료 주차/기타 메뉴에서 녹음본을 제거한다. 녹음·전사 화면에서 전체/LMS 주차/주차 미정별 원본을 구분하고 주차 변경 시 이전 전사를 닫는다. 미지정/삭제된 주차·과목 경계·재배정/저장 뒤 선택을 보존하며 실제 debug 및 별도 assist 시나리오로 검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-112-media-week-browser",
+      "url": "https://app.notion.com/p/414bd7ec20cd81199048c773feccc10e",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-112(후속 자료 탭 녹음 제거 지시 포함). 최신 Notion WBS-111 Done 및 main 6192577 확인 후 task/ui/host/shared를 scripts/claim.py로 local .git에 create-only 선점. GitHub push/PR/원격 claim 변경 없음. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. 공유 계약/저장 스키마/host 서비스/마이크/전사 엔진 변경 없음.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-112.md"
+      ]
     }
   ],
   "qaPolicy": {

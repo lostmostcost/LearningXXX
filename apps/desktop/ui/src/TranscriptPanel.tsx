@@ -26,8 +26,8 @@ export interface TranscriptPanelProps {
   onResume?: (() => Promise<void>) | undefined;
   onCancel?: ((jobId: string) => Promise<void>) | undefined;
   /**
-   * WBS-065: the original chosen under a week of the materials menu (or the
-   * recording just saved). There is no course-wide list to pick from here.
+   * The original chosen in the recording/transcript screen (or just saved).
+   * Its week-filtered browser owns navigation; this component shows one source.
    */
   selectedAssetId?: string | undefined;
   /** Where the chosen original sits ("3주차 · 1차시") and, for recordings, a way to move it. */
@@ -81,7 +81,7 @@ export function TranscriptPanel(props: TranscriptPanelProps) {
     <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3>{asset ? <span className="media-title" title={asset.title}>{asset.title}</span> : null}</div>
     {asset && props.place ? <div className="media-place">{props.place(asset)}</div> : null}
     {asset && props.loadDoc && props.importedDocs?.[asset.id]?.length ? <ImportedDocs key={asset.id} assetId={asset.id} docs={props.importedDocs[asset.id]!} load={props.loadDoc} /> : null}
-    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "확인할 원본을 선택하세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음·동영상 원본을 고르면 전사를 볼 수 있습니다." : "녹음하거나 온라인 강의를 가져오면 주차 학습의 해당 주차 아래에 표시됩니다."}</small></div>}
+    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "확인할 원본을 선택하세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음·동영상 원본을 고르면 전사를 볼 수 있습니다." : "녹음하거나 온라인 강의를 가져오면 녹음·전사 화면에서 확인할 수 있습니다."}</small></div>}
     {props.recordings.filter(r => r.courseId === props.courseId && !r.originalAssetId && r.status !== "recording").map(r => <p className="notice-box" key={r.id}>{r.title} · {r.status === "failed" ? "녹음을 저장하지 못했습니다" : "원본을 복구하고 있습니다"}</p>)}
   </section>;
 

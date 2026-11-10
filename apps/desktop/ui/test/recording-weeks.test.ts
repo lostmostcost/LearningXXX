@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CourseLearningStatus, Recording, Week } from "@learningxxx/contracts";
-import { estimateWeek, placeLabel, semesterStart, unfiledRecordings, weekNumber, weekRecordings } from "../src/recording-weeks.ts";
+import { estimateWeek, mediaWeekGroups, placeLabel, semesterStart, unfiledRecordings, weekNumber, weekRecordings } from "../src/recording-weeks.ts";
+import { SAMPLE_MEDIA, SAMPLE_VIDEO } from '../src/transcript-fixtures.ts';
 
 const COURSE = "11111111-1111-4111-8111-000000000001";
 const weekId = (n: number) => `22222222-2222-4222-8222-${String(n).padStart(12, "0")}`;
@@ -48,6 +49,35 @@ const recording = (over: Partial<Recording>): Recording => ({
   schemaVersion: 1, id: "33333333-3333-4333-8333-000000000001", courseId: COURSE, title: "녹음", startedAt: "2026-09-15T01:00:00Z", status: "finalized",
   durationMs: 1000, originalAssetId: "44444444-4444-4444-8444-000000000001", ...over,
 } as Recording);
+
+test('media browsing keeps every LMS week, groups saved originals, and retains unfiled and orphan originals', () => {
+  const first = recording({ id: 'first', weekId: weekId(1) });
+  const missing = recording({ id: 'missing', weekId: 'removed-week' });
+  const original = { ...SAMPLE_MEDIA, courseId: COURSE, source: { type: 'recording' as const, recordingId: first.id } };
+  const orphan = { ...original, id: 'orphan', source: { type: 'recording' as const, recordingId: 'unknown' } };
+  const oldWeek = { ...original, id: 'old-week', source: { type: 'recording' as const, recordingId: missing.id } };
+  const video = { ...SAMPLE_VIDEO, courseId: COURSE };
+  const groups = mediaWeekGroups(COURSE, weeks, { assets: [original, video, oldWeek, orphan, { ...original, id: 'foreign', courseId: 'another-course' }], recordings: [first, missing] }, [{ sourceId: 'synthetic-video', week: '2주차' }]);
+  assert.equal(groups.length, weeks.length + 1);
+  assert.deepEqual(groups[0]!.assets.map(a => a.id), [original.id]);
+  assert.deepEqual(groups[1]!.assets.map(a => a.id), [video.id]);
+  assert.equal(groups[2]!.assets.length, 0, 'An empty week remains selectable');
+  assert.deepEqual(groups.at(-1)!.assets.map(a => a.id).sort(), ['old-week', 'orphan']);
+  assert.deepEqual(groups.at(-1)!.recordings.map(r => r.id), [missing.id]);
+  const moved = mediaWeekGroups(COURSE, weeks, { assets: [original], recordings: [{ ...first, weekId: weekId(2) }] }, []);
+  assert.equal(moved[0]!.assets.length, 0);
+  assert.equal(moved[1]!.assets[0]!.id, original.id, 'Reassignment changes the group, never the original ID');
+});
+
+test('media grouping does not use another course metadata or guess ambiguous video weeks', () => {
+  const asset = { ...SAMPLE_MEDIA, courseId: COURSE };
+  const groups = mediaWeekGroups(COURSE, [...weeks, { ...weeks[0]!, id: 'duplicate-label' }], {
+    assets: [asset, { ...SAMPLE_VIDEO, courseId: COURSE }],
+    recordings: [recording({ id: SAMPLE_MEDIA.source.type === 'recording' ? SAMPLE_MEDIA.source.recordingId : '', courseId: 'another-course', weekId: weekId(1) })],
+  }, [{ sourceId: 'synthetic-video', week: '1주차' }]);
+  assert.equal(groups.at(-1)!.assets.length, 2);
+  assert.equal(groups.flatMap(g => g.recordings).length, 0);
+});
 
 test("older recordings without a week get a suggestion from their date; failed ones are left out", () => {
   const rows = unfiledRecordings([

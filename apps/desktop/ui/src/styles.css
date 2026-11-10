@@ -511,3 +511,8 @@ button.week-task-open{cursor:pointer;}button.week-task-open:hover strong{text-de
 }
 
 @media(max-width:700px){.wordmark .build-tag{max-width:240px;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}}
+
+/* WBS-112: week-scoped originals live only in the recording/transcript page. */
+.media-week-browser{display:grid;grid-template-columns:minmax(130px,.65fr) minmax(0,1.5fr);gap:10px 12px;}
+.media-week-count{grid-column:1/-1;margin:0 0 6px;font-size:11px;}
+@container(max-width:680px){.media-week-browser{grid-template-columns:minmax(0,1fr);}}

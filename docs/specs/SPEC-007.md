@@ -2,7 +2,7 @@
 
 Sources: CR-109 https://app.notion.com/p/413bd7ec20cd8156b3a3c442acbf095d · CR-111 https://app.notion.com/p/414bd7ec20cd81309eb7e0124da99737
 Version: 0.3.0 · 2026-11-10 · CR-109/111 및 사용자 debug/assist 분리 추가 승인 · WBS-109/111
-REQ-003/009/010. SPEC-003 v0.4.4의 제품 흐름과 CR-050을 보존한다.
+REQ-003/009/010. SPEC-003 v0.4.5의 제품 흐름과 CR-050을 보존한다.
 
 ## 목적과 구현
 
@@ -67,3 +67,7 @@ PNG와 JSON에는 모드, 생성 시각, CSS 크기와 실제 PNG 픽셀 크기,
 `assist`의 `section`은 `home/book/info/tasks/notice/media`다. `tab: chat/memo`는 해당 전역 패널을 열며 다른 패널을 닫지 않는다. courseId/resourceId/section 없이 tab만 요청하면 현재 주 화면을 유지하고 과목 미선택 상태에서도 열 수 있다. 이전 `tab: recording/transcripts`는 통합 `media` 화면으로 연결하는 호환 별칭이다. `home` 단독 탐색은 유지하며, 다른 화면에서도 채팅/메모는 동일한 실제 토글 버튼으로 닫는다. 탐색 단축 이외의 권한·전송·제출 확인 규칙은 그대로다.
 
 수용 시나리오: `node apps/desktop/host/scripts/layout-smoke.mjs`(debug), 같은 명령 `--assist`(별도 증거). 같은 React/CSS의 배경 PNG로 자료+채팅·두 도구·녹음/전사·좁은 화면을 검토한다. 합성 데이터 확인은 실제 마이크 권한·실음 녹음·Claude 응답·전사 엔진 실행의 입증이 아니다.
+
+
+## CR-112 · 주차별 녹음 탐색 시나리오
+명령 언어 변경은 없다. debug는 과목 목록 → 과목 → 자료 주차/기타 메뉴에서 녹음 링크 부재와 기존 PDF/동영상 유지 확인 → 좌측 녹음·전사 → 주차 select → 원본 select → 전사 확인 순서를 따른다. 다른 주차 선택 시 이전 원본/전사가 닫히는지, 빈 주차·주차 미정에 접근 가능한지, 명시 재배정 후 같은 원본 선택과 필터가 일치하는지 검증한다. assist는 기존 section media로 탐색만 단축하며 같은 주차/원본 select와 재배정 버튼을 사용한다. layout-smoke.mjs(기본 debug와 --assist)에 시나리오와 배경 PNG를 함께 유지한다. 합성 표본으로 실제 마이크·전사 엔진 품질을 검증했다고 표시하지 않는다.

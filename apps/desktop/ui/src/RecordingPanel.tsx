@@ -122,7 +122,7 @@ export function RecordingPanel({ courseId, view = "recording", onOpenCourse, wee
     {notice ? <p role="status" className="notice-box">{notice}</p> : null}
     {view !== "transcripts" ? <UnfiledRecordings recordings={recordings} weeks={weeks} lectures={lectures} status={status} onAssign={assign} /> : null}
     {view !== "transcripts" && !session.active ? <details className="import-details"><summary>다른 앱으로 녹음한 파일 가져오기</summary><ImportPanel courseId={courseId} weeks={weeks} lectures={lectures} status={status} onDone={() => void reload()} /></details> : null}
-    <MediaLibrary key={courseId} courseId={courseId} view={view === 'combined' ? 'transcripts' : view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} onSelectAsset={view === 'combined' ? onSelectAsset : undefined} />
+    <MediaLibrary key={courseId} courseId={courseId} weeks={weeks} lectures={lectures} view={view === 'combined' ? 'transcripts' : view} selectedAssetId={selectedAssetId ?? undefined} place={placeOf} onSelectAsset={view === 'combined' ? onSelectAsset : undefined} />
   </section>;
 }
 

@@ -230,7 +230,7 @@ export class MediaService {
         try { await this.#verify(p, asset); } catch { throw new EngineError("CHECKSUM_MISMATCH", "원본 무결성을 확인하지 못했습니다.", false); }
         input.signal.throwIfAborted();
         return this.#o.engine.transcribe(input);
-      } };
+      }, committed: (sha) => this.#o.engine.committed?.(sha) };
       // A short lease: after a crash the interrupted job runs again within about a minute.
       p.queue = new TranscriptionQueue({ root: join(root, "transcription"), engine, pathOf: (a) => this.#path(p, a), leaseMs: 60_000,
         onChange: (job) => {

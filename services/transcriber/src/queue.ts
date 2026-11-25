@@ -10,7 +10,7 @@ import {
   transcriptionKeyInput,
 } from "@learningxxx/contracts";
 import type { ErrorCode } from "@learningxxx/contracts";
-import { EngineError, type Engine, type EngineOutput } from "./engine.ts";
+import { EngineError, errorDetail, type Engine, type EngineOutput } from "./engine.ts";
 import { buildSegments } from "./segments.ts";
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -330,7 +330,7 @@ export class TranscriptionQueue {
         parametersHash: entry.job.parametersHash,
         language: output.language === "Korean" ? "ko" : output.language.slice(0, 16) || "ko",
         createdAt: this.#stamp(),
-        segments: buildSegments(output.text, output.words),
+        segments: buildSegments(output.text, output.words, context),
       });
       const dir = join(this.#o.root, "transcripts");
       mkdirSync(dir, { recursive: true });
@@ -338,6 +338,8 @@ export class TranscriptionQueue {
       writeFileSync(`${file}.tmp`, JSON.stringify(transcript));
       renameSync(`${file}.tmp`, file);
       this.#update(jobId, { status: "succeeded", progress: 1, outputTranscriptId: transcript.id }, ["leaseExpiresAt", "errorCode", "errorDetail"]);
+      // WBS-114: only now may work kept for this source (live windows) go.
+      try { this.#o.engine.committed?.(entry.asset.sha256); } catch { /* the transcript is saved; leftovers are pruned later */ }
     } catch (error) {
       if (abort.signal.aborted) {
         // Pause hands the job back to the queue for resume. Quitting the app marks it
@@ -348,7 +350,8 @@ export class TranscriptionQueue {
         else this.#update(jobId, { status: "cancelled" }, ["leaseExpiresAt", "progress"]);
         return;
       }
-      const engineError = error instanceof EngineError ? error : new EngineError("TRANSCRIBE_FAILED", "전사 중 오류가 났습니다.", true);
+      // WBS-114: a failure outside the engine (checking or saving the result) keeps its reason too.
+      const engineError = error instanceof EngineError ? error : new EngineError("TRANSCRIBE_FAILED", "전사 중 오류가 났습니다.", true, failureDetail(error));
       const attempt = this.job(jobId)!.attempt;
       // WBS-101: the reason stays with the job (also while it waits to be retried).
       const detail = engineError.detail ? { errorDetail: engineError.detail.slice(0, 300) } : {};
@@ -368,4 +371,13 @@ export class TranscriptionQueue {
       clearInterval(renew);
     }
   }
+}
+
+/** WBS-114: why a step after the engine failed, shortened and without file paths (same rule as the engine's own reasons). */
+export function failureDetail(error: unknown): string | undefined {
+  const issues = (error as { issues?: { message?: unknown }[] } | null)?.issues;
+  const message = Array.isArray(issues) && issues.length > 0
+    ? `결과 검증 실패: ${issues.map((i) => String(i.message ?? "")).filter(Boolean).join("; ")}`
+    : error instanceof Error ? `${error.name}: ${error.message}` : undefined;
+  return message ? errorDetail(message.replace(/\n/g, " ")) : undefined;
 }

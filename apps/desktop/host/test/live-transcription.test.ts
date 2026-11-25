@@ -63,7 +63,15 @@ test("WBS-101: windows are cut at quiet moments and transcribed while recording;
   assert.equal(out.text, "구간1 구간2 구간3");
   assert.ok(out.words[1]!.start > 9 && out.words[2]!.start > 19, "words are in recording time");
   assert.equal(progress.at(-1), 1);
-  assert.equal(existsSync(join(r.root, "live", "rec1")), false, "live work is removed once taken");
+  // WBS-114: taking keeps the live work, so a retry after a failed save does not start over.
+  assert.equal(existsSync(join(r.root, "live", "rec1")), true, "live work stays until the transcript is saved");
+  const again = await live.take("a".repeat(64), new AbortController().signal, () => {});
+  assert.deepEqual(again, out, "a retry reuses the finished windows");
+  assert.equal(engine.calls.length, 3, "without transcribing them again");
+  live.release("b".repeat(64));
+  assert.equal(existsSync(join(r.root, "live", "rec1")), true, "another source's save leaves it");
+  live.release("a".repeat(64));
+  assert.equal(existsSync(join(r.root, "live", "rec1")), false, "live work is removed once its transcript is saved");
   assert.equal(await live.take("a".repeat(64), new AbortController().signal, () => {}), undefined);
 });
 

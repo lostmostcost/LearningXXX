@@ -46,6 +46,8 @@ export interface Engine {
   /** What changes the output for the same audio; hashed into the idempotency key. */
   readonly parameters: Record<string, string>;
   transcribe(input: EngineInput): Promise<EngineOutput>;
+  /** WBS-114: the transcript for this source was saved; work kept for a retry can go. */
+  committed?(sourceSha256: string): void;
 }
 
 export interface QwenEngineOptions {

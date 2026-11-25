@@ -3539,6 +3539,42 @@
       ]
     },
     {
+      "id": "WBS-114",
+      "title": "전사 시간 순서 보정과 참고 문구 헛받아쓰기 제거",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [
+        "WBS-113"
+      ],
+      "areas": [
+        "host",
+        "transcriber"
+      ],
+      "paths": [
+        "services/transcriber/",
+        "apps/desktop/host/src/live-transcription.ts",
+        "apps/desktop/host/src/media-service.ts",
+        "apps/desktop/host/src/main.ts",
+        "apps/desktop/host/test/",
+        "docs/specs/SPEC-004.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-007",
+        "REQ-008"
+      ],
+      "acceptance": "엔진 단어 시각이 뒤로 가도 전사본은 시간 순서대로 저장된다. 참고 문구(과목 자료 제목)를 그대로 받아쓴 연속 구간은 규칙 정리 단계에서 지워지고, 실제 발화의 한 제목 읽기는 남는다. 엔진 밖 실패도 errorDetail에 원인이 남는다. 실시간 전사 구간은 전사본 저장 성공 뒤에만 정리돼 재시도가 처음부터 다시 전사하지 않는다. 12·13주차 실제 엔진 출력으로 저장 검증 통과를 확인한다.",
+      "status": "Done",
+      "branch": "fix/WBS-114-transcript-time-order",
+      "url": "https://app.notion.com/p/423bd7ec20cd8165a5daf54bb2cfd90c",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 지시(2026-11-25). 공통 계약/IPC 스키마/manifest/lockfile/사용자 강의 데이터는 변경하지 않는다. 참고 문구를 핵심 단어로 줄이는 변경은 품질 비교가 필요해 후속으로 둔다. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-114.md"
+      ]
+    },
+    {
       "id": "WBS-115",
       "title": "AI 에이전트 주도 개발 규약으로 전환과 Notion 보관",
       "phase": "MVP 검수",

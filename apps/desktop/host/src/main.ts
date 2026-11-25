@@ -409,7 +409,7 @@ app.whenReady().then(async () => {
     engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => {
       input.signal.throwIfAborted();
       return (input.sourceSha256 ? await live.take(input.sourceSha256, input.signal, input.onProgress) : undefined) ?? engine.transcribe(input);
-    }) },
+    }), committed: (sha) => live.release(sha) },
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
     // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
     readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),

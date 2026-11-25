@@ -247,3 +247,34 @@ test("WBS-101: the engine's reason stays with a failed job and is cleared when i
   assert.equal(failed.errorDetail, "RuntimeError: Insufficient Memory");
   await queue.stop();
 });
+
+test("WBS-114: a failure after the engine keeps its reason, and a saved transcript tells the engine its source is done", async () => {
+  const committed: string[] = [];
+  const { calls, make } = setup();
+  const queue = make({ engine: { ...fakeEngineWith(calls), committed: (s) => committed.push(s) }, maxAttempts: 1 });
+  queue.start();
+  const failing = queue.enqueue(asset("a"));
+  await tick();
+  calls[0]!.reject(new TypeError("result could not be read"));
+  await tick();
+  const failed = queue.job(failing.id)!;
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.errorCode, "TRANSCRIBE_FAILED");
+  assert.equal(failed.errorDetail, "TypeError: result could not be read");
+  assert.deepEqual(committed, [], "nothing is released after a failure");
+  const ok = asset("b");
+  queue.enqueue(ok);
+  await tick();
+  calls[1]!.resolve(OUTPUT);
+  await tick();
+  assert.deepEqual(committed, [ok.sha256]);
+});
+
+/** The same driven engine as fakeEngine, sharing the test's call list. */
+function fakeEngineWith(calls: ReturnType<typeof fakeEngine>["calls"]): Engine {
+  return {
+    info: { name: "fake", version: "1" },
+    parameters: { model: "m", language: "Korean" },
+    transcribe: (input) => new Promise((resolve, reject) => { calls.push({ input, resolve, reject }); }),
+  };
+}

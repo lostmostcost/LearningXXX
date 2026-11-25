@@ -193,8 +193,9 @@ export class LiveTranscription {
    * For the transcription queue: the whole engine result for the original
    * with this content hash, if it came from a live recording. Waits for any
    * window in progress, transcribes what is left (even while live work is
-   * held back), merges, and removes the live work. Undefined when the
-   * original did not come from a live recording, or its work is unusable.
+   * held back) and merges. The live work stays until `release` (WBS-114: a
+   * retry after a failed save reuses it). Undefined when the original did not
+   * come from a live recording, or its work is unusable.
    */
   async take(sha256: string, signal: AbortSignal, onProgress: (fraction: number) => void): Promise<EngineOutput | undefined> {
     const entry = [...this.#manifests.values()].find((m) => m.final?.sha256 === sha256);
@@ -215,9 +216,13 @@ export class LiveTranscription {
       } catch { this.discard(id); return undefined; }
     }
     const merged = mergeWindows(results);
-    this.discard(id);
     onProgress(1);
     return merged;
+  }
+
+  /** WBS-114: the transcript of the original with this content hash was saved; its live work goes. */
+  release(sha256: string): void {
+    for (const m of [...this.#manifests.values()]) if (m.final?.sha256 === sha256) this.discard(m.recordingId);
   }
 
   /** App quitting: the window in progress stops; it runs again next time. */

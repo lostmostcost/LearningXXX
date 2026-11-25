@@ -59,42 +59,22 @@ These checks are WBS-001/002/005, not passed by the repository bootstrap.
 The initial image pins the Python patch tag and multi-platform base digest. Apt packages are installed from Debian repositories; the image build is not a complete reproducible-build guarantee. WBS-005 must record the final built image digest for both developers and pin service dependencies after the stack decision.
 The devcontainer uses the same read-only source mount for checks; edit source on the host. A writable app development service is added after the stack decision.
 
-## Atomic work claims
-Notion is not an atomic lock. On the host, after checking live Ready/dependencies:
+## Parallel work claims (optional)
+The repository (docs/pm/wbs.json) is the task list; the old Notion board is archived. Claims are needed only when another person or agent works in this repository at the same time:
 
 ```sh
 git fetch origin
-python3 scripts/claim.py acquire WBS-001 --ready-confirmed
-git switch -c spike/WBS-001-cli-proof origin/main
+python3 scripts/claim.py acquire WBS-001
+git switch -c fix/WBS-001-short-name origin/main
 ```
 
-The command reads allowed areas from docs/pm/wbs.json and atomically creates task and area refs with empty expected values. All refs must be absent. A competing claim fails without partial locks. The unique claim commit records Git identity, task, timestamp and nonce. This is coordination between trusted repository writers, not a security boundary against malicious collaborators.
+The command reads the task's areas from docs/pm/wbs.json and atomically creates task and area refs; a competing claim fails without partial locks. Read current locks: `git ls-remote origin 'refs/heads/claims/*'`. Local receipts are in Git's common directory under learningxxx-claims. Release after merge or handoff with `python3 scripts/claim.py release WBS-001`; release cannot remove a newer owner's claim. Never force-steal a claim. This is coordination between trusted writers, not a security boundary.
 
-Update Notion owner/start/branch after success. Each person should hold one implementation task.
-Read current locks: `git ls-remote origin 'refs/heads/claims/*'`.
-Local receipts are in Git's common directory under learningxxx-claims, shared by worktrees. Preserve the receipt until release. If network response is uncertain, retain it and inspect remote refs before retrying; never force-steal.
-
-After appropriate checks/merge (and developer self-testing at major feature checkpoints), or a documented handoff:
-```sh
-python3 scripts/claim.py release WBS-001
-```
-
-Release deletes all recorded refs atomically with an expected-SHA lease; it cannot remove a newer owner's claim. No expiry or automatic takeover. A lost clone/receipt requires an explicitly coordinated manual recovery by both humans.
-
-The script does not synchronize Notion or verify live Ready/dependency state: `--ready-confirmed` is your explicit acknowledgment after reading Notion, not an automated gate.
-Changing task areas requires a shared planning change first. Keep edits inside the WBS paths. An out-of-area edit is an approved exception only (OPS-001 영역 밖 예외): minimum files, recorded in `paths`/`scope_note` and the PR, the claim holder informed, and a thorough pre-merge check (fresh main, line-by-line review of out-of-area diffs, regenerated generated files, full container checks with the frozen lockfile, fresh clone, scope check). Check a branch's allowed paths:
-```sh
-python3 scripts/check_scope.py WBS-001 origin/main
-```
-Include uncommitted/untracked paths in review; the scope script checks committed branch differences only.
-Shared root/config changes use a shared task; unrelated directories do not imply permission to change shared APIs.
+`python3 scripts/check_scope.py WBS-001 origin/main` lists committed paths outside the task's `paths`; use it as a review aid and update `paths` when a change legitimately grows.
 
 ## Completion
-Self-review + passing CI → author may merge their own PR. Routine tasks then proceed to Done without QA cards or peer QA. Only major feature checkpoints WBS-020/028/031 require the responsible developer to directly test the feature and record a brief self-QA result. No peer approval is needed; WBS-029 summarizes existing results.
-Notion dates, assignees and QA outcomes are blank until real work occurs.
+Self-review + passing CI → the agent merges its own PR (squash; main requires `project-checks` and linear history). The agent verifies in the real app or with real engines/services when the change is observable there and records what stayed unverified; the owner's own hands-on test is optional.
 Package checks do not by themselves establish successful real LMS/Claude calls, microphone capture or transcription quality. WBS-109 adds explicit background renderer checks; it does not replace those native/service checks.
-
-
 
 ## 전역 패널과 녹음·전사 화면 (WBS-111)
 상단 채팅/메모는 독립 토글이며 닫거나 화면을 옮겨도 채팅 초안과 요청을 유지한다. 녹음·전사는 좌측 버튼의 독립 화면이다. `tab: recording/transcripts` assist 요청은 그 화면의 호환 별칭이며 두 개의 우측 탭을 만들지 않는다. 화면 문맥 표시와 대화 소속은 구분하며 화면 이동으로 세션을 자동 재배정하지 않는다.

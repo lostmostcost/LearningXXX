@@ -1,12 +1,12 @@
 name: Bug
-description: Reproducible defect linked to Notion
+description: Reproducible defect
 title: "[BUG] "
 body:
   - type: textarea
     id: evidence
     attributes:
       label: Evidence
-      description: WBS/QA URL, build, environment, steps, expected/actual, severity. No private course data or credentials.
+      description: WBS ID if any, build, environment, steps, expected/actual, severity. No private course data or credentials.
     validations:
       required: true
 

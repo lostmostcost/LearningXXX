@@ -1,7 +1,7 @@
 # ARCH-001 · 아키텍처·계약·개발 환경
 
 Source: https://app.notion.com/p/40bbd7ec20cd815bb87ad1ce5b9e1d04?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.0 · Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 제안 아키텍처
 이 문서는 설계 제안이다. 기술 선택은 ADR-002를 따르고, 서버는 없다(CR-001). 초기 저장소는 특정 UI 프레임워크를 강제로 설치하지 않는 공통 검증 환경과 구조를 제공한다.

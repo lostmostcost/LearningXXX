@@ -3565,7 +3565,7 @@
         "REQ-008"
       ],
       "acceptance": "엔진 단어 시각이 뒤로 가도 전사본은 시간 순서대로 저장된다. 참고 문구(과목 자료 제목)를 그대로 받아쓴 연속 구간은 규칙 정리 단계에서 지워지고, 실제 발화의 한 제목 읽기는 남는다. 엔진 밖 실패도 errorDetail에 원인이 남는다. 실시간 전사 구간은 전사본 저장 성공 뒤에만 정리돼 재시도가 처음부터 다시 전사하지 않는다. 12·13주차 실제 엔진 출력으로 저장 검증 통과를 확인한다.",
-      "status": "Review",
+      "status": "Done",
       "branch": "fix/WBS-114-transcript-time-order",
       "url": "https://app.notion.com/p/423bd7ec20cd8165a5daf54bb2cfd90c",
       "qa_mode": "appropriate_checks_only",

@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { ArtifactScope, ArtifactInput, ArtifactJob, ArtifactRuntime, ArtifactFile, checkArtifactScope } from './artifacts.ts';
 import { RunChanges } from "./files.ts";
 import { Id, SchemaVersion, UtcTimestamp } from "./common.ts";
 import { AppError } from "./errors.ts";
 import { RunEvent } from "./events.ts";
-import { CourseLearningStatus, CourseMeeting, Memo } from "./learning.ts";
+import { CourseLearningStatus, CourseMeeting, CourseSyllabus, Memo } from "./learning.ts";
 import { AutomationSettings, ImportedDocKind, LectureMention, LectureSourceId, PdfTranslationSkip, PreferredLanguage, MentionCandidate, MAX_CORRECTION_SEGMENTS, MAX_SEGMENT_TEXT, MediaAsset, Recording, Transcript, TranscriptionJob } from "./media.ts";
 import { ModifyJob } from "./modify.ts";
 import { CollectionManifest, Course, SyncRun } from "./lms.ts";
@@ -18,10 +19,15 @@ export const CredentialStatus = z.object({
   /** The school refused the saved password; nothing is retried until it is saved again. */
   schoolRejected: z.boolean(),
   canvasToken: z.boolean(),
+  /** WBS-092: a HeyGen API key is saved, and the voice chosen for explanation videos. */
+  heygen: z.boolean(),
+  heygenVoiceId: z.string().optional(),
   /** False when the Mac's Keychain-backed encryption is unavailable, so nothing can be saved. */
   available: z.boolean(),
 });
 export type CredentialStatus = z.infer<typeof CredentialStatus>;
+/** WBS-092: a HeyGen voice for the explanation video (Starfish engine). */
+export const HeygenVoice = z.object({ voiceId: z.string(), name: z.string(), language: z.string(), gender: z.string(), preview: z.string().url().optional() });
 
 /**
  * Renderer → host request channels (ADR-002: preload exposes only these).
@@ -29,6 +35,8 @@ export type CredentialStatus = z.infer<typeof CredentialStatus>;
  * validation is a convenience, not a security boundary.
  */
 const TerminalId = z.string().uuid();
+/** WBS-085/107: class times per course and where they came from (entered, the syllabus, course.md). */
+const TimetableCourses = z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "syllabus", "course_md", "none"]) })) });
 /** WBS-081: a file a conversation made (in its folder, or written elsewhere by its file tools). */
 export const ChatOutput = z.object({
   id: z.string().regex(/^[0-9a-f]{32}$/), name: z.string(), location: z.string(), where: z.enum(["folder", "elsewhere"]),
@@ -52,6 +60,15 @@ export const ConversationState = z.object({
 });
 export const SttStatus = z.object({ state: z.enum(['missing', 'installing', 'ready', 'failed', 'unsupported']), message: z.string() });
 export const IpcChannels = {
+  'artifacts.inputs': { request: ArtifactScope.superRefine(checkArtifactScope), response: ArtifactInput },
+  'artifacts.prepare': { request: ArtifactScope.extend({ sourceToken: z.string().regex(/^[0-9a-f]{64}$/), allowMissing: z.boolean(), includedSourceIds: z.array(z.string().max(300)).max(2000).optional() }).superRefine(checkArtifactScope), response: ArtifactJob },
+  'artifacts.list': { request: z.object({ courseId: Id }), response: z.object({ jobs: z.array(ArtifactJob).max(100) }) },
+  'artifacts.state': { request: z.object({ courseId: Id, id: Id }), response: ArtifactJob },
+  'artifacts.export': { request: z.object({ courseId: Id, id: Id, reviewToken: z.string().regex(/^[0-9a-f]{64}$/) }), response: ArtifactJob },
+  'artifacts.cancel': { request: z.object({ courseId: Id, id: Id }), response: z.object({}) },
+  'artifacts.open': { request: z.object({ courseId: Id, id: Id, file: ArtifactFile, how: z.enum(['open', 'reveal']) }), response: z.object({}) },
+  'artifacts.runtime': { request: z.object({}), response: ArtifactRuntime },
+  'artifacts.setup': { request: z.object({ which: z.enum(['video', 'pptx']) }), response: ArtifactRuntime },
   'assignment.open': { request: AssignmentScope.extend({ reset: z.boolean().optional() }), response: AssignmentWorkspace },
   'assignment.state': { request: AssignmentScope, response: AssignmentWorkspace },
   'assignment.generate': { request: AssignmentScope.extend({ sourceToken: z.string().regex(/^[0-9a-f]{64}$/), allowMissing: z.boolean(), includedSourceIds: z.array(z.string().max(300)).max(2000).optional() }), response: AssignmentWorkspace },
@@ -125,8 +142,13 @@ export const IpcChannels = {
     request: z.object({ token: z.string().trim().min(10).max(512) }),
     response: CredentialStatus,
   },
+  /** WBS-092: checks the HeyGen API key by listing voices and saves it only if HeyGen accepts it. */
+  "credentials.saveHeygenKey": { request: z.object({ key: z.string().trim().min(8).max(512) }), response: z.object({ status: CredentialStatus, voices: z.array(HeygenVoice) }) },
+  "credentials.heygenVoices": { request: z.object({}), response: z.object({ voices: z.array(HeygenVoice) }) },
+  "credentials.heygenPreview": { request: z.object({ voiceId: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/) }), response: z.object({ bytes: z.instanceof(Uint8Array), mediaType: z.string() }) },
+  "credentials.setHeygenVoice": { request: z.object({ voiceId: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/) }), response: CredentialStatus },
   "credentials.clear": {
-    request: z.object({ which: z.enum(["school", "canvasToken"]) }),
+    request: z.object({ which: z.enum(["school", "canvasToken", "heygen"]) }),
     response: CredentialStatus,
   },
   /**
@@ -198,6 +220,10 @@ export const IpcChannels = {
     response: z.object({ markdown: z.string().optional(), generatedAt: z.string().optional(), stale: z.boolean(), meetings: z.array(CourseMeeting), running: z.boolean() }),
   },
   "course.cancelKnowledge": { request: z.object({ courseId: Id }), response: z.object({}) },
+  /** WBS-107: the course syllabus as the app keeps it (nothing is fetched). */
+  "course.syllabus": { request: z.object({ courseId: Id }), response: CourseSyllabus },
+  /** WBS-107: read the syllabus again from the school (read only) and the collected files; a failed source keeps its last copy. */
+  "course.refreshSyllabus": { request: z.object({ courseId: Id }), response: CourseSyllabus },
   /** WBS-086: memos per course week (weekId absent = "주차 없음"). */
   "memo.get": { request: z.object({ courseId: Id, weekId: Id.optional() }), response: Memo },
   "memo.save": { request: z.object({ courseId: Id, weekId: Id.optional(), text: z.string().max(200_000), base: z.string().nullable() }), response: Memo },
@@ -211,9 +237,18 @@ export const IpcChannels = {
   /** Move to another week (null = 기타 자료), rename, or remove from the course (the app's copy only). */
   "materials.change": { request: z.object({ courseId: Id, resourceId: Id, weekId: Id.nullable().optional(), title: z.string().max(300).optional(), remove: z.boolean().optional() }), response: z.object({}) },
   /** WBS-085: class times per course — the student's own, else those found in course.md. */
-  "timetable.get": { request: z.object({}), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  "timetable.get": { request: z.object({}), response: TimetableCourses },
   /** `meetings: null` drops the student's times and uses course.md again. */
-  "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: z.object({ courses: z.array(z.object({ courseId: Id, title: z.string(), meetings: z.array(CourseMeeting), source: z.enum(["manual", "course_md", "none"]) })) }) },
+  "timetable.set": { request: z.object({ courseId: Id, meetings: z.array(CourseMeeting).max(20).nullable() }), response: TimetableCourses },
+  /** WBS-058: picks a file for a collected LMS assignment and reads the assignment again; nothing is sent. */
+  "submit.choose": { request: z.object({ courseId: Id, resourceId: Id }), response: z.object({ planId: Id.optional(), fileName: z.string().optional(), bytes: z.number().int().nonnegative().optional(), problem: z.string().optional(), warning: z.string().optional(),
+    assignment: z.object({ name: z.string(), dueAt: z.string().nullable(), lockAt: z.string().nullable(), extensions: z.array(z.string()), attempt: z.number().int().nullable(), allowedAttempts: z.number().int().nullable(), submittedAt: z.string().nullable(), files: z.array(z.string()) }).optional() }) },
+  /** The student confirmed: submit the chosen file now. */
+  "submit.confirm": { request: z.object({ planId: Id }), response: z.object({ attempt: z.number().int().nullable(), submittedAt: z.string().nullable(), files: z.array(z.string()) }) },
+  /** The student confirmed a rule: submit the chosen file this many minutes before the deadline if still not submitted. */
+  "submit.schedule": { request: z.object({ planId: Id, minutesBefore: z.number().int().min(1).max(10080) }), response: z.object({ ruleId: Id, at: z.string() }) },
+  "submit.rules": { request: z.object({}), response: z.object({ rules: z.array(z.object({ id: Id, courseId: Id, resourceId: Id, title: z.string(), fileName: z.string(), at: z.string(), state: z.enum(["waiting", "submitting", "done", "already", "failed", "cancelled"]), message: z.string().optional(), finishedAt: z.string().optional() })) }) },
+  "submit.cancelRule": { request: z.object({ ruleId: Id }), response: z.object({}) },
   "session.create": {
     request: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("course"), courseId: Id, engine: z.enum(["structured", "native", "chat"]).optional(), title: z.string().min(1).max(200) }),
@@ -324,11 +359,12 @@ export const IpcChannels = {
       seq: z.number().int().nonnegative(),
       pcm: z.instanceof(Uint8Array).refine((b) => b.byteLength > 0 && b.byteLength <= 2_000_000 && b.byteLength % 2 === 0, "pcm chunk"),
     }),
-    response: z.object({ savedMs: z.number().int().nonnegative() }),
+    /** WBS-101: `transcribedMs` = how much of it, from the start, is already transcribed while recording. */
+    response: z.object({ savedMs: z.number().int().nonnegative(), transcribedMs: z.number().int().nonnegative().optional() }),
   },
   /** Ends the recording and confirms the original; `reason` says why it stopped when the user did not. */
   "recording.stop": {
-    request: z.object({ recordingId: Id, reason: z.enum(["user", "device_lost", "app_closing"]).optional() }),
+    request: z.object({ recordingId: Id, reason: z.enum(["user", "device_lost", "app_closing", "page_closed"]).optional() }),
     response: z.object({ recording: Recording, asset: MediaAsset.optional() }),
   },
   "recording.list": {
@@ -458,6 +494,8 @@ export const HostPush = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("recording.stopped"), recording: Recording, asset: MediaAsset.optional() }),
   /** WBS-057: the LMS watch window closed; the status was read again. */
   z.object({ kind: z.literal("learning.watchClosed"), courseId: Id, moduleItemId: z.string() }),
+  /** WBS-058: a confirmed automatic submission ran (or found the work already submitted, or failed). */
+  z.object({ kind: z.literal("submit.auto"), courseId: Id, title: z.string(), ok: z.boolean(), message: z.string().optional() }),
 ]);
 export type HostPush = z.infer<typeof HostPush>;
 

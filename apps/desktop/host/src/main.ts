@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { AUDIO_IMPORT_TYPES, AUDIO_MEDIA_TYPES } from "@learningxxx/contracts";
+import type { CollectionManifest } from '@learningxxx/contracts';
 import { writeFileSync } from "node:fs";
 import { ConversationService } from "./conversation-service.ts";
 import { CourseWorkspaceService } from "./course-workspace.ts";
 import { weekNotes } from "./week-notes.ts";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CanvasClient, CollectionError, createCommonsVideoResolver, createDirectoryStore, listActiveCourses } from "@learningxxx/collector";
 import { QwenEngine } from "@learningxxx/transcriber";
@@ -24,7 +25,7 @@ import { runLmsProbe } from "./lms-probe.ts";
 import { lmsSessionReport, runLmsStatusProbe, runLmsWatch } from "./lms-status-probe.ts";
 import { CredentialService } from "./credential-service.ts";
 import { CredentialStore } from "./credential-store.ts";
-import { createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, openLmsWatchWindow, windowSignInPage } from "./lms-session.ts";
+import { createCanvasHttp, createLearningXClient, createLmsClient, learningxToken, openLoginWindow, schoolLoginDeps, allowedRedirectFetch, createLearningSources, openLmsItemPage, openLmsWatchWindow, windowSignInPage } from "./lms-session.ts";
 import { pageSchoolLogin, schoolLogin } from "./school-login.ts";
 import { readBuildInfo } from "./build-info.ts";
 import { captureRegion } from "./native-capture.ts";
@@ -36,23 +37,32 @@ import { TranscriptStore } from "./transcript-store.ts";
 import { courseBrief } from "./course-context.ts";
 import { LearningStatusService, lectureVideos, summarizeLearning } from "./learning-status.ts";
 import { RecordingService } from "./recording-service.ts";
+import { LiveTranscription } from "./live-transcription.ts";
 import { AudioImporter } from "./audio-import.ts";
 import { ChatOutputs } from "./chat-outputs.ts";
 import { MemoService } from "./memos.ts";
 import { EXTERNAL_TYPES, ExternalMaterials } from "./external-materials.ts";
 import { CourseKnowledgeService, SYLLABUS_TITLE } from "./course-knowledge.ts";
+import { SyllabusService } from "./syllabus.ts";
 import { pdfPageTexts } from "./pdf-text.ts";
 import { PdfTranslationService, pdfTranslatePrompt } from "./pdf-translate.ts";
 import { correctionPrompt, createClaudeTextRunner, createReadableRunner, mentionsPrompt, parseMentions, parseTranslation, translatePrompt } from "./readable-note.ts";
 import { AutomationService } from "./automation.ts";
 import { StudyNotes } from "./study-notes.ts";
 import { Timetable } from "./timetable.ts";
+import { Submissions } from "./submissions.ts";
 import { Preferences } from "./preferences.ts";
 import { runFilesSmoke, runUiSmoke } from "./ui-smoke.ts";
-import { WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
+import { allowsRendererPermission, WEB_PREFERENCES, WINDOW_SIZE } from "./window-options.ts";
+import { agentFlow, agentMode, attachAgent, startFixtureAgent } from './agent-runtime.ts';
+import { assertAgentProfile } from './agent-profile.ts';
 import { AssignmentWorkspaces } from "./assignment-workspaces.ts";
 import { assignmentSources } from "./assignment-sources.ts";
 import { ASSIGNMENT_CSP, printAssignment } from "./assignment-printer.ts";
+import { ArtifactWorkflows, type ArtifactEngine } from './artifact-workflows.ts';
+import { ArtifactRuntimes } from './artifact-runtime.ts';
+import { artifactSources } from './artifact-sources.ts';
+import { runArtifactVoiceSmoke } from './artifact-smoke.ts';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'assignment-preview', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -68,37 +78,60 @@ const PRIVACY_PANES = {
 const appRoot = resolve(__dirname, "../../../..");
 const brandIcon = join(appRoot, "assets/branding/yolo-univ-icon.png");
 const uiEntry = join(__dirname, "../../ui/dist/index.html");
+const agent = agentMode();
+const flow = agent ? agentFlow() : 'debug';
+const uiUrl = pathToFileURL(uiEntry);
+if (agent && flow === 'assist') uiUrl.searchParams.set('agentFlow', flow);
+const agentOutput = process.argv.find(a => a.startsWith('--agent-output='))?.slice('--agent-output='.length);
+if (agent) {
+  const profile = process.argv.find(a => a.startsWith('--agent-profile='))?.slice('--agent-profile='.length);
+  if (!profile || !agentOutput || !isAbsolute(profile)) throw new Error('Agent requires a dedicated profile and output directory');
+  const testProfile = assertAgentProfile(profile);
+  app.setPath('userData', testProfile);
+  app.setPath('sessionData', testProfile);
+}
+const nativeRequired = () => { throw Object.assign(new Error('NATIVE_REQUIRED'), { appError: { code: 'SCOPE_VIOLATION', message: 'NATIVE_REQUIRED: 이 단계는 실제 앱의 파일 선택·시스템 권한·외부 창에서 직접 확인해야 합니다. CLI로 건너뛰지 않습니다.', retryable: false } }); };
+const agentNativeChannels = new Set([
+  'attachments.chooseLocal', 'attachments.capture', 'files.chooseFolder', 'files.trash',
+  'materials.choose', 'media.chooseAudio', 'media.open', 'recording.start', 'learning.watch', 'learning.openQuiz',
+  'modify.chooseSource', 'modify.apply', 'modify.rollback', 'app.openSettings', 'submit.choose',
+  'assignment.showPdf', 'artifacts.open', 'chat.showOutput',
+]);
+let closing = false;
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...WINDOW_SIZE,
+    useContentSize: !!agent,
     show: false,
     title: "YOLO UNIV",
     icon: brandIcon,
-    webPreferences: { ...WEB_PREFERENCES, preload: join(__dirname, "../src/preload.cjs") },
+    webPreferences: { ...WEB_PREFERENCES, backgroundThrottling: !agent, preload: join(__dirname, "../src/preload.cjs") },
   });
   // The window only ever shows the bundled UI.
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://")) void shell.openExternal(url);
+    if (!agent && url.startsWith("https://")) void shell.openExternal(url);
     return { action: "deny" };
   });
-  window.once("ready-to-show", () => window.show());
-  void window.loadFile(uiEntry);
+  if (!agent) window.once("ready-to-show", () => window.show());
+  void window.loadURL(uiUrl.href);
   return window;
 }
 
 // One app per Mac account: two copies would share the same recordings and
 // transcription queue. Diagnostic runs (smoke, probes) are exempt.
-const diagnostic = process.argv.some((arg) => /^--(ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check)=/.test(arg));
+const diagnostic = process.argv.some((arg) => /^--(artifact-voice-smoke|ui-smoke|files-smoke|probe-out|lms-probe|lms-status-probe|lms-watch|learning-status-dump|school-login-check|assignment-submit)=/.test(arg));
 if (!diagnostic && !app.requestSingleInstanceLock()) {
-  app.exit(0);
+  app.exit(agent ? 1 : 0);
 } else if (!diagnostic) {
   // Launching again brings the open window forward instead of starting a second copy.
   app.on("second-instance", () => {
+    if (closing) return;
     const window = BrowserWindow.getAllWindows()[0];
     if (!window) return;
     if (window.isMinimized()) window.restore();
+    if (agent) return;
     window.show();
     window.focus();
   });
@@ -106,6 +139,8 @@ if (!diagnostic && !app.requestSingleInstanceLock()) {
 
 app.whenReady().then(async () => {
   if (!diagnostic && !app.hasSingleInstanceLock()) return;
+  if (agent) app.dock?.hide();
+  if (agent === 'fixture') { await startFixtureAgent(uiEntry, agentOutput!, flow); return; }
   const probeOut = process.argv.find((arg) => arg.startsWith("--probe-out="))?.split("=")[1];
   if (probeOut !== undefined) {
     await runGuiCliProbe(probeOut, "/opt/homebrew/bin/claude", tmpdir());
@@ -140,6 +175,20 @@ app.whenReady().then(async () => {
       }
     },
   });
+  const artifactSmoke = process.argv.find(arg => arg.startsWith('--artifact-voice-smoke='))?.slice('--artifact-voice-smoke='.length);
+  if (artifactSmoke !== undefined) {
+    try {
+      const catalogOnly = process.argv.includes('--catalog-only');
+      await runArtifactVoiceSmoke(artifactSmoke, credentials, join(appRoot, 'packages/learning-artifacts'), join(__dirname, '..'), catalogOnly);
+      console.log(catalogOnly ? 'PASS: read-only voice catalog checked; no TTS' : 'PASS: one real Korean HeyGen narration rendered to MP4; synthetic plan, no model call');
+      app.exit(0);
+    } catch {
+      // Provider errors and credential-bearing exception objects never reach logs.
+      console.error('FAIL: explicit voice smoke did not complete; no automatic retry');
+      app.exit(1);
+    }
+    return;
+  }
   // WBS-071/083: preferred language and automation settings.
   const preferences = new Preferences(join(dataRoot, "preferences.json"));
   // WBS-100: one theme for every window, the native frame and dialogs; "system" follows macOS.
@@ -163,6 +212,7 @@ app.whenReady().then(async () => {
     },
     // One login window at a time; the user signs in there and runs collection again.
     openLogin: () => {
+      if (agent) nativeRequired();
       if (loginWindow && !loginWindow.isDestroyed()) return void loginWindow.focus();
       loginWindow = openLoginWindow();
     },
@@ -199,6 +249,31 @@ app.whenReady().then(async () => {
     } else {
       await runLmsWatch(watchOut!, { ensureSignedIn });
     }
+    app.quit();
+    return;
+  }
+  // WBS-058 check: one assignment submission through the same code as the app's 제출 button,
+  // with the file given here instead of the file dialog. Without --submit-confirm it only reads
+  // the assignment (nothing is sent). Writes step statuses and the LMS result, never tokens.
+  const submitOut = process.argv.find((arg) => arg.startsWith("--assignment-submit="))?.slice("--assignment-submit=".length);
+  if (submitOut !== undefined) {
+    const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+    const steps: { step: string; status: number }[] = [];
+    const trace = (step: string, status: number) => { steps.push({ step, status }); };
+    let report: Record<string, unknown>;
+    try {
+      await credentials.ensureSignedIn();
+      const check = new Submissions({
+        root: join(dataRoot, "submissions"), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+        http: () => createCanvasHttp(() => credentials.canvasToken()), chooseFile: async () => undefined,
+      });
+      const plan = await check.prepare(arg("submit-course") ?? "", arg("submit-resource") ?? "", arg("submit-file") ?? "", trace);
+      report = { canvasToken: credentials.canvasToken() !== undefined, plan: { ...plan, planId: undefined } };
+      if (process.argv.includes("--submit-confirm") && plan.planId && !plan.problem) report.result = await check.confirm(plan.planId, trace);
+    } catch (error) {
+      report = { error: (error as { appError?: unknown }).appError ?? String(error) };
+    }
+    writeFileSync(submitOut, `${JSON.stringify({ ...report, steps }, null, 2)}\n`);
     app.quit();
     return;
   }
@@ -256,7 +331,7 @@ app.whenReady().then(async () => {
     },
     trash: (path) => shell.trashItem(path),
   });
-  const startCli = createCliRunner();
+  const startCli = createCliRunner(process.env, undefined, join(dataRoot, 'cli-text-compatibility'));
   const claudeText = createClaudeTextRunner(startCli, join(dataRoot, "readable-runs"));
   // WBS-072: the original is looked up through the manifest and re-hashed, like any viewer request.
   const pdfTranslations = new PdfTranslationService({
@@ -294,8 +369,21 @@ app.whenReady().then(async () => {
     },
   });
   let media: MediaService;
+  const sttRoot = join(app.getPath("userData"), "stt");
+  // WBS-101: windows of a few minutes, one engine process at a time for the whole app; finished windows are kept.
+  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: join(appRoot, "services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf"), partsRoot: join(sttRoot, "parts") });
+  let stt: SttRuntimeService;
+  let transcribeSetting = preferences.get().automation.transcribe;
+  // WBS-101: transcription while recording, only when transcription is on, not paused, and the engine is ready.
+  const live = new LiveTranscription({
+    root: join(dataRoot, "media", "live"), window: engine.window,
+    transcribe: (wav, signal, onProgress, context) => stt.run(() => engine.transcribeWav(wav, signal, onProgress, context)),
+    contextFor: async (recordingId) => (await library.manifest(recordings.courseOf(recordingId)))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
+    enabled: () => transcribeSetting && stt.isReady() && !media.transcriptionPaused(),
+  });
   const recordings = new RecordingService({
     dataRoot,
+    live,
     micPermission: async () => {
       const status = systemPreferences.getMediaAccessStatus("microphone");
       if (status === "granted") return "granted";
@@ -313,13 +401,15 @@ app.whenReady().then(async () => {
       }).catch(() => undefined);
     },
   });
-  const sttRoot = join(app.getPath("userData"), "stt");
-  const engine = new QwenEngine({ python: join(sttRoot, ".venv/bin/python"), script: join(appRoot, "services/transcriber/python/transcribe.py"), modelHome: join(sttRoot, "hf") });
-  const stt = new SttRuntimeService({ root: sttRoot, source: join(appRoot, "services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
+  stt = new SttRuntimeService({ root: sttRoot, source: join(appRoot, "services/transcriber"), model: String(engine.parameters.model), onReady: async () => { if (library.accountKey()) await media.retryUnavailable(); } });
   media = new MediaService({
     dataRoot, accountKey: () => library.accountKey(), courses: () => library.courses(),
     originals: () => recordings.originals(), recordings: (courseId) => recordings.list({ courseId }).recordings,
-    engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => { input.signal.throwIfAborted(); return engine.transcribe(input); }) },
+    // WBS-101: an original made from a live recording takes its finished windows instead of starting over.
+    engine: { info: engine.info, parameters: engine.parameters, transcribe: input => stt.run(async () => {
+      input.signal.throwIfAborted();
+      return (input.sourceSha256 ? await live.take(input.sourceSha256, input.signal, input.onProgress) : undefined) ?? engine.transcribe(input);
+    }) },
     contextFor: async (asset) => (await library.manifest(asset.courseId))?.items.map((i) => i.resource.title).join("\n").slice(0, 4000) ?? "",
     // WBS-069: readable notes through the official CLI, in the most restricted (independent) mode.
     readable: createReadableRunner(startCli, join(dataRoot, "readable-runs")),
@@ -356,6 +446,8 @@ app.whenReady().then(async () => {
   });
   // Recordings cut off by a quit or crash are confirmed from what reached the disk.
   await recordings.recover().catch(() => undefined);
+  // WBS-101: then live work continues, or goes when its recording or original is gone.
+  live.prune((id) => recordings.activeId === id, (sha) => recordings.originals().some((a) => a.sha256 === sha));
   // A corrupt media catalog must not prevent the UI from opening to show its error.
   if (library.accountKey()) await media.recover().catch(() => undefined);
   // Jobs that failed only because the engine was missing run again once it is
@@ -378,6 +470,11 @@ app.whenReady().then(async () => {
       mentions: (await media.mentions(courseId).catch(() => undefined))?.mentions,
     });
   };
+  // WBS-107: the syllabus read by the app (school page linked from the LMS, LMS text, posted files), read only.
+  const syllabus = new SyllabusService({
+    root: join(dataRoot, 'syllabus'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    asset: async (courseId, assetId) => (await library.asset({ courseId, assetId })).bytes, pdfPages: (bytes) => pdfPageTexts(bytes),
+  });
   // WBS-082: course.md, made on request from the syllabus, the material list and the transcripts.
   const knowledge = new CourseKnowledgeService({
     root: join(dataRoot, 'course-knowledge'), accountKey: () => library.accountKey(),
@@ -393,6 +490,7 @@ app.whenReady().then(async () => {
           if (pages?.some((p) => p.trim())) syllabusFiles.push({ title: asset.originalName, text: pages.slice(0, 15).join('\n\n') });
         }
       }
+      for (const read of await syllabus.text(courseId)) if (!syllabusFiles.some((f) => f.title === read.title)) syllabusFiles.push(read);
       return { manifest, notes: await notesFor(courseId), syllabusFiles };
     },
     write: ({ prompt, signal }) => claudeText({ prompt, what: '과목 정리 파일 만들기', signal }),
@@ -421,8 +519,20 @@ app.whenReady().then(async () => {
     write: ({ prompt, signal }) => claudeText({ prompt, what: '복습·예습 노트', signal }),
   });
   const weekByLabel = async (courseId: string, label: string | undefined) => label ? (await library.manifest(courseId))?.weeks.find((w) => w.label === label)?.id : undefined;
+  // WBS-058: assignment submission; rules the student confirmed are checked every minute.
+  const submissions = new Submissions({
+    root: join(dataRoot, 'submissions'), accountKey: () => library.accountKey(), manifest: (courseId) => library.manifest(courseId),
+    http: () => createCanvasHttp(() => credentials.canvasToken()),
+    chooseFile: async () => { const picked = await dialog.showOpenDialog({ title: '제출할 파일 선택', properties: ['openFile'] }); return picked.canceled ? undefined : picked.filePaths[0]; },
+    onAuto: (r) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(PUSH_CHANNEL, { kind: 'submit.auto', ...r }); },
+  });
+  const submitTimer = setInterval(() => { void submissions.tick().catch(() => undefined); }, 60_000);
   // WBS-085: class times (the student's own, else from course.md).
-  const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => (await knowledge.get(courseId)).meetings });
+  const timetable = new Timetable({ root: join(dataRoot, 'timetable'), accountKey: () => library.accountKey(), courses: () => library.courses(), found: async (courseId) => {
+    // WBS-107: the syllabus's stated times first (read from the school the first time), else course.md's.
+    const stated = await syllabus.meetings(courseId, true);
+    return stated.length ? { meetings: stated, source: 'syllabus' as const } : { meetings: (await knowledge.get(courseId)).meetings, source: 'course_md' as const };
+  } });
   automation = new AutomationService({
     settings: () => preferences.get().automation,
     correct: ({ courseId, assetId, transcriptId, signal }) => media.autoCorrect(courseId, assetId, transcriptId, signal),
@@ -455,7 +565,6 @@ app.whenReady().then(async () => {
   });
   if (!preferences.get().automation.transcribe) await media.pauseTranscription().catch(() => undefined);
   // Only a change of this setting pauses or resumes; a pause the student made by hand otherwise stays.
-  let transcribeSetting = preferences.get().automation.transcribe;
   preferences.onChange((value) => {
     if (value.automation.transcribe === transcribeSetting) return;
     transcribeSetting = value.automation.transcribe;
@@ -470,13 +579,14 @@ app.whenReady().then(async () => {
     return binding && extra ? { ...binding, brief: binding.brief + extra, startupBrief: (binding.startupBrief ?? binding.brief) + extra } : binding;
   };
   conversations = new ConversationService({ prepareCourse, beforeSend: id => assignments?.beforeSend(id), root: join(dataRoot, 'native-sessions'), getSession: id => sessions.get(id), rename: (id, title) => sessions.rename({ appSessionId: id, title }), nativeActive: () => false });
+  const isAssignmentQuiz = async (scope: { courseId: string; assignmentId?: string | undefined }, manifest: CollectionManifest) => {
+    const sourceId = manifest.items.find(i => i.resource.id === scope.assignmentId)?.resource.sourceId;
+    return /^quiz:/.test(sourceId ?? '') || ((await learning.status(scope.courseId))?.items.some(i => i.kind === 'quiz' && i.sourceRef === `assignment:${sourceId}`) ?? false);
+  };
   assignments = new AssignmentWorkspaces({
     root: join(dataRoot, 'assignment-workspaces'), sessionsRoot: join(dataRoot, 'native-sessions'), accountKey: () => library.accountKey(),
     manifest: id => library.manifest(id), getSession: id => sessions.get(id), createSession: (courseId, title) => sessions.create({ mode: 'course', engine: 'chat', courseId, title }), busy: id => conversations.busy(id),
-    isQuiz: async (scope, manifest) => {
-      const sourceId = manifest.items.find(i => i.resource.id === scope.assignmentId)?.resource.sourceId;
-      return /^quiz:/.test(sourceId ?? '') || ((await learning.status(scope.courseId))?.items.some(i => i.kind === 'quiz' && i.sourceRef === `assignment:${sourceId}`) ?? false);
-    },
+    isQuiz: isAssignmentQuiz,
     sources: async (scope, manifest) => assignmentSources(manifest, {
       asset: async id => (await library.asset({ courseId: scope.courseId, assetId: id })).bytes, pdf: pdfPageTexts,
       notes: [...await notesFor(scope.courseId), ...await memos.notes(scope.courseId), ...await study.weekNotes(scope.courseId)], summary: await knowledge.markdown(scope.courseId),
@@ -503,6 +613,62 @@ app.whenReady().then(async () => {
     print: printAssignment,
     show: async (path, how) => { if (how === 'reveal') shell.showItemInFolder(path); else { const error = await shell.openPath(path); if (error) throw new Error('PDF를 열지 못했습니다.'); } },
   });
+  const artifactEngineRoot = join(appRoot, 'packages/learning-artifacts');
+  const artifactRuntime = new ArtifactRuntimes(artifactEngineRoot, join(__dirname, '..'));
+  const artifactModule = await import(pathToFileURL(join(artifactEngineRoot, 'src/workflow.mjs')).href) as { ArtifactWorkflow: new (options: unknown) => ArtifactEngine };
+  type NarrationInput = { text: string; signal: AbortSignal; assertCurrent?: (() => void) | undefined };
+  const voiceModule = await import(pathToFileURL(join(artifactEngineRoot, 'src/heygen.mjs')).href) as { createHeygenNarrator(options: { apiKey: () => string; voiceId: string; language: string }): (input: NarrationInput) => Promise<{ bytes: Buffer }> };
+  const artifacts = new ArtifactWorkflows({
+    root: join(dataRoot, 'artifact-workflows'), accountKey: () => library.accountKey(), manifest: id => library.manifest(id), isQuiz: isAssignmentQuiz,
+    sources: async (scope, manifest) => artifactSources(scope, manifest, {
+      asset: async id => (await library.asset({ courseId: scope.courseId, assetId: id })).bytes, pdf: pdfPageTexts,
+      notes: [...await notesFor(scope.courseId), ...await memos.notes(scope.courseId), ...await study.weekNotes(scope.courseId)], summary: await knowledge.markdown(scope.courseId),
+    }),
+    engine: () => {
+      let fixedVoice: { key: string; voiceId: string } | undefined;
+      const assertVoice = () => {
+        if (!fixedVoice) return;
+        const current = credentials.heygen();
+        if (current?.key !== fixedVoice.key || current.voiceId !== fixedVoice.voiceId) throw Object.assign(new Error('voice changed'), { appError: { code: 'INVALID_REQUEST', message: 'HeyGen 키 또는 음성이 바뀌어 출력을 중단했습니다. 자동 재시도하지 않습니다.', retryable: false } });
+      };
+      return new artifactModule.ArtifactWorkflow({
+        root: join(dataRoot, 'artifact-workflows/outputs'), accountId: () => library.accountKey(),
+        generate: async ({ prompt, signal, assertCurrent }: { prompt: string; signal: AbortSignal; assertCurrent: () => void }) => {
+          assertCurrent(); const answer = await claudeText({ prompt, signal, what: '학습 자료 초안 만들기' }); assertCurrent();
+          return /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(answer.trim())?.[1] ?? answer;
+        },
+        narrate: async (input: NarrationInput) => {
+          const configured = credentials.heygen();
+          if (!configured?.voiceId) throw Object.assign(new Error('voice required'), { appError: { code: 'AUTH_REQUIRED', message: '설정에서 HeyGen 키와 설명 영상 음성을 선택하세요.', retryable: false } });
+          fixedVoice ??= { key: configured.key, voiceId: configured.voiceId };
+          const selected = fixedVoice;
+          const guard = () => {
+            input.signal.throwIfAborted(); input.assertCurrent?.();
+            assertVoice();
+          };
+          guard();
+          const result = await voiceModule.createHeygenNarrator({ apiKey: () => { guard(); return selected.key; }, voiceId: selected.voiceId, language: 'ko' })({ ...input, assertCurrent: guard });
+          guard(); return result;
+        },
+        media: {
+          duration: async (input: Parameters<ArtifactRuntimes['duration']>[0]) => { assertVoice(); const result = await artifactRuntime.duration(input); assertVoice(); return result; },
+          render: async (input: Parameters<ArtifactRuntimes['render']>[0]) => { assertVoice(); const result = await artifactRuntime.render(input); assertVoice(); return result; },
+        },
+        pptxPdf: artifactRuntime.pptxPdf.bind(artifactRuntime),
+      });
+    },
+    beforeExport: async (kind, signal) => {
+      await artifactRuntime.preflight(kind, signal);
+      if (kind === 'video') {
+        const configured = credentials.heygen();
+        if (!configured?.voiceId) throw Object.assign(new Error('voice required'), { appError: { code: 'AUTH_REQUIRED', message: '설정에서 HeyGen 키와 설명 영상 음성을 선택하세요.', retryable: false } });
+        const listed = await credentials.heygenVoices(signal);
+        if (!listed.voices.some(v => v.voiceId === configured.voiceId)) throw Object.assign(new Error('voice unavailable'), { appError: { code: 'INVALID_REQUEST', message: '설정에서 현재 키로 쓸 수 있는 음성을 다시 고르세요.', retryable: false } });
+      }
+      signal.throwIfAborted();
+    },
+    show: async (path, how) => { if (how === 'reveal') shell.showItemInFolder(path); else { const error = await shell.openPath(path); if (error) throw new Error('출력 파일을 열지 못했습니다.'); } },
+  });
   protocol.handle('assignment-preview', async request => {
     try {
       const url = new URL(request.url), ids = url.pathname.split('/').filter(Boolean);
@@ -512,25 +678,25 @@ app.whenReady().then(async () => {
     } catch { return new Response('과제 초안을 불러오지 못했습니다. 과제 화면을 다시 열어 주세요.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
   });
   const chatOutputs = new ChatOutputs({ workspace: (id) => conversations.workspace(id), openPath: (path) => shell.openPath(path), reveal: (path) => shell.showItemInFolder(path) });
-  let closing = false;
   app.on("before-quit", (event) => {
     if (closing) return;
     event.preventDefault(); closing = true;
-    clearInterval(previewTimer); automation?.stop(); assignments.stopAll();
-    void (async () => { try { await conversations.stopAll(); await recordings.stopActive("RECORDING_INTERRUPTED"); } finally {
+    clearInterval(previewTimer); clearInterval(submitTimer); automation?.stop(); assignments.stopAll();
+    const artifactStop = artifacts.stopAll(), runtimeStop = artifactRuntime.stop();
+    void (async () => { try { await conversations.stopAll(); await recordings.stopActive("app_closing", "RECORDING_INTERRUPTED"); } finally {
+      await Promise.allSettled([artifactStop, runtimeStop]);
       // Transcription first, so the running job is handed back to the queue before the engine goes away.
-      await media.stop(); await stt.stop();
+      await live.stop(); await media.stop(); await stt.stop();
     } })().catch(() => undefined).finally(() => app.quit());
   });
   // Ctrl-C in a terminal or a plain `kill` quits the same way as Cmd-Q, so recordings and transcription are saved.
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => app.quit());
   // A sleeping Mac stops capturing; keep what was recorded as a finished original.
-  powerMonitor.on("suspend", () => void recordings.stopActive("RECORDING_INTERRUPTED").catch(() => undefined));
+  powerMonitor.on("suspend", () => void recordings.stopActive("sleep", "RECORDING_INTERRUPTED").catch(() => undefined));
   // The renderer may use the microphone (audio only) for recording; no camera, no screen.
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    if (permission !== "media") return callback(true);
     const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
-    callback(webContents.getURL().startsWith("file://") && types.length > 0 && types.every((t) => t === "audio"));
+    callback(allowsRendererPermission(webContents.getURL(), uiUrl.href, permission, types, !!agent));
   });
   const learning = new LearningStatusService({
     root: join(dataRoot, "learning-status"),
@@ -557,6 +723,15 @@ app.whenReady().then(async () => {
   // WBS-061: read once; a development run shows which code it is in the top bar.
   const build = await readBuildInfo(app.getAppPath(), app.isPackaged);
   const router = createRouter({ ...createHandlers(sessions, library, files, attachments, credentials, modifier, recordings, media, conversations, stt, learning, importer), "app.build": async () => build,
+    'artifacts.inputs': async request => artifacts.inputs(request),
+    'artifacts.prepare': async request => artifacts.prepare(request),
+    'artifacts.list': async request => artifacts.list(request.courseId),
+    'artifacts.state': async request => artifacts.state(request.courseId, request.id),
+    'artifacts.export': async request => artifacts.export(request.courseId, request.id, request.reviewToken),
+    'artifacts.cancel': async request => artifacts.cancel(request.courseId, request.id),
+    'artifacts.open': async request => artifacts.show(request.courseId, request.id, request.file, request.how),
+    'artifacts.runtime': async () => artifactRuntime.status(),
+    'artifacts.setup': async request => artifactRuntime.setup(request.which),
     'assignment.open': request => assignments.open(request), 'assignment.state': request => assignments.state(request),
     'assignment.generate': request => assignments.generate(request), 'assignment.cancel': request => assignments.cancel(request),
     'assignment.export': request => assignments.export(request), 'assignment.showPdf': request => assignments.showPdf(request),
@@ -570,6 +745,12 @@ app.whenReady().then(async () => {
     "materials.choose": () => externals!.choose(),
     "materials.add": (request) => externals!.add(request),
     "materials.change": (request) => externals!.change(request),
+    // WBS-058: assignment submission after the student's confirmation (now, or by a confirmed rule).
+    "submit.choose": ({ courseId, resourceId }) => submissions.choose(courseId, resourceId),
+    "submit.confirm": ({ planId }) => submissions.confirm(planId),
+    "submit.schedule": ({ planId, minutesBefore }) => submissions.schedule(planId, minutesBefore),
+    "submit.rules": () => submissions.rules(),
+    "submit.cancelRule": ({ ruleId }) => submissions.cancel(ruleId),
     // WBS-085: class times.
     "timetable.get": () => timetable.get(),
     "timetable.set": ({ courseId, meetings }) => timetable.set(courseId, meetings),
@@ -590,6 +771,8 @@ app.whenReady().then(async () => {
     "course.knowledge": ({ courseId }) => knowledge.get(courseId),
     "course.makeKnowledge": ({ courseId }) => knowledge.make(courseId),
     "course.cancelKnowledge": async ({ courseId }) => { knowledge.cancel(courseId); return {}; },
+    "course.syllabus": ({ courseId }) => syllabus.get(courseId),
+    "course.refreshSyllabus": ({ courseId }) => syllabus.refresh(courseId),
     // WBS-072: translated copies of collected PDFs.
     "library.pdfTranslation": ({ courseId, assetId, language }) => pdfTranslations.get(courseId, assetId, language),
     "library.translatePdf": ({ courseId, assetId, language, from, to }) => pdfTranslations.make(courseId, assetId, language, from, to),
@@ -597,9 +780,12 @@ app.whenReady().then(async () => {
     // WBS-071: the preferred language, kept on this Mac.
     "app.preferences": async () => preferences.get(), "app.setPreferences": async (request) => preferences.set(request) });
   ipcMain.handle(INVOKE_CHANNEL, (event, envelope: unknown) => {
-    if (!event.senderFrame?.url.startsWith("file://")) {
+    if (event.senderFrame?.url !== uiUrl.href) {
       return { ok: false, error: { code: "SCOPE_VIOLATION", message: "허용되지 않은 요청입니다.", retryable: false } };
     }
+    // A native boundary remains a boundary. Never inject chosen file paths or silently open OS UI.
+    const channel = (envelope as { channel?: unknown } | null)?.channel;
+    if (agent && typeof channel === 'string' && agentNativeChannels.has(channel)) return { ok: false, error: { code: 'SCOPE_VIOLATION', message: 'NATIVE_REQUIRED: 이 사용자 단계는 실제 앱에서 확인해야 합니다. CLI로 우회하지 않습니다.', retryable: false } };
     return router(envelope);
   });
   const filesSmokeDir = process.argv.find((arg) => arg.startsWith("--files-smoke="))?.split("=")[1];
@@ -621,6 +807,7 @@ app.whenReady().then(async () => {
     ]));
   }
   const window = createWindow();
+  if (agent) { await new Promise<void>((resolve, reject) => { window.webContents.once('did-finish-load', () => resolve()); window.webContents.once('did-fail-load', () => reject(new Error('UI_LOAD_FAILED'))); }); await attachAgent(window, agentOutput!, agent, flow); return; }
   const smokeDir = process.argv.find((arg) => arg.startsWith("--ui-smoke="))?.split("=")[1];
   if (smokeDir !== undefined) {
     await runUiSmoke(window, smokeDir);
@@ -628,8 +815,13 @@ app.whenReady().then(async () => {
     return;
   }
   app.on("activate", () => {
+    if (closing) return;
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}).catch(error => {
+  if (!agent) throw error;
+  console.error('[agent] startup failed; no commands were replayed');
+  app.exit(1);
 });
 
 app.on("window-all-closed", () => {

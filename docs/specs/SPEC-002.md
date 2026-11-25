@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Snapshot: 2026-11-03 · v0.3.1 · Notion is authoritative; refresh after approved changes.
+Baseline snapshot: 2026-11-03 · v0.3.1; approved additive CR-113: 2026-11-10 · v0.3.2. Historical policy sections are preserved; Notion is authoritative.
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.
@@ -57,3 +57,17 @@ CR: https://app.notion.com/p/40dbd7ec20cd814aaefff0ff176ee897 · WBS-051. 실제
 SDK 시작에 고정 과목 안내를 추가하고 전송 전 사본 갱신 및 UserPromptSubmit에서 최신 버전 문맥을 전달한다. PTY는 시작 안내와 제출 전 갱신, 실제 UserPromptSubmit 훅으로 같은 연결을 사용한다. 명령을 재해석하거나 키 입력을 주입하지 않는다. 비동기 갱신 중 입력을 순서대로 전달한다. 계정 변경·미수집·손상·폴더 경계 변경은 전송 전에 중단/안내한다. 기존 사용자 course/outputs는 덮어쓰지 않는다.
 갱신은 새 사본을 만든 뒤 링크를 원자 교체하며 이전 사본은 진행 중 참조를 위해 보존한다. 자동 정리(GC)는 이번 범위 밖이다. 수집/요약은 요청 시에만 실행하고 수집된 로컬 자료는 오프라인으로 읽는다.
 CR: https://app.notion.com/p/40dbd7ec20cd81fd998de3d67036be2a · WBS-052.
+
+
+## CR-113 · 텍스트 작업의 자동 호환성 검사 (2026-11-10)
+정리본·문장 번역/교정·JSON 추출 등 host가 입력 텍스트를 준비하는 작업은 내부 text 프로필로 실행한다. 과거 structured independent/app_modify의 버전 목록·고정 플래그·G0 증거는 유지하고 이 프로필의 성공으로 legacy 실행을 허용하지 않는다. 일반 SDK/native 채팅의 CR-050/051 환경·권한 정책과 기록도 변경하지 않는다. 공유 IPC/session schema에는 새 모드를 추가하지 않는다.
+
+text는 새 UUID 작업 폴더와 단발 세션을 쓰며 공식 CLI 구독 로그인/API·provider 환경 거부를 매 실행 확인한다. restricted/safe-mode/strict MCP/슬래시 비활성화와 **도구 없음**, 세션 비저장·한 턴·명시 text system prompt를 적용한다. 추가 디렉터리·파일 첨부·resume·다른 mode는 거부한다. 실제 init의 버전·명시적인 도구/MCP 배열·구독 경로·권한 모드·session ID와 스트림을 검사한다. 도구 요청은 즉시 중단한다. 읽기/쓰기 작업은 host의 기존 검증 경로가 담당하며 CLI에 파일 도구를 주지 않는다.
+
+버전 번호만으로 차단하지 않는다. 해당 text 작업 최초 요청 때 실제 실행 파일의 realpath/내용 해시/버전/플랫폼과 검사 정책에 결합한 자동 검사를 한다. --help는 실행 가능 여부의 보조 정보이며 지원 옵션의 완전한 목록으로 취급하지 않는다. 합성 요청에서 실제 인자·init·정상 완료를 확인하고 부모/현재 폴더 CLAUDE.md canary와 hook/MCP 실행 표식에 대해 자동 유입/실행이 관측되지 않아야 한다. 사용자 전역 설정/메모리는 수정하거나 canary를 심지 않는다. 이 검사는 CLI 기능 및 자동 문맥 유입 방지의 관측 근거이며 악의적인 실행 파일에 대한 OS 격리 보증이나 전체 legacy G0 검증을 대신하지 않는다.
+
+성공한 정책 metadata만 앱 데이터의 cli-text-compatibility에 원자적으로 저장한다(폴더 0700/파일 0600, 소유자/심볼릭 링크/형식 확인). 사용자 문장·강의·인증·원시 모델 응답은 넣지 않는다. 재시작 뒤 재사용하고 실행 파일/정책 변경 시 재검사한다. flags는 정책 해시에 포함하며 검사/응답 계약 변경 시 revision을 올린다. 모델/로그인 상태의 성공을 영구 캐시하지 않는다. 실제 작업에서 초기화/도구/응답 계약 위반이 나타나면 증거를 무효화한다. 자동 재전송이나 미검증 버전으로의 fallback은 없다.
+
+동시 최초 검사는 공유한다. 한 요청 취소가 다른 대기 요청을 취소하지 않고, 모두 취소하면 검사를 중단한다. 로그인 만료·구독 한도·네트워크 오류·취소/시간 초과는 호환성 미지원과 구분하며 통과 캐시를 만들지 않는다. 자동 검사는 소량의 구독 사용량을 쓸 수 있으나 앱 시작/업데이트 자체로 모델 요청을 보내지 않고 실제 text 작업 요청 때만 실행한다. 기존 진행/오류 UI와 재시도 흐름을 사용한다.
+
+CR: https://app.notion.com/p/414bd7ec20cd81d9b072d4f9df5dd2bb · WBS-113 https://app.notion.com/p/414bd7ec20cd81449211cf89dafee18e.

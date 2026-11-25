@@ -32,7 +32,7 @@ export function installFakeHost(courseTitle: string): void {
   type Chat = IpcResponse<'chat.state'>;
   const chats = new Map<string, Chat>();
   const chatTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const freshChat = (): Chat => ({ messages: [], busy: false, connected: true, error: '', model: 'sonnet', effort: 'default', mode: 'default', models: [
+  const freshChat = (): Chat => ({ messages: [], busy: false, connected: true, error: '', model: 'sonnet', effort: 'default', mode: 'auto', models: [
     { value: 'sonnet', displayName: 'Sonnet · 합성', supportedEffortLevels: ['low', 'medium', 'high'], supportsAutoMode: true },
     { value: 'haiku', displayName: 'Haiku · 합성' },
   ], commands: [{ name: 'compact', description: '대화 문맥 압축', argumentHint: '' }, { name: 'code-review', description: '변경 사항 검토', argumentHint: '' }, { name: 'init', description: 'CLAUDE.md 작성', argumentHint: '' }], permissions: [], totalCost: 0, tokens: 0, sessionId: crypto.randomUUID() });
@@ -52,6 +52,16 @@ export function installFakeHost(courseTitle: string): void {
   const fakeMentions: Record<string, unknown>[] = [];
   // WBS-065: one synthetic recording made before weeks were chosen (startedAt in the second fixture week), to try confirming its week.
   let fakeRecordings: Recording[] = SAMPLE_RECORDINGS.slice(0, 1).map((r) => ({ ...r, startedAt: "2026-09-09T01:00:00Z" }));
+  // Distinct synthetic weeks exercise browsing without real microphone/files.
+  const weekSources = FIXTURE_MANIFEST.weeks.slice(0, 2).map((week, index) => {
+    const assetId = `26000000-0000-4000-8000-${String(90 + index).padStart(12, '0')}`;
+    const recordingId = `26000000-0000-4000-8000-${String(92 + index).padStart(12, '0')}`;
+    const asset = { ...SAMPLE_MEDIA, id: assetId, courseId: FIXTURE_MANIFEST.course.id, title: `합성 ${week.label} 녹음`, source: { type: 'recording' as const, recordingId } };
+    const recording = { ...SAMPLE_RECORDINGS[0]!, id: recordingId, courseId: FIXTURE_MANIFEST.course.id, title: asset.title, weekId: week.id, originalAssetId: asset.id };
+    const transcript = { ...SAMPLE_TRANSCRIPT, id: `26000000-0000-4000-8000-${String(94 + index).padStart(12, '0')}`, sourceAssetId: asset.id, segments: [{ startMs: 0, endMs: 2500, text: `${week.label} 녹음의 전사 예제입니다.` }] };
+    return { asset, recording, transcript };
+  });
+  fakeRecordings.push(...weekSources.map(source => source.recording));
   const forCourse = (courseId: unknown) => fakeRecordings.filter((r) => r.courseId === String(courseId) || r.id === SAMPLE_RECORDINGS[0]!.id).map((r) => ({ ...r, courseId: String(courseId) }));
   // `?fixture=mic` (WBS-064 checks): recording works with a generated tone in place of the
   // microphone, so the recording screen can be tried without opening a real one.
@@ -69,7 +79,17 @@ export function installFakeHost(courseTitle: string): void {
   let fixtureEngine = new URLSearchParams(window.location.search).has('engineMissing') ? 'missing' : 'ready';
   let fixtureJob = new URLSearchParams(window.location.search).has('engineMissing') ? { ...SAMPLE_JOBS[3]!, errorCode: 'ENGINE_UNAVAILABLE' } : SAMPLE_JOBS[2]!;
   const engineStatus = () => ({ state: fixtureEngine, message: fixtureEngine === 'installing' ? '음성 모델 준비 중 · 합성 예시' : fixtureEngine === 'ready' ? '이 Mac에서 자동 전사할 준비가 됐습니다.' : '전사 엔진 또는 음성 모델 준비가 필요합니다.' });
+  const fixtureMemos = new Map<string, { text: string; updatedAt: string | null; canUndo: boolean }>();
+  const memoKey = (p: Record<string, unknown>) => `${String(p.courseId)}/${String(p.weekId ?? '')}`;
   const handlers: Partial<Record<IpcChannel, (p: Record<string, unknown>) => Promise<unknown>>> = {
+    'memo.get': p => ok(fixtureMemos.get(memoKey(p)) ?? { text: '', updatedAt: null, canUndo: false }),
+    'memo.save': p => {
+      const key = memoKey(p), previous = fixtureMemos.get(key);
+      if ((previous?.updatedAt ?? null) !== p.base) return fail('INVALID_REQUEST', '다른 곳에서 바뀐 합성 메모입니다. 다시 불러오세요.');
+      const memo = { text: String(p.text), updatedAt: new Date().toISOString(), canUndo: false };
+      fixtureMemos.set(key, memo); return ok({ ...memo });
+    },
+    'memo.pageText': () => ok({ text: 'Synthetic PDF page text · 합성 메모 예제' }),
     'stt.status': () => ok(engineStatus()),
     'stt.prepare': () => { fixtureEngine = 'installing'; setTimeout(() => { if (fixtureEngine === 'installing') { fixtureEngine = 'ready'; fixtureJob = SAMPLE_JOBS[2]!; } }, 1800); return ok(engineStatus()); },
     'stt.cancel': () => { fixtureEngine = 'missing'; return ok(engineStatus()); },
@@ -77,7 +97,7 @@ export function installFakeHost(courseTitle: string): void {
     'media.pauseTranscription': () => ok({ paused: true }),
     'media.resumeTranscription': () => ok({ paused: false }),
     'media.cancelTranscription': () => ok({}),
-    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: fakeReadable ? ['readable', 'corrections', 'readable_app'] : ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT, ...fakeCorrections] : [], downloads: [] }),
+    'media.list': p => ok({ assets: [{ ...SAMPLE_MEDIA, courseId: String(p.courseId) }, ...weekSources.filter(source => source.asset.courseId === p.courseId).map(source => source.asset)], recordings: forCourse(p.courseId), importedDocs: { [SAMPLE_MEDIA.id]: fakeReadable ? ['readable', 'corrections', 'readable_app'] : ['readable', 'corrections'] }, jobs: [fixtureJob], transcripts: fixtureJob.status === 'succeeded' ? [SAMPLE_TRANSCRIPT, ...fakeCorrections, ...weekSources.map(source => source.transcript)] : [], downloads: [] }),
     'media.original': async () => ok({ bytes: new Uint8Array(await syntheticAudio().arrayBuffer()), mediaType: 'audio/wav' }),
     'media.retry': () => { fixtureJob = SAMPLE_JOBS[2]!; return ok({}); },
     'media.open': () => ok({}),
@@ -127,6 +147,12 @@ export function installFakeHost(courseTitle: string): void {
     "recording.list": (p) => ok({ recordings: forCourse(p.courseId), assets: [] }),
     "recording.assign": (p) => { const i = fakeRecordings.findIndex((r) => r.id === p.recordingId); if (i < 0) return fail('NOT_FOUND', '녹음을 찾을 수 없습니다.'); const { lectureSourceId: _old, ...rest } = fakeRecordings[i]!; fakeRecordings[i] = { ...rest, weekId: String(p.weekId), ...(p.lectureSourceId ? { lectureSourceId: String(p.lectureSourceId) } : {}) }; return ok({ recording: fakeRecordings[i] }); },
     "app.build": () => ok({ dev: true, branch: "fixture", commit: "0000000", dirty: false, folder: "fixture" }),
+    // WBS-058: a synthetic submission flow; nothing leaves the preview.
+    "submit.rules": () => ok({ rules: [] }),
+    "submit.choose": () => ok({ planId: "11111111-1111-4111-8111-0000000000d1", fileName: "합성_과제.pdf", bytes: 554066, assignment: { name: "합성 과제", dueAt: "2026-11-09T14:59:00Z", lockAt: null, extensions: ["pdf"], attempt: null, allowedAttempts: null, submittedAt: null, files: [] } }),
+    "submit.confirm": async () => { await new Promise((r) => setTimeout(r, 500)); return ok({ attempt: 1, submittedAt: "2026-11-09T04:04:11Z", files: ["합성_과제.pdf"] }); },
+    "submit.schedule": () => ok({ ruleId: "11111111-1111-4111-8111-0000000000d2", at: "2026-11-09T13:59:00Z" }),
+    "submit.cancelRule": () => ok({}),
     // Synthetic LMS status for the fixture course: every other file done, assignments open.
     "learning.status": (p) => p.courseId !== FIXTURE_MANIFEST.course.id ? ok({}) : ok({ status: {
       schemaVersion: 1, courseId: FIXTURE_MANIFEST.course.id, fetchedAt: now(), errors: [],

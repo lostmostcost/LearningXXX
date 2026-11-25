@@ -26,6 +26,8 @@ export function createLmsClient(canvasToken: () => string | undefined = () => un
 }
 
 const LEARNINGX_TOKEN = "xn_api_token";
+/** WBS-058: Canvas's own CSRF cookie, sent back as a header on a submission (only to Canvas). */
+const CANVAS_CSRF = "_csrf_token";
 
 /** The token's own expiry; a token about to run out counts as missing. */
 function tokenUsable(token: string, now = Date.now()): boolean {
@@ -302,4 +304,39 @@ export function openLmsWatchWindow(
   watching = { window, closed };
   void window.loadURL(page).catch(() => undefined);
   return closed;
+}
+
+/**
+ * WBS-058: requests that change something at the LMS (assignment upload and
+ * submission), through the school sign-in. With cookies Canvas wants its CSRF
+ * token as a header; with a saved Canvas token the token alone is enough.
+ */
+export function createCanvasHttp(canvasToken: () => string | undefined): import("./assignment-submit.ts").CanvasHttp {
+  const lms = session.fromPartition(LMS_PARTITION);
+  return {
+    request: async (url, { method, body }) => {
+      const target = new URL(url, KHU_CANVAS_BASE_URL);
+      // Cookies and the token go to the LMS only; the upload host gets just the file and the fields Canvas gave.
+      if (target.origin !== new URL(KHU_CANVAS_BASE_URL).origin) {
+        if (target.protocol !== "https:") throw Object.assign(new Error("upload url"), { appError: { code: "SOURCE_CHANGED", message: "업로드 주소가 안전하지 않습니다.", retryable: false } });
+        return globalThis.fetch(target.href, { method, ...(body ? { body } : {}), redirect: "manual" }).catch(() => {
+          throw Object.assign(new Error("network"), { appError: { code: "DOWNLOAD_FAILED", message: "업로드 서버에 연결하지 못했습니다. 다시 시도하세요.", retryable: true } });
+        });
+      }
+      const token = canvasToken();
+      const [csrf] = token ? [] : await lms.cookies.get({ url: KHU_CANVAS_BASE_URL, name: CANVAS_CSRF });
+      const headers: Record<string, string> = { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(csrf && method !== "GET" ? { "X-CSRF-Token": decodeURIComponent(csrf.value) } : {}) };
+      // The file upload itself, when Canvas stores files on its own address: it answers with a
+      // redirect to the upload confirmation, which must be followed (the fetch standard drops the
+      // token if that hop left the LMS). Electron's session fetch throws on a manual redirect
+      // instead of returning it, so every other LMS call reads a redirect as the login page.
+      const upload = method === "POST" && body instanceof FormData;
+      try {
+        return await lms.fetch(target.href, { method, headers, ...(body ? { body } : {}), redirect: upload ? "follow" : "manual" });
+      } catch (error) {
+        if (!upload && /redirect/i.test(String(error))) throw Object.assign(new Error("redirect"), { appError: { code: "AUTH_REQUIRED", message: "학교 로그인이 만료되었습니다. 설정에서 학교 로그인을 확인한 뒤 다시 제출하세요.", retryable: false } });
+        throw Object.assign(new Error("network"), { appError: { code: "DOWNLOAD_FAILED", message: "LMS에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.", retryable: true } });
+      }
+    },
+  };
 }

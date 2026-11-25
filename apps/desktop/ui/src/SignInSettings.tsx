@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LANGUAGE_NAMES, PreferredLanguage, type CredentialStatus } from "@learningxxx/contracts";
 import { AutomationSettings } from "./AutomationSettings.tsx";
+import { HeygenSettings } from "./HeygenSettings.tsx";
 import { invoke } from "./host-api.ts";
 import { Icon } from "./StudyUI.tsx";
 import { signInSummary } from "./signin.ts";
@@ -79,6 +80,7 @@ export function SignInSettings({ onChange }: { onChange?: (status: CredentialSta
         <LanguageSetting />
         <ThemeSetting />
         <Details title="자동화 설정"><AutomationSettings /></Details>
+        <HeygenSettings status={status} onStatus={apply} />
         <button type="button" onClick={() => dialog.current?.close()}>닫기</button>
       </dialog>
     </>

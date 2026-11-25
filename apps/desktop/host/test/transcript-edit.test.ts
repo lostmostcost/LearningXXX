@@ -80,6 +80,7 @@ test("the readable runner uses an independent CLI session in an empty folder, re
   assert.equal(await run({ title: "합성", text: "[00:00] 문장", signal: new AbortController().signal }), "## 정리\n본문");
   assert.equal(requests[0]!.mode, "independent");
   assert.equal(requests[0]!.prompt, readablePrompt("합성", "[00:00] 문장"));
+  assert.equal(requests[0]!.profile, 'text');
   assert.deepEqual(await readdir(root), [], "the run folder is removed");
   const failing = createReadableRunner(async () => ({ ok: true, events: (async function* () { yield ev(0, "run.failed", { error: { code: "AUTH_REQUIRED", message: "로그인 필요", retryable: false } }); })() }), root);
   await assert.rejects(failing({ title: "x", text: "y", signal: new AbortController().signal }), /로그인 필요/);

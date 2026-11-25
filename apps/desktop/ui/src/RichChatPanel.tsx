@@ -7,7 +7,7 @@ import { ChatOutputs } from './ChatOutputs.tsx';
 import { Icon } from './StudyUI.tsx';
 import type { SelectionRequest } from './selection.ts';
 import { INTENT_LABEL } from './selection.ts';
-import { chatMarkdown, commandItems, MODE_LABEL, parseChatCommand } from './conversation-commands.ts';
+import { chatMarkdown, commandItems, currentChatModel, MODE_LABEL, parseChatCommand } from './conversation-commands.ts';
 
 type State = IpcResponse<'chat.state'>;
 type Attachment = { id: string; name: string; text: string };
@@ -18,11 +18,12 @@ type Note = { title: string; text: string; settings?: 'screen' | undefined };
 type Rewind = { id: string; result: IpcResponse<'chat.rewind'> };
 
 /** Session IDs are captured before every async action; switching views never retargets a send. */
-export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing, fixed = false, blocked = false }: {
+export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, selectedAssets, selectionRequest, onSelectionUsed, viewing, screenLabel, fixed = false, blocked = false }: {
   courseId: string | undefined; courseTitle: string | undefined; activeId: string | undefined; onActiveId: (id: string) => void;
   selectedAssets: { id: string; name: string }[]; selectionRequest: SelectionRequest | undefined; onSelectionUsed: (id: string) => void;
   /** WBS-082: what is open in the viewer, sent with each message. */
   viewing?: { week?: string; title?: string; page?: number } | undefined;
+  screenLabel?: string | undefined;
   fixed?: boolean; blocked?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -172,15 +173,17 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
       }
       const key = JSON.stringify(content);
       if (requests.current.get(id)?.key !== key) requests.current.set(id, { key, requestId: crypto.randomUUID() });
-      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n'), ...(viewing ? { viewing } : {}) });
+      const sameCourse = active?.mode === 'course' && active.courseId === courseId;
+      const r = await invoke('chat.send', { appSessionId: id, requestId: requests.current.get(id)!.requestId, text: [content.text, ...content.attachments.map(a => a.text)].filter(Boolean).join('\n\n'), ...(sameCourse && viewing ? { viewing } : {}) });
       if (r.ok) { requests.current.delete(id); accept(id, r.data); setDraft(id, old => ({ text: old.text === draft.text ? '' : old.text, attachments: old.attachments.filter(a => !content.attachments.some(b => b.id === a.id)) })); nearBottom.current = true; }
       else tell(id, '전송 실패', r.error.message);
     });
   };
-  const currentModel = state?.models.find(m => m.value === state.model || m.resolvedModel === state.model);
+  const currentModel = currentChatModel(state);
   const disabled = blocked || busy || !!state?.busy || !state?.connected;
 
   return <section className="rich-chat" aria-label="Claude Code 채팅">
+    {screenLabel ? <div className="chat-screen-context" aria-label="채팅 화면 문맥"><span>현재 화면 · {screenLabel}</span><span>대화 소속 · {active ? active.mode === 'independent' ? '일반 대화' : active.courseId === courseId ? courseTitle ?? '과목 대화' : '다른 과목 대화' : '선택 안 됨'}</span></div> : null}
     {fixed ? <div className="session-toolbar assignment-chat-heading"><strong>과제 전용 · 전체 주차</strong><small>{active?.title ?? '과제 대화 준비 중…'}</small></div> : <div className="session-toolbar"><div className="session-menu" ref={menu}>
       <button className="session-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span>{active?.title ?? '대화 선택'}</span><Icon name="chevron" /></button>
       {menuOpen ? <div className="session-dropdown" role="menu"><button aria-pressed={showArchived} title="보관한 대화 포함" aria-label="보관한 대화 포함" onClick={() => setShowArchived(!showArchived)}><Icon name="archive" />보관한 대화</button>{sessions.filter(s => (!s.archivedAt || showArchived) && (s.mode === 'independent' || s.courseId === courseId)).map(s => <button key={s.appSessionId} role="menuitem" aria-current={s.appSessionId === activeId} onClick={async () => { if (s.archivedAt) { const r = await invoke('session.archive', { appSessionId: s.appSessionId, archived: false }); if (!r.ok) return tell(s.appSessionId, '보관 해제 실패', r.error.message); await reload(); } onActiveId(s.appSessionId); setMenuOpen(false); }}><Icon name={s.mode === 'course' ? 'book' : 'chat'} /><span>{s.title}{s.archivedAt ? " · 보관됨" : ""}</span></button>)}{!sessions.length ? <p>새 대화를 시작하세요.</p> : null}</div> : null}
@@ -211,7 +214,7 @@ export function RichChatPanel({ courseId, courseTitle, activeId, onActiveId, sel
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
         }} />
         <div className="composer-actions"><button disabled={busy || !!pending} aria-label="파일 첨부" title="파일 첨부" onClick={() => void attach('local')}><Icon name="plus" /></button><button disabled={busy || !!pending} aria-label="화면 캡처" title="화면 캡처" onClick={() => void attach('capture')}><Icon name="capture" /></button>{selectedAssets.map(a => <button key={a.id} disabled={busy || !!pending} title={`자료 첨부: ${a.name}`} aria-label={`자료 첨부: ${a.name}`} onClick={() => void attach('asset', a.id)}><Icon name="book" /></button>)}<span className="composer-spacer" />{state?.busy ? <button disabled={busy} className="send-button" aria-label="응답 중지" title="응답 중지" onClick={() => { const id = activeId; void action(id, async () => { const r = await invoke('chat.interrupt', { appSessionId: id }); if (r.ok) accept(id, r.data); else tell(id, '중지 실패', r.error.message); }); }}><Icon name="stop" /></button> : <button className="send-button" disabled={blocked || busy || !state?.connected || !!pending || !draft.text.trim() && !draft.attachments.length} aria-label="메시지 전송" title="메시지 전송" onClick={() => void send()}><Icon name="send" /></button>}</div>
-      </div><Details title={<>대화 설정 <small>{MODE_LABEL[state?.mode ?? "default"]}</small></>} className="chat-settings"><div className="chat-controls"><select ref={modelPicker} aria-label="모델" title="/model" disabled={disabled} value={currentModel?.value ?? ''} onChange={e => configure({ model: e.target.value })}><option value="" disabled>기본 모델</option>{state?.models.map(m => <option key={m.value} value={m.value}>{m.displayName}</option>)}</select><select ref={effortPicker} aria-label="추론 강도" title="/effort · 다음 요청부터" disabled={disabled || !currentModel} value={state?.effort ?? 'default'} onChange={e => configure({ effort: e.target.value })}><option value="default">기본 강도</option>{currentModel?.supportedEffortLevels?.map(l => <option key={l} value={l}>{l}</option>)}</select><select ref={modePicker} aria-label="실행 모드" title="/plan · /permissions" disabled={disabled} value={state?.mode ?? 'default'} onChange={e => configure({ mode: e.target.value })}>{Object.entries(MODE_LABEL).filter(([key]) => key !== 'auto' || currentModel?.supportsAutoMode).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div></Details><div className="chat-environment" title="Claude Code 구독 로그인 · 전역 설정을 사용하는 일반 환경">일반 환경{state?.mode === 'acceptEdits' ? ' · 파일 편집 자동 승인' : ''}</div></div> : null}
+      </div><Details title={<>대화 설정 <small>{MODE_LABEL[state?.mode ?? "default"]}</small></>} className="chat-settings"><div className="chat-controls"><select ref={modelPicker} aria-label="모델" title="/model" disabled={disabled} value={currentModel?.value ?? ''} onChange={e => configure({ model: e.target.value })}><option value="" disabled>기본 모델</option>{state?.models.map(m => <option key={m.value} value={m.value}>{m.displayName}</option>)}</select><select ref={effortPicker} aria-label="추론 강도" title="/effort · 다음 요청부터" disabled={disabled || !currentModel} value={state?.effort ?? 'default'} onChange={e => configure({ effort: e.target.value })}><option value="default">기본 강도</option>{currentModel?.supportedEffortLevels?.map(l => <option key={l} value={l}>{l}</option>)}</select><select ref={modePicker} aria-label="실행 모드" title="/plan · /permissions" disabled={disabled} value={state?.mode ?? 'default'} onChange={e => configure({ mode: e.target.value })}>{Object.entries(MODE_LABEL).filter(([key]) => key !== 'auto' || currentModel?.supportsAutoMode).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div></Details><div className="chat-environment" title="Claude Code 구독 로그인 · 전역 설정을 사용하는 일반 환경">일반 환경{state?.mode === 'acceptEdits' ? ' · 파일 편집 자동 승인' : state?.mode === 'auto' ? ' · 자동 판단: 위험한 작업은 Claude Code가 묻거나 막음' : ''}</div></div> : null}
     </>}
   </section>;
 }

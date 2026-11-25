@@ -26,8 +26,8 @@ export interface TranscriptPanelProps {
   onResume?: (() => Promise<void>) | undefined;
   onCancel?: ((jobId: string) => Promise<void>) | undefined;
   /**
-   * WBS-065: the original chosen under a week of the materials menu (or the
-   * recording just saved). There is no course-wide list to pick from here.
+   * The original chosen in the recording/transcript screen (or just saved).
+   * Its week-filtered browser owns navigation; this component shows one source.
    */
   selectedAssetId?: string | undefined;
   /** Where the chosen original sits ("3주차 · 1차시") and, for recordings, a way to move it. */
@@ -81,7 +81,7 @@ export function TranscriptPanel(props: TranscriptPanelProps) {
     <div className="media-heading"><h3>{props.view === "transcripts" ? "전사 노트" : "저장한 원본"}</h3>{asset ? <span className="media-title" title={asset.title}>{asset.title}</span> : null}</div>
     {asset && props.place ? <div className="media-place">{props.place(asset)}</div> : null}
     {asset && props.loadDoc && props.importedDocs?.[asset.id]?.length ? <ImportedDocs key={asset.id} assetId={asset.id} docs={props.importedDocs[asset.id]!} load={props.loadDoc} /> : null}
-    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "주차 메뉴에서 원본을 선택하세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음·동영상 원본을 고르면 전사를 볼 수 있습니다." : "녹음하거나 온라인 강의를 가져오면 주차 학습의 해당 주차 아래에 표시됩니다."}</small></div>}
+    {asset ? <MediaDetail key={`${props.courseId}:${asset.id}`} {...props} asset={asset} /> : <div className="media-empty"><Icon name={props.view === "transcripts" ? "file" : "mic"} /><p>{assets.length ? "확인할 원본을 선택하세요" : props.view === "transcripts" ? "전사할 원본이 없습니다" : "아직 저장한 녹음이 없습니다"}</p><small>{assets.length ? "녹음·동영상 원본을 고르면 전사를 볼 수 있습니다." : "녹음하거나 온라인 강의를 가져오면 녹음·전사 화면에서 확인할 수 있습니다."}</small></div>}
     {props.recordings.filter(r => r.courseId === props.courseId && !r.originalAssetId && r.status !== "recording").map(r => <p className="notice-box" key={r.id}>{r.title} · {r.status === "failed" ? "녹음을 저장하지 못했습니다" : "원본을 복구하고 있습니다"}</p>)}
   </section>;
 
@@ -214,13 +214,15 @@ function MediaDetail(props: TranscriptPanelProps & { asset: MediaAsset }) {
       const view = jobView(job);
       const act = (work: (() => Promise<void>) | undefined, failed: string) => async () => { try { await work?.(); } catch { setNotice(failed); } };
       const wait = job.status === "queued" ? props.waiting?.[job.id] : undefined;
-      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 처음부터 다시 전사" : view.label}
+      return <li key={job.id}>{props.paused && job.status === "queued" ? "일시 정지됨 · 재개하면 끝난 구간 다음부터 이어서 전사" : view.label}
         {wait && !props.paused ? <small className="queue-wait"> · 앞에 {wait.ahead}개{wait.runningTitle ? ` · 지금 "${wait.runningTitle}" 전사 중${wait.runningProgress !== undefined ? ` ${Math.round(wait.runningProgress * 100)}%` : ""}` : ""} (위 "작업"에서 순서를 볼 수 있습니다)</small> : null}{view.progress !== undefined ? ` · ${Math.round(view.progress * 100)}%` : ""}
         {job.status === "running" && props.onPause ? <button className="icon-button" title="전사 일시 정지" aria-label="전사 일시 정지" onClick={act(props.onPause, "전사를 일시 정지하지 못했습니다.")}><Icon name="pause" /></button> : null}
         {props.paused && job.status === "queued" && props.onResume ? <button className="icon-button" title="전사 재개" aria-label="전사 재개" onClick={act(props.onResume, "전사를 재개하지 못했습니다.")}><Icon name="play" /></button> : null}
         {(job.status === "running" || job.status === "queued") && props.onCancel ? <button className="icon-button" title="이 전사 중지" aria-label="이 전사 중지" onClick={act(() => props.onCancel!(job.id), "전사를 중지하지 못했습니다.")}><Icon name="stop" /></button> : null}
         {job.status === "running" ? <progress aria-label="전사 진행" max={1} value={view.progress} /> : null}
-        {job.errorCode ? <small>{job.errorCode === "RUN_INTERRUPTED" ? "앱이 꺼져 중단됐습니다. 재시도를 누르면 처음부터 다시 전사합니다." : job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {job.errorCode ? <small>{job.errorCode === "RUN_INTERRUPTED" ? "앱이 꺼져 중단됐습니다. 재시도를 누르면 끝난 구간 다음부터 이어서 전사합니다." : job.errorCode === "ENGINE_UNAVAILABLE" ? "위에서 엔진 준비·복구 후 다시 시도하세요." : job.errorCode === "CHECKSUM_MISMATCH" ? "원본이 변경됐거나 없어 확인이 필요합니다." : job.errorCode === "MEDIA_UNREADABLE" ? "원본 오디오를 읽을 수 없습니다." : "처리하지 못했습니다. 원본을 확인한 뒤 다시 시도하세요."}</small> : null}
+        {/* WBS-101: what the engine said, so a failure is no longer a mystery. */}
+        {job.errorDetail && (job.status === "failed" || job.status === "queued") ? <small className="error-detail">{/memory|insufficient|강제로 종료/i.test(job.errorDetail) ? "메모리가 부족했던 것 같습니다. 다른 앱을 닫고 다시 시도하세요. " : ""}원인: {job.errorDetail}</small> : null}
         {view.retry ? <button className="icon-button" title="전사 재시도" aria-label="전사 재시도" disabled={!props.onRetry || props.engineReady === false || retrying !== undefined} onClick={async () => {
           if (!props.onRetry || retrying !== undefined) return;
           setRetrying(job.id);

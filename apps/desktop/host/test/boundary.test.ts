@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { IpcChannels } from "@learningxxx/contracts";
-import { isAllowedLoginUrl, LOGIN_WEB_PREFERENCES, WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
+import { allowsRendererPermission, isAllowedLoginUrl, LOGIN_WEB_PREFERENCES, WEB_PREFERENCES, WINDOW_SIZE } from "../src/window-options.ts";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -14,6 +14,17 @@ test("renderer isolation stays on", () => {
     nodeIntegrationInWorker: false,
     webviewTag: false,
   });
+});
+
+test('only bundled UI audio and sanitized clipboard permission can be granted', () => {
+  const ui = 'file:///app/ui/index.html';
+  assert.equal(allowsRendererPermission(ui, ui, 'media', ['audio']), true);
+  assert.equal(allowsRendererPermission(ui, ui, 'clipboard-sanitized-write', []), true);
+  for (const [url, permission, types, agent] of [
+    [ui, 'notifications', [], false], [ui, 'geolocation', [], false], [ui, 'media', [], false],
+    [ui, 'media', ['audio', 'video'], false], ['file:///other.html', 'media', ['audio'], false],
+    ['https://example.com', 'media', ['audio'], false], [ui, 'media', ['audio'], true],
+  ] as const) assert.equal(allowsRendererPermission(url, ui, permission, types, agent), false);
 });
 
 test("preload exposes exactly the contract channels", () => {
@@ -64,8 +75,10 @@ test("host code never reads session cookies or credentials", () => {
   const cookieUses = session.match(/cookies\.\w+\([^)]*\)/g) ?? [];
   // WBS-040: the saved-details sign-in reads one cookie by name (the SSO CSRF token, see school-login.ts).
   // WBS-056: the LMS page's own window for the sign-in reads the same CSRF cookie by name.
+  // WBS-058: an assignment submission sends Canvas's CSRF cookie back to Canvas as a header.
   assert.deepEqual(cookieUses, ["cookies.get({ url: KHU_CANVAS_BASE_URL, name: LEARNINGX_TOKEN })", "cookies.get({ url, name })", "cookies.off(\"changed\", onCookie)", "cookies.on(\"changed\", onCookie)", "cookies.off(\"changed\", onCookie)",
-    "cookies.get({ url, name })"]);
+    "cookies.get({ url, name })", "cookies.get({ url: KHU_CANVAS_BASE_URL, name: CANVAS_CSRF })"]);
+  assert.match(session, /const CANVAS_CSRF = "_csrf_token";/);
   assert.match(session, /const LEARNINGX_TOKEN = "xn_api_token";/);
   for (const [name, source] of [["lms-session.ts", session], ["lms-probe.ts", read("../src/lms-probe.ts")]] as const) {
     assert.doesNotMatch(source, /document\.cookie|executeJavaScript|password/i, name);

@@ -99,6 +99,12 @@ describe("producer → consumer round trip", () => {
   it("every IPC channel round-trips a valid request through the host validator", () => {
     const sid = crypto.randomUUID();
     const samples: { [K in C.IpcChannel]: C.IpcRequest<K> } = {
+      'artifacts.inputs': { courseId: sid, kind: 'video', weekId: sid },
+      'artifacts.prepare': { courseId: sid, kind: 'slides', assignmentId: sid, sourceToken: 'a'.repeat(64), allowMissing: false },
+      'artifacts.list': { courseId: sid }, 'artifacts.state': { courseId: sid, id: sid },
+      'artifacts.export': { courseId: sid, id: sid, reviewToken: 'a'.repeat(64) },
+      'artifacts.cancel': { courseId: sid, id: sid }, 'artifacts.open': { courseId: sid, id: sid, file: 'pdf', how: 'reveal' },
+      'artifacts.runtime': {}, 'artifacts.setup': { which: 'video' },
       'assignment.open': { courseId: sid, assignmentId: sid },
       'assignment.state': { courseId: sid, assignmentId: sid },
       'assignment.generate': { courseId: sid, assignmentId: sid, sourceToken: 'a'.repeat(64), allowMissing: false },
@@ -126,11 +132,13 @@ describe("producer → consumer round trip", () => {
       "credentials.saveCanvasToken": { token: "synthetic-canvas-token" },
       "credentials.clear": { which: "school" },
       "library.asset": { courseId: sid, assetId: crypto.randomUUID() },
+      "submit.choose": { courseId: sid, resourceId: sid }, "submit.confirm": { planId: sid }, "submit.schedule": { planId: sid, minutesBefore: 60 }, "submit.rules": {}, "submit.cancelRule": { ruleId: sid },
+      "credentials.saveHeygenKey": { key: "synthetic-key-123" }, "credentials.heygenVoices": {}, "credentials.setHeygenVoice": { voiceId: "v_1" }, "credentials.heygenPreview": { voiceId: "v_1" },
       "timetable.get": {}, "timetable.set": { courseId: sid, meetings: [{ day: "월", start: "09:00", end: "10:15" }] },
       "media.storage": {}, "media.removeOriginals": { courseId: sid, assetIds: [sid] },
       "materials.choose": {}, "materials.add": { planId: sid, courseId: sid, files: [{ id: sid, title: "자료" }] }, "materials.change": { courseId: sid, resourceId: sid, weekId: null },
       "memo.get": { courseId: sid }, "memo.save": { courseId: sid, weekId: sid, text: "메모", base: null }, "memo.cleanup": { courseId: sid }, "memo.apply": { courseId: sid, action: "undo" }, "memo.pageText": { courseId: sid, assetId: sid, page: 1 },
-      "course.knowledge": { courseId: sid }, "course.makeKnowledge": { courseId: sid }, "course.cancelKnowledge": { courseId: sid },
+      "course.knowledge": { courseId: sid }, "course.makeKnowledge": { courseId: sid }, "course.cancelKnowledge": { courseId: sid }, "course.syllabus": { courseId: sid }, "course.refreshSyllabus": { courseId: sid },
       "library.pdfTranslation": { courseId: sid, assetId: sid, language: "ko" },
       "library.translatePdf": { courseId: sid, assetId: sid, language: "en", from: 1, to: 3 },
       "library.cancelPdfTranslation": {},

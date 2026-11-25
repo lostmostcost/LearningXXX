@@ -54,7 +54,7 @@ export function useAssignment(scope: Scope | undefined) {
     cancel: async () => { if (scope) { try { const r = await invoke('assignment.cancel', scope); if (!r.ok && current.current === key) setFailure({ key, text: r.error.message }); } catch { if (current.current === key) setFailure({ key, text: '취소 요청을 전달하지 못했습니다.' }); } } } };
 }
 
-export function AssignmentPanel({ workspace, instructions }: { workspace: ReturnType<typeof useAssignment>; instructions: ReactNode }) {
+export function AssignmentPanel({ workspace, instructions, presentation }: { workspace: ReturnType<typeof useAssignment>; instructions: ReactNode; presentation?: ReactNode }) {
   const { state, error, opening, pending, action, refresh, cancel } = workspace;
   const [tab, setTab] = useState<'instructions' | 'draft'>('instructions');
   const [included, setIncluded] = useState<string[] | undefined>();
@@ -63,6 +63,9 @@ export function AssignmentPanel({ workspace, instructions }: { workspace: Return
   const [confirmMissing, setConfirmMissing] = useState(false);
   const sources = useRef<HTMLDetailsElement>(null);
   useEffect(() => { setIncluded(undefined); setConfirmMissing(false); }, [state?.sourceToken]);
+  const [presentationOpen, setPresentationOpen] = useState(false);
+  const presentationDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const dialog = presentationDialog.current; if (presentationOpen && dialog && !dialog.open) dialog.showModal(); return () => { if (dialog?.open) dialog.close(); }; }, [presentationOpen]);
   const available = state?.sources.filter(s => s.status === 'available') ?? [];
   const selected = new Set(included ?? available.map(s => s.id));
   const excluded = available.filter(s => !selected.has(s.id));
@@ -101,6 +104,7 @@ export function AssignmentPanel({ workspace, instructions }: { workspace: Return
         <div className="assignment-actions assignment-main-actions">
           {version ? <button className="primary-action" disabled={locked} onClick={pdf}>{version.pdf ? 'PDF 열기' : '검토한 초안 PDF로 저장'}</button>
             : <button className="primary-action" disabled={locked || !characters} onClick={requestDraft}>{characters > 500_000 ? '자료 범위 확인' : '초안 만들기'}</button>}
+          {presentation ? <button disabled={locked} onClick={() => setPresentationOpen(true)}>발표 초안 · PPTX/PDF</button> : null}
           {working ? <button onClick={() => void cancel()}>작업 취소</button> : null}
           <Details title="더보기" className="assignment-more">
             <div className="assignment-actions">
@@ -131,5 +135,6 @@ export function AssignmentPanel({ workspace, instructions }: { workspace: Return
       <p>PDF 그림·도표와 빠진 원본은 채팅에서 확인하고, 제출 전에 초안을 검토하세요.</p>
       <Details title="빠진 자료 확인"><ul>{[...missing, ...excluded].map(s => <li key={s.id}>{s.title}</li>)}</ul></Details>
     </ConfirmDialog>
+    {presentationOpen && presentation ? <dialog className="artifact-dialog" ref={presentationDialog} onCancel={() => setPresentationOpen(false)} aria-label="발표 초안 만들기"><div className="artifact-dialog-head"><strong>발표 초안 · PPTX/PDF</strong><button onClick={() => setPresentationOpen(false)}>닫기</button></div><p className="meta">닫아도 시작한 생성은 계속됩니다. 다시 열어 결과를 확인하거나 작업 취소를 선택하세요.</p>{presentation}</dialog> : null}
   </section>;
 }

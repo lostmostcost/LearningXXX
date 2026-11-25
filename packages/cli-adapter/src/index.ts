@@ -14,3 +14,4 @@ export {
   type Mode,
 } from "./policy.ts";
 export { startRun, type RunOptions, type RunRequest, type StartOutcome } from "./run.ts";
+export { createTextCompatibility, TEXT_COMPAT_POLICY } from './text-compatibility.ts';

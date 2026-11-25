@@ -4,12 +4,12 @@ import { invoke } from './host-api.ts';
 import { WEEKDAYS } from './schedule.ts';
 
 export type Times = IpcResponse<'timetable.get'>['courses'];
-const SOURCE = { manual: '직접 입력', course_md: '과목 정리에서 찾음', none: '시간 없음' } as const;
+const SOURCE = { manual: '직접 입력', syllabus: '강의계획서에서 찾음', course_md: '과목 정리에서 찾음', none: '시간 없음' } as const;
 
 /**
- * WBS-085: the week at a glance and, per course, its class times — found in
- * the course summary or entered here (entered times win; "과목 정리 값으로"
- * goes back). Times are Seoul time.
+ * WBS-085/107: the week at a glance and, per course, its class times — read
+ * from the syllabus (else the course summary) or entered here (entered times
+ * win; "자동 값으로" goes back). Times are Seoul time.
  */
 export function TimetablePanel({ times, onChange }: { times: Times; onChange: (next: Times) => void }) {
   const [editing, setEditing] = useState<{ courseId: string; rows: CourseMeeting[] }>();
@@ -25,7 +25,7 @@ export function TimetablePanel({ times, onChange }: { times: Times; onChange: (n
 
   return <div className="timetable">
     {byDay.length ? <div className="timetable-week">{byDay.map((d) => <div key={d.day}><strong>{d.day}</strong>{d.slots.map((s, i) => <span key={i}>{s.m.start}–{s.m.end} {s.title}{s.m.place ? ` · ${s.m.place}` : ''}</span>)}</div>)}</div>
-      : <p className="subtle">아직 수업 시간이 없습니다. 아래에서 과목마다 입력하거나, 과목 정리(course.md)를 만들면 강의계획서에 있는 시간을 씁니다.</p>}
+      : <p className="subtle">아직 수업 시간이 없습니다. 강의계획서에 요일·시간이 없는 과목은 아래에서 직접 입력하세요.</p>}
     <ul className="timetable-courses">{times.map((c) => <li key={c.courseId}>
       <span>{c.title} <small className="subtle">{SOURCE[c.source]}{c.meetings.length ? ` · ${c.meetings.map((m) => `${m.day} ${m.start}`).join(', ')}` : ''}</small></span>
       {editing?.courseId === c.courseId ? null : <button className="link-button" onClick={() => setEditing({ courseId: c.courseId, rows: c.meetings.length ? [...c.meetings] : [{ day: '월', start: '09:00', end: '10:15' }] })}>시간 편집</button>}
@@ -40,7 +40,7 @@ export function TimetablePanel({ times, onChange }: { times: Times; onChange: (n
         <div className="timetable-actions">
           <button className="link-button" onClick={() => setEditing((e) => e && { ...e, rows: [...e.rows, { day: '월', start: '09:00', end: '10:15' }] })}>+ 시간 추가</button>
           <button onClick={() => void save(c.courseId, editing.rows)}>저장</button>
-          {c.source === 'manual' ? <button onClick={() => void save(c.courseId, null)}>과목 정리 값으로</button> : null}
+          {c.source === 'manual' ? <button title="강의계획서(없으면 과목 정리)에서 찾은 시간으로 되돌립니다" onClick={() => void save(c.courseId, null)}>자동 값으로</button> : null}
           <button onClick={() => { setEditing(undefined); setError(''); }}>취소</button>
         </div>
       </div> : null}

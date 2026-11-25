@@ -84,10 +84,15 @@ export class ArtifactWorkflow {
         files.push(await this.#o.documentPdf({ html: join(directory, 'draft.html'), directory, signal }));
       } else if (s.kind === 'slides') {
         requireThat(typeof this.#o.pptxPdf === 'function', 'PDF_RUNTIME_REQUIRED', 'Configure actual PPTX-to-PDF conversion');
-        await atomic(directory, 'draft.pptx', presentationPptx(plan, s));
+        const pptx = presentationPptx(plan, s), path = join(directory, 'draft.pptx');
+        await atomic(directory, 'draft.pptx', pptx);
         this.#check(s.accountId, signal);
-        files.push(join(directory, 'draft.pptx'));
-        files.push(await this.#o.pptxPdf({ path: join(directory, 'draft.pptx'), directory, signal }));
+        files.push(path);
+        files.push(await this.#o.pptxPdf({ path, directory, signal }));
+        // The PDF must be converted from this very PPTX, without the converter replacing it.
+        const actual = await realpath(path), rel = relative(await realpath(directory), actual), info = await lstat(path);
+        requireThat(rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) && info.isFile() && info.size === pptx.length, 'INVALID_OUTPUT', 'Converted PPTX boundary or size changed');
+        requireThat(hash(await readFile(path)) === hash(pptx), 'INVALID_OUTPUT', 'Converter changed the original PPTX');
       } else {
         requireThat(typeof this.#o.narrate === 'function' && this.#o.media, 'VIDEO_RUNTIME_REQUIRED', 'Configure HeyGen narration, FFprobe and HyperFrames');
         const audioDir = await privateChild(directory, 'audio'), clips = [];

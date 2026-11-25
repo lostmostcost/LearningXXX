@@ -52,9 +52,9 @@ export function semesterStart(weeks: readonly Week[], status: CourseLearningStat
  * times, or a gap such as an exam week without its own LMS week).
  */
 export function estimateWeek(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): Week | undefined {
-  const start = semesterStart(weeks, status);
-  if (start === undefined) return undefined;
+  const start = academicStart(weeks, status, at);
   const numbered = weeks.flatMap((w) => { const n = weekNumber(w.label); return n === undefined ? [] : [{ w, n }]; }).sort((a, b) => a.n - b.n);
+  if (!numbered.length) return undefined;
   const n = Math.floor((at.getTime() - start) / (7 * DAY)) + 1;
   if (n < numbered[0]!.n) return numbered[0]!.w;
   if (n > numbered.at(-1)!.n) return numbered.at(-1)!.w;
@@ -106,4 +106,83 @@ export function placeLabel(recording: Recording | undefined, weeks: readonly Wee
   if (!week) return "주차 미정";
   const lecture = lectures.find((l) => l.sourceId === recording.lectureSourceId);
   return lecture ? `${week.label} · ${lecture.title}` : week.label;
+}
+
+export interface MediaWeekGroup {
+  id: string;
+  label: string;
+  assets: MediaAsset[];
+  recordings: Recording[];
+}
+
+/** Browse confirmed week metadata, never infer a saved original's week from its date. */
+export function mediaWeekGroups(courseId: string, weeks: readonly Week[], media: Pick<Media, 'assets' | 'recordings'>, lectures: readonly { sourceId: string; week: string }[]): MediaWeekGroup[] {
+  const known = weeks.filter(w => w.courseId === courseId).toSorted((a, b) => a.order - b.order);
+  const groups: MediaWeekGroup[] = [...known.map(w => ({ id: w.id, label: w.label, assets: [] as MediaAsset[], recordings: [] as Recording[] })),
+    { id: 'unfiled', label: '주차 미정', assets: [], recordings: [] }];
+  const unfiled = groups.at(-1)!;
+  const forWeek = (id: string | undefined) => groups.find(g => g.id === id) ?? unfiled;
+  const recordings = media.recordings.filter(r => r.courseId === courseId);
+  for (const recording of recordings) forWeek(recording.weekId).recordings.push(recording);
+  for (const asset of media.assets) {
+    if (asset.courseId !== courseId || asset.role !== 'original') continue;
+    let weekId: string | undefined;
+    if (asset.source.type === 'recording') {
+      const recordingId = asset.source.recordingId;
+      weekId = recordings.find(r => r.id === recordingId)?.weekId;
+    } else if (asset.source.type === 'lms_video') {
+      const sourceId = asset.source.sourceId;
+      const lecture = lectures.find(l => l.sourceId === sourceId);
+      const matches = known.filter(w => w.label === lecture?.week);
+      if (matches.length === 1) weekId = matches[0]!.id;
+    }
+    forWeek(weekId).assets.push(asset);
+  }
+  for (const group of groups) group.assets.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.title.localeCompare(b.title));
+  return groups;
+}
+
+/**
+ * WBS-105: the academic calendar's opening day (00:00 Seoul): 1 September for
+ * the second semester, 2 March for the first, moved to the next Monday when it
+ * falls on a weekend. Weeks count seven days from this day — a semester that
+ * opens on Tuesday 1 September has week 1 = Tue 9/1 – Mon 9/7 (owner, 2026-11-09).
+ * February 15 – July is the first semester; August – February 14 the second
+ * (January and early February count toward the previous year's fall).
+ */
+export function calendarSemesterStart(at: Date): number {
+  const seoul = new Date(at.getTime() + SEOUL);
+  const year = seoul.getUTCFullYear(), month = seoul.getUTCMonth() + 1, day = seoul.getUTCDate();
+  const spring = (month > 2 || (month === 2 && day >= 15)) && month < 8;
+  const opening = spring ? Date.UTC(year, 2, 2) : Date.UTC(month < 3 ? year - 1 : year, 8, 1);
+  const weekday = new Date(opening).getUTCDay(); // 0 Sunday … 6 Saturday
+  return opening + (weekday === 6 ? 2 : weekday === 0 ? 1 : 0) * DAY - SEOUL;
+}
+
+/**
+ * WBS-105: when week 1 starts. The academic calendar's opening day, unless the
+ * LMS's own week openings put week 1 in another calendar week: then the start
+ * moves by those whole weeks and keeps the opening weekday.
+ */
+export function academicStart(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): number {
+  const calendar = calendarSemesterStart(at);
+  const lmsMonday = semesterStart(weeks, status);
+  const calendarMonday = seoulMonday(calendar);
+  return lmsMonday === undefined || lmsMonday === calendarMonday ? calendar : lmsMonday + (calendar - calendarMonday);
+}
+
+/**
+ * WBS-105: the week a course screen opens on, counted from academicStart. A week the course has no module for (an exam week, say)
+ * falls back to the closest earlier week; before week 1 → the first week,
+ * after the last → the last. Index into `weeks`, or -1 when no week is numbered.
+ */
+export function currentWeekIndex(weeks: readonly Week[], status: CourseLearningStatus | undefined, at: Date): number {
+  const numbered = weeks.flatMap((w, i) => { const n = weekNumber(w.label); return n === undefined ? [] : [{ i, n }]; }).sort((a, b) => a.n - b.n);
+  if (!numbered.length) return -1;
+  const start = academicStart(weeks, status, at);
+  const n = Math.floor((at.getTime() - start) / (7 * DAY)) + 1;
+  if (n <= numbered[0]!.n) return numbered[0]!.i;
+  let best = numbered[0]!;
+  for (const x of numbered) if (x.n <= n) best = x;
+  return best.i;
 }

@@ -42,7 +42,7 @@ const workflow = new ArtifactWorkflow({
 
 HeyGen Starfish voice ID와 별도 credential은 사용자가 설정한다. 현재 어댑터는 API key callback만 지원하며 OAuth credentials 파일을 읽거나 Claude credential을 사용하지 않는다. 실제 한국어 voice 유효성·과금·CDN 형식은 실제 호출 검증이 남았다. 다운로드는 HTTPS HeyGen 도메인만 허용하고 redirect/다른 공급자는 거부한다. 공급자가 다른 CDN을 반환하면 호스트/공식 계약 확인 후 명시 지원을 추가해야 한다.
 
-HyperFrames **0.9.9**로 합성 로컬 MP4를 검증했다. 설치는 host 준비 단계이며 런타임이 `npx @latest`로 패키지/skill을 자동 설치하지 않는다. Node와 FFprobe의 디렉터리를 자식 PATH 앞에 넣어 Finder 실행의 PATH 차이를 줄인다. FFmpeg는 FFprobe와 같은 디렉터리 또는 host PATH에 있어야 한다. 리포트와 영상은 로컬 한글 글꼴이 필요하다. PPTX는 OOXML 텍스트로 편집 가능하지만 PowerPoint/Keynote의 전체 편집 호환성·긴 내용 레이아웃은 추가 실기 검사가 필요하다.
+독립 엔진 최초 검증은 HyperFrames **0.9.9**로 했다. 앱 통합(WBS-092)은 저장소의 14일 배포 유예를 유지하기 위해 **0.8.181**을 고정한다. 0.9.9 설치가 유예 규칙으로 거절된 뒤 npm 공식 게시 시각으로 성숙한 버전을 고르고, 0.8.181에서 합성 한국어 카드+음성이 있는 MP4(실제 A/V·길이·프레임)를 다시 검증했다. 실제 한국어 HeyGen 음성 검증과는 별개다. 설치는 host 준비 단계이며 런타임이 `npx @latest`로 패키지/skill을 자동 설치하지 않는다. Node와 FFprobe의 디렉터리를 자식 PATH 앞에 넣어 Finder 실행의 PATH 차이를 줄인다. FFmpeg는 FFprobe와 같은 디렉터리 또는 host PATH에 있어야 한다. 리포트와 영상은 로컬 한글 글꼴이 필요하다. PPTX는 OOXML 텍스트로 편집 가능하지만 PowerPoint/Keynote의 전체 편집 호환성·긴 내용 레이아웃은 추가 실기 검사가 필요하다.
 
 ## 검사·직접 실행
 
@@ -59,6 +59,6 @@ node packages/learning-artifacts/test/smoke-document.mjs /absolute/chrome /absol
 node packages/learning-artifacts/test/smoke-video.mjs /absolute/node /absolute/hyperframes-cli /absolute/ffprobe /absolute/synthetic-tone.mp3 /absolute/OUTPUT_ROOT
 ```
 
-두 smoke는 실제 Claude·TTS를 호출하지 않는다. 자동 테스트의 fake PDF는 상태·경계 테스트용이며 PDF 렌더 검증으로 계산하지 않는다. 새 모듈 테스트는 아직 root workspace `pnpm -r check`에 자동 편입되지 않았으므로 위 명령을 별도 실행한다(WBS-092에서 root/shared claim 확보 후 등록).
+두 smoke는 실제 Claude·TTS를 호출하지 않는다. 자동 테스트의 fake PDF는 상태·경계 테스트용이며 PDF 렌더 검증으로 계산하지 않는다. WBS-092에서 이 패키지를 workspace에 등록했으므로 root `pnpm -r check`에도 같은 engine 검사가 포함된다. 고정 런타임은 설치 시 준비하며 생성 중 `npx @latest`를 실행하지 않는다.
 
 현재 한도: source 2000개, source 본문 12만 자·전체 50만 자. 초과는 명시 중단한다. 자동 batch 검토는 후속 통합에서 구현/검증해야 한다. 영상 첫 구현은 장면별 정적 설명 카드+음성이다. 다이어그램·손글씨·수식·입체 애니메이션·단어별 자막은 아직 제공하지 않는다. 최대치 텍스트의 모든 슬라이드/장면 레이아웃을 실기 검증하지 않았다.

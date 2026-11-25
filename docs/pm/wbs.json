@@ -1753,11 +1753,14 @@
       "spec": "PRD-001",
       "requirements": [],
       "acceptance": "확인 대화상자를 거친 수동 제출과, 사용자가 등록 시 확인한 규칙에 따른 자동 제출을 제공한다. 시작 전 연습용 과제 제출 흐름을 실측한다.",
-      "status": "Blocked",
-      "branch": "feat/WBS-058-assignment-submit",
+      "status": "Review",
+      "branch": "feat/WBS-058-submit-v2",
       "qa_mode": "appropriate_checks_only",
       "url": "https://app.notion.com/p/40dbd7ec20cd81daa9f2f2fb89559e94?pvs=204",
-      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행. CR-093 작업 분리: 영상 앱 연결과 분리한 WBS-097 초안 도구 뒤 지정 과제 제출 검증."
+      "scope_note": "CR-054 사용자 승인(2026-11-03). PLAN-054 참조. 공식 플레이어 시청 없는 출석 기록·퀴즈 대리 응시 금지. 2026-11-03 Blocked: 연습 과제 제출 실측은 사용자 LMS에 실제 제출을 남기므로 이문찬 결정·확인 대기. CR-093(2026-11-04 사용자 직접 승인): 데이터베이스 10주차 과제에 AI 초안 파일을 실제 첨부·자동 제출해 검증하도록 승인. 허가 대기는 해소. 초안 앱 연결(WBS-092)과 host/ui/shared claim 대기; 실제 제출은 미실행. CR-093 작업 분리: 영상 앱 연결과 분리한 WBS-097 초안 도구 뒤 지정 과제 제출 검증. 2026-11-09 이문찬 지시로 지정 과제 실제 제출 완료(1회, 13:04:11 KST). 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 (AI 구현·실측; owner self-test pending). Ported the 11-04 draft (a47f1c5) onto main 1ad02fd and reviewed assignment-submit.ts, submissions.ts, createCanvasHttp, IPC/preload, AssignmentSubmit UI. Findings fixed: (1) Electron session fetch throws 'Redirect was cancelled' on redirect:'manual' instead of returning the 3xx, so the upload's redirect to its confirmation failed after the slot step (the 11-04 '내부 오류'); upload POST now follows, other LMS calls map a redirect to AUTH_REQUIRED; (2) cookie-authenticated JSON with the while(1); guard was not parsed; (3) a 201 upload naming a location was not confirmed; (4) the response's assignment id is checked; (5) an automatic rule that fires after the deadline (app was off) no longer hands in late; (6) window.confirm replaced by the app's ConfirmDialog with assignment, file, size, deadline, earlier attempts and late note. Real LMS: dry run (read only) then --assignment-submit --submit-confirm on 데이터베이스 00분반 10주차 '개념적 설계 실습 (ERD)' (owner's own PDF, 554066 bytes, sha256 83a2ca62…): first try stopped after slot 200 (finding 1, nothing submitted), second try read 200 → slot 200 → upload 200 → submit 201 → verify attempt 1, submitted 2026-11-09T04:04:11Z with the file; a separate read-only run confirmed the same. Checks: host submissions tests 9 pass (3 new), pnpm -r run check (host 270, ui 134, contracts 58, collector 88, cli-adapter 50, app-modifier 28, transcriber 25, all pass); UI fixture preview: choose → plan → 지금 제출 → dialog → 제출했습니다. Not done: the in-app 제출 button with the native file dialog on the real account, and a live automatic rule; Notion card not updated; nothing pushed."
+      ]
     },
     {
       "id": "WBS-059",
@@ -2810,10 +2813,15 @@
         "pnpm-lock.yaml"
       ],
       "acceptance": "주차·과제 상세 진입, 계정/과목 고정된 전체 자료 snapshot, 공식 Claude 구독 생성, 검토·취소·재시작 복구, PDF 또는 PPTX+동일 PPTX 변환 PDF, 한국어 API 음성과 로컬 HyperFrames MP4 실제 검증. CR-093: 과제 안내/AI 초안 미리보기 탭과 오른쪽 수정 채팅. 계정·과목·과제별 세션에서 해당 과목 모든 주차 읽기, 새 판 실시간 미리보기·이전 판 보존, 전환/실패/취소/재시작 회귀.",
-      "status": "Blocked",
-      "branch": "feat/WBS-092-artifact-workflows",
+      "status": "Review",
+      "branch": "feat/WBS-092-heygen-settings",
       "url": "https://app.notion.com/p/40dbd7ec20cd81dbbe79d0037386988c",
-      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다."
+      "scope_note": "WBS-083 병합 및 host/ui/shared claim 확보 후 앱 연결. 미실행 실제 API/렌더/PDF 변환을 완료로 표시하지 않음. CR-093 사용자 승인. WBS-083은 #109/e10194f 병합·live Done; 현재 WBS-085 host/ui/shared claim 1a5c864 대기. 지정 실제 제출은 WBS-058. 과제 화면·전용 세션은 WBS-097로 분리. WBS-092에는 영상 앱 연결/실제 음성 검증이 남는다. 2026-11-04 이문찬: WBS-094/097과 영역이 겹쳐도 병렬 진행 승인, HeyGen 로그인 요청. 첫 조각으로 설정의 HeyGen API 키·음성 선택만 구현(credential-store/-service, heygen-voices, HeygenSettings, contracts). 과제 초안 부분은 WBS-097이 진행 중이라 손대지 않음. task + 'voice-settings' 영역만 선점. 2026-11-04 사용자 직접 인계로 기존 task/voice-settings claim 01343bd8을 이어 사용한다. WBS-097 claim holder도 현재 동일 agent이며 사용자 병렬 승인에 따라 최소 공유 파일(credential-store.ts, credential-service.ts, handlers.ts, preload.cjs, heygen-voices.ts, HeygenSettings.tsx, SignInSettings.tsx, styles.css, contracts/src/ipc.ts와 관련 tests)을 수정한다. 과제 작업공간은 별도 유지한다. 실제 API/네이티브 편집을 사용량·인증 없이 완료로 표시하지 않는다. 2026-11-04 인계 후 영상/PPT 앱 통합: 사용자 병렬 영역 승인과 동일 agent의 WBS-097 host/ui/shared claim 아래 최소 공통 App.tsx, AssignmentPanel.tsx, main.ts, preload.cjs, contracts IPC/index/test, host package.json 및 자동 생성 pnpm-lock.yaml을 수정한다. root manifest·migration은 수정하지 않는다. 과제 문서 흐름은 #118 의존성으로 유지한다. 최신 사용자 지시로 실제 HeyGen 음성 실검증과 WBS-058 제출은 보류; 나머지 구현·검사는 계속한다. WBS-097 #118/e441ef6 Done 이후 기존 본인 claim을 CAS 해제하고 scripts/claim.py로 정식 WBS-092 task+host/ui/shared/learning-artifacts claim 266f2069를 확보했다. 현재 Review/#119 Draft: 공식 구독의 장면·슬라이드 계획 생성은 실측 성공, owner가 녹음·앱 사용 중 화면 검증을 보류하여 실제 PPTX/PDF 출력 UI 확인은 남는다. 음성·LMS 제출 보류도 유지한다.",
+      "review_evidence": [
+        "Slice 1 (HeyGen sign-in): heygen-voices.ts lists Starfish voices via GET https://api.heygen.com/v3/voices?engine=starfish (x-api-key; checked against HeyGen's developer docs 2026-11-04), up to 5 pages, Korean first, malformed ids dropped; 401/403 = rejected, network = failed. CredentialService.saveHeygenKey saves only an accepted key (Keychain-encrypted with the other details), never returns or logs it; setHeygenVoice accepts only a voice from the key's own list; heygen() gives the narrator key+voice; clear('heygen'). Voice sample fetched by the host only from https heygen.ai/heygen.com, ≤5 MB, audio/*, then played as a blob (page CSP allows blob media only). Settings dialog: 'HeyGen 음성' section (key field, 확인 후 저장, voice select, 미리 듣기, 지우기). Tests: host 254 (3 new + status expectations), ui 134. Real key not tested by the agent (the owner enters it; agents must not type API keys).",
+        "인계 후 자체 리뷰: docs/pm/reviews/WBS-092.md. 실제 PPTX→PDF 및 원본 불변 PASS; HyperFrames 0.8.181 합성 tone MP4 A/V·길이·한글 프레임 PASS. 실제 HeyGen 요청 1회 HTTP 400; 추가 TTS 없이 현재 조회 목록 available_engines의 Starfish 허용 0개 확인. owner가 음성 실검증 보류 지시. 키 인증·목록 조회와 TTS 성공을 구분하며 유료 자동 재시도 없음. host 277 macOS PASS, UI 134 PASS, engine 26 PASS. 최종 통합 검사는 후속 기록 참조.",
+        "d2f7956: full frozen tools exit 0 and fresh clone full tools exit 0, CI 41757328474 SUCCESS. Actual official subscription video plan: 23 scenes / 51 reviewed sources, needs_review; actual slide plan: 25 slides / 14 selected sources, needs_review. User deferred real voice validation and later deferred app screen validation while using recording; do not execute output or disturb recording. PR #119 remains Draft/Review for those deferred checks."
+      ]
     },
     {
       "phase": "MVP 검수",
@@ -2979,7 +2987,8 @@
       "scope_note": "CR-093 사용자 승인 과제 요구를 WBS-092에서 독립 작업으로 분리. 영상 앱 연결은 WBS-092, 실제 지정 과제 제출은 WBS-058. WBS-094 뒤 task/area claim 확보 후 진행. 실제 대규모 과목의 초기 생성 입력은 사용자가 명시적으로 선택할 수 있으며 제외 자료를 누락으로 표시하고 부분 생성 동의를 받는다. 전체 주차 전용 채팅 열람 범위는 유지한다.",
       "review_evidence": [
         "docs/pm/reviews/WBS-097.md: staged diff reviews, targeted host/UI/contracts/engine checks; actual official subscription draft and PDF generation; full container checks. Native chat edit request hit the subscription usage limit (09:40 Asia/Seoul reset); not marked passed. Manual working-file write verified actual preview/new-version publication and original PDF retention. WBS-058 remains deferred by latest owner reply.",
-        "2026-11-04 구독 한도 리셋 뒤 실제 native 과제 Edit 성공. owner가 Read/Bash/Edit 권한을 직접 확인했고 agent 자동 승인은 없음. 요청한 p 한 줄만 추가됨(제거 시 이전 HTML과 완전 동일), SVG 10개·이전 PDF 유지, 새 UUID 6cf25ce1-db41-4932-97cf-d651fd91fe52 보존과 최신 실시간 미리보기 반영을 앱에서 확인. 사용량 한도에 막혔던 잔여 수용 검사 해소. 실제 제출은 보류 유지. 상세 docs/pm/reviews/WBS-097.md."
+        "2026-11-04 구독 한도 리셋 뒤 실제 native 과제 Edit 성공. owner가 Read/Bash/Edit 권한을 직접 확인했고 agent 자동 승인은 없음. 요청한 p 한 줄만 추가됨(제거 시 이전 HTML과 완전 동일), SVG 10개·이전 PDF 유지, 새 UUID 6cf25ce1-db41-4932-97cf-d651fd91fe52 보존과 최신 실시간 미리보기 반영을 앱에서 확인. 사용량 한도에 막혔던 잔여 수용 검사 해소. 실제 제출은 보류 유지. 상세 docs/pm/reviews/WBS-097.md.",
+        "PR #118 merged e441ef69dfa7b1558a35647ba79150935d58c236 after native Edit/live revision validation and CI 41757789459 SUCCESS. Latest edited PDF: 14 pages, all rendered/visually reviewed; previous PDFs preserved. WBS-058 actual submission remains deferred."
       ]
     },
     {
@@ -3087,6 +3096,447 @@
       "url": "https://app.notion.com/p/40ebd7ec20cd812c9aa0e75b69974171",
       "acceptance": "상단 바에서 한 번에 라이트↔다크를 바꾸고, 설정에서 시스템 따르기/라이트/다크를 고른다. 선택은 이 Mac 앱 설정(preferences.json)에 저장돼 재시작 후에도 유지되며 기본값은 시스템 따르기(기존 동작). 화면 전체·창 테두리·대화상자가 같은 테마로 바뀐다(Electron nativeTheme). 배포 앱에서 두 테마를 실제로 바꿔 확인하고 v1.0.0 산출물을 다시 만든다.",
       "scope_note": "2026-11-04 이문찬 직접 지시(v1.0 배포 전 마지막 기능). WBS-099 claim 해제 후 host·shared·ui·infra claim. 계약 변경은 기존 app.preferences 응답에 theme 필드 추가와 app.setPreferences 요청의 선택 필드뿐(하위 호환)."
+    },
+    {
+      "id": "WBS-101",
+      "title": "녹음 중 구간별 실시간 전사와 긴 녹음 전사 안정화",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "spec": "SPEC-004",
+      "requirements": [
+        "REQ-005",
+        "REQ-006"
+      ],
+      "qa_mode": "developer_self_test",
+      "deps": [
+        "WBS-100"
+      ],
+      "areas": [
+        "host",
+        "shared",
+        "transcriber",
+        "ui"
+      ],
+      "paths": [
+        "services/transcriber/",
+        "apps/desktop/host/src/",
+        "apps/desktop/host/test/",
+        "apps/desktop/ui/src/",
+        "apps/desktop/ui/test/",
+        "packages/contracts/src/",
+        "packages/contracts/test/",
+        "docs/pm/",
+        "docs/specs/SPEC-004.md",
+        "docs/qa/"
+      ],
+      "status": "In Progress",
+      "branch": "feat/WBS-101-chunked-transcription",
+      "url": "https://app.notion.com/p/411bd7ec20cd814f9879e13ee30fb2a7",
+      "acceptance": "구간 길이 실험(전체 vs 1·2·5·10분: 속도·최대 메모리·텍스트 차이·경계)을 기록하고 기본값을 정한다. 엔진은 긴 오디오를 조용한 지점에서 구간으로 나눠 구간마다 별도 실행·병합하고, 구간 결과를 보존해 일시정지·종료·재시도 후 이어서 진행하며, 엔진 실행은 한 번에 하나다. 녹음 중에는 구간 길이만큼 쌓일 때마다 전사하고 멈추면 남은 꼬리만 전사해 곧바로 전사본을 만든다(강제 종료 후에도 이어짐). 실패 원인 요약을 작업에 남기고 화면에 표시한다. 합성 오디오 테스트, 전체 검사, 실제 앱 확인.",
+      "scope_note": "2026-11-07 이문찬 직접 지시. 실험에는 이 Mac의 실제 강의 녹음 일부를 로컬에서만 쓰고 저장소·테스트에는 넣지 않는다(테스트는 합성 오디오)."
+    },
+    {
+      "id": "WBS-102",
+      "title": "과목을 옮겨도 녹음 유지·멈춘 이유 기록",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [
+        "WBS-064"
+      ],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "packages/contracts/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "녹음 중 다른 과목·AI 대화로 옮겨도 녹음이 계속되고 상단 '녹음 중'이 녹음 과목으로 이동시킨다. 녹음마다 멈춘 이유(직접·마이크·잠자기·앱 종료·저장공간·권한·창 닫힘·비정상 종료)를 남긴다.",
+      "status": "Review",
+      "branch": "fix/WBS-102-recording-across-courses",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd8145ac41f6488a7d47d1?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09): 외식메뉴상품기획론 녹음이 09:38에 과목 이동(논리회로 AI 대화)으로 끊긴 원인 수정. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 cause: recording 881beeca finalized 09:38:27 (29m47s, status finalized, not recovered), 논리회로 course workspace prepared 09:38:44; pmset shows no sleep 09:08-09:38; RecordingPanel (keyed by course) stopped capture on unmount and chooseCourse unmounts it. Fix: capture moved to an app-level store (recording-session.ts) the panel only displays; host push/pagehide handled there; panel shows a note and disables start when another course is recording; top-bar pill opens the recording course. Recording.stopReason (contract) set by host for user/device_lost/page_closed/sleep/app_closing/disk_full/access_lost/crashed. Review: dead onState prop removed; stop() success/failure paths release capture once. Checks: pnpm -r run check all pass (host 271 incl. 1 new reason test, ui 134, contracts 58); fixture preview (?fixture=mic, preview-only second course) — course switch unmounted the panel and saved time kept rising 0:04→0:06, stop ended it. Not tried: real microphone recording in the app across courses (owner)."
+      ]
+    },
+    {
+      "id": "WBS-103",
+      "title": "오른쪽 학습 도구 너비 끌어서 조절",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "가운데 칸과 오른쪽 학습 도구(채팅·메모·녹음·전사) 경계에서 양쪽 화살표 커서로 바뀌고, 끌어서 너비를 바꾼다. 너비는 이 Mac에 저장되고 두 번 누르면 기본 너비로 돌아간다.",
+      "status": "Review",
+      "branch": "feat/WBS-103-resizable-tools-panel",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd8121a9b6f75ea2e12a6a?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 로컬 브랜치만, push 보류. 배포용 앱 빌드 없이 test-app.sh로만 확인.",
+      "review_evidence": [
+        "2026-11-09 layout.ts clampToolsWidth (280..960, middle keeps 360) and readToolsWidth (bad or blocked storage → none); ToolsResizer (separator role, pointer capture so PDFs/previews never take the drag, arrows ±16/±64, double click resets); App keeps the width in localStorage per Mac, hidden in the narrow one-column layout; CSS caps the column again by the current width so a smaller window never squeezes the middle. Checks: ui 135 pass (1 new), typecheck, build; fixture preview 1400px: handle 7px on the column's left edge with col-resize cursor, real mouse drag 389→595px saved, kept after reload, double click back to 389, dragging to the far left stops at 960 with the middle 382px. Not tried in the real app window by the owner yet."
+      ]
+    },
+    {
+      "id": "WBS-104",
+      "title": "왼쪽 끝 반원 버튼으로 과목 선택, 로고 누르면 홈",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-068"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "아이콘 레일에서 과목 목록 버튼을 빼고, 화면 왼쪽 끝 한가운데 반원 버튼을 누르면 최좌단 호버와 같은 방식으로 과목 선택이 나온다. 상단 로고를 누르면 홈(대시보드)으로 간다.",
+      "status": "Review",
+      "branch": "feat/WBS-104-edge-course-button",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd810e9fb3dfe1fa5a26ce?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 왼쪽 끝 호버로 여는 기존 동작은 유지(권장안). 로컬 브랜치만, push 보류. 배포용 앱 빌드 없이 test-app.sh로만 확인.",
+      "review_evidence": [
+        "2026-11-09 App: rail drawer-toggle and the now-unused drawer state/outside-click effect removed (pinned and edge paths kept); edge-tab button (fixed, vertical middle of the left edge, half-round, above the 4px hover zone) sets the same edge slide-in, hidden while open or pinned, focuses the first course after the slide; logo wrapped in a button that sets home and closes the slide-in. Review found the tab blended into the rail (same colour) → contrasting fill/border. Checks: ui 135 pass, typecheck, build; fixture preview 1400px: rail = 대시보드·강의 자료·과제·공지·녹음, tab centre 425 = viewport middle, real mouse click opened the list (rail pushed right), choosing the course closed it and opened the course, logo click → dashboard, Escape closes. Not verified: focus moving into the list (preview pane was in the background, so CSS transitions did not run)."
+      ]
+    },
+    {
+      "id": "WBS-105",
+      "title": "과목 화면을 현재 주차로 열기(학사 일정 기준)",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-065"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "과목의 자료·과제 등 탭을 열면 1주차가 아니라 오늘이 속한 주차가 기본으로 열린다. 주차는 학사 일정의 개강일부터 7일씩 센다.",
+      "status": "Review",
+      "branch": "feat/WBS-105-current-week-default",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd813a8886c253c32d9ce3?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 결정(권장안): 학교 날짜를 코드에 박지 않고 LMS 주차 공개 일정(학사 일정을 따름)을 우선, 주차는 개강일(2학기 9/1·1학기 3/2, 주말이면 다음 월요일)부터 7일씩 센다(이문찬 정정 2026-11-09: 9/1 화 개강 → 11/9 월은 10주차). LMS 공개 일정은 개강 주가 다를 때만 그 주 수만큼 옮긴다. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 recording-weeks.ts calendarSemesterStart (Seoul Monday of the week holding 9/1 or 3/2; Jan–Feb 14 → previous fall) and currentWeekIndex (LMS semesterStart first, calendar else; a week with no module → closest earlier week; before/after → first/last; -1 when no week is numbered). App: on opening a course the week tray goes to it; refined once the LMS status arrives unless the user picked a week or an item meanwhile; an item already selected keeps its week. TaskSidebar opens the current week's group. Data check: LMS openings put week 1 at Mon 2026-08-31 for all five dated courses (vote counts 9/14/13/7/4). Checks: ui 136 pass (1 new), typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로·데이터베이스·외식메뉴상품기획론·웨스턴퀴진·취업·창업특강(no LMS dates → calendar)·Hospitality all opened on 11주차; 과제 tab opened 11주차 where that week has tasks. Limit: a course with no tasks in this week shows all groups closed, as before.",
+        "2026-11-09 owner correction: the first version snapped weeks to Mondays (week 1 from Mon 8/31), so Mon 11/9 read as week 11; the semester opened Tue 9/1, so week 1 = Tue 9/1–Mon 9/7 and 11/9 is week 10. Fix: calendarSemesterStart = opening day (9/1, 3/2; weekend → next Monday), academicStart = that day, shifted by whole weeks only when the LMS week openings put week 1 in another calendar week; estimateWeek (recording week suggestion, WBS-065) now uses the same start, so today's recordings are suggested 10주차 too. Tests updated (Mon 9/7 still week 1, Tue 9/8 week 2, Mon 11/9 week 10, Tue 11/10 week 11, LMS a week late → start Tue 9/8, 2025 spring Sunday 3/2 → Mon 3/3). Checks: ui 136 pass, build. Real app (test-app.sh, read-only clicks): all six courses opened on 10주차; 과제 tab opened 10주차 for 논리회로 and 데이터베이스."
+      ]
+    },
+    {
+      "id": "WBS-106",
+      "title": "자료를 고르기 전 가운데 칸에 이번 주차 자료·과제 목록",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-105"
+      ],
+      "areas": [
+        "ui"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "자료를 아무것도 선택하지 않은 화면의 가운데 칸에 안내 문구 대신 현재 주차의 자료(공지 포함)와 과제·퀴즈가 나열되고, 누르면 그 자리에서 열린다.",
+      "status": "Review",
+      "branch": "feat/WBS-106-week-tasks-empty-viewer",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd818383bfe3ce2ac811c1?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09). 주차는 주차 메뉴에서 고른 주차(기본은 이번 주차, WBS-105). 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 Viewer gets an `empty` slot under the hint; WeekTasks (TaskSidebar.tsx) reuses tasksByWeek for the week chosen in the week menu: to-do, then not open yet, then submitted, with due time and LMS badges; collected items open with the same selectEntry as the 과제 list, LMS-only quizzes get 응시 창 열기, items taken off the list are only counted. Review fix: '제출함' shown twice (text and badge) → text removed. Checks: ui 136 pass, typecheck, build. Real app (test-app.sh, read-only clicks over CDP): 논리회로 10주차 lists its two 수업요약 assignments (미제출, 11/9 23:59), 데이터베이스 10주차 lists 개념적 설계 실습 (ERD) as submitted; clicking it opened the assignment with 과제 안내/초안 미리보기 tabs and the list went away.",
+        "2026-11-09 owner follow-up: the hint '왼쪽에서 자료를 선택하면…' is replaced by the week's materials and notices (non-assignment entries of the chosen week, LMS completion badge, '[공지]' prefix, file count) above the assignments; clicking uses the same selectEntry as the side list. Checks: ui 136 pass, build. Real app (test-app.sh, read-only): all six courses show '10주차 자료' / '10주차 과제' and no hint (논리회로 3 items, 데이터베이스 4, 외식메뉴 1, 웨스턴퀴진 1, 취업·창업특강 0 → '아직 자료가 없습니다', Hospitality 2). Materials were not clicked by the agent: opening an LMS PDF asks the LMS to record the view (WBS-056), same as the side list."
+      ]
+    },
+    {
+      "id": "WBS-107",
+      "title": "강의 정보 탭: 앱이 강의계획서를 직접 받아 정리해 보여 주기",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-082",
+        "WBS-090",
+        "WBS-106"
+      ],
+      "areas": [
+        "contracts",
+        "desktop-host",
+        "ui",
+        "pm"
+      ],
+      "paths": [
+        "packages/contracts/",
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "아이콘 레일의 '강의 정보' 탭에서 현재 과목의 강의계획서(교수·연락처·수업 시간·장소, 평가 비율, 교재, 주차별 계획)를 앱이 LMS 링크·LMS 본문·LMS 계획서 파일에서 읽기 전용으로 직접 받아 정리해 보여 주고, 원본 보기와 다시 받기를 제공하며, 없거나 못 읽으면 그렇다고 알린다. 특정 과목 형식 하드코딩 없음. 메인 화면 시간표는 직접 입력이 없는 과목에 강의계획서의 요일·시간·강의실을 처음 불러올 때 자동으로 채운다(없으면 과목 정리 값).",
+      "status": "Review",
+      "branch": "feat/WBS-107-syllabus-info",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd8182a7f7e01bbf4ccd0f?pvs=204",
+      "scope_note": "이문찬 지시(2026-11-09, 상위 세션 경유). 공유 계약(packages/contracts: SyllabusDoc·CourseSyllabus, IPC course.syllabus/course.refreshSyllabus)을 함께 바꿈 — 로컬 전용 작업이라 다른 선점자 없음. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 Found: the Canvas syllabus_body of all six courses holds only links to the school's public 강의계획서 page (sugang.khu.ac.kr lectPlan, loginYn=N); two courses also have a .docx syllabus in LearningX. Added host syllabus-parse.ts (generic HTML/docx/PDF → fields/tables/text; grid with row/col spans that stop at thead/tbody like browsers; ○/% columns become ticked names; highlights by label/column names) and syllabus.ts (sources from the manifest, one GET per page: https, host allowlist checked again after redirects, html type, 3 MB, 20 s; failure keeps the last copy; account re-checked before saving; stored 0600 under data/syllabus). course.md sources now include the read syllabus text. UI: rail '강의 정보' (info icon), left jumps, SyllabusInfo with facts, grading bars and total, weekly plan with this week marked, books, all sections, 원본 보기 via the sanitizing RichText, 원본 파일 열기 for files, 다시 받기; auto-read once only when a listed source was never read.",
+        "Review findings fixed during the work: <!DOCTYPE> leaked as text; a thead rowspan carried into tbody and shifted ○ one column (wrong 수업운영방식); week notes uncapped; books fallback tied to facts. Checks: host syllabus tests 8, ui syllabus tests 4, contracts IPC list updated; pnpm -r run check exit 0 (contracts 58, transcriber 25, collector 88, ui 140, cli-adapter 50, app-modifier 28, host 279).",
+        "Real app (test-app.sh, env -i, app was not recording; UI clicks over CDP, LMS only read): all six courses show the tab with grading totals 100% and 10주 marked 이번 주 (논리회로 4 items/15 weeks, 데이터베이스 5/16, 외식메뉴 6/15 + docx tab with 5 facts and 점 grading, 웨스턴퀴진 5/16 + docx tab, 취업·창업특강 two school pages, Hospitality 5/16); 원본 보기 shows 10 tables, no scripts/buttons; 원본 파일 열기 switches to 강의 자료 with the file selected. Limits: contact/email hidden by the school without sign-in; syllabus is read on first tab open and on 다시 받기, not during collection.",
+        "2026-11-09 owner follow-up (timetable): syllabus-parse.syllabusMeetings reads only explicit day + start–end times from a 강의시간/수업시간 field (room after the time, else a 강의실 field; '요일' is not Sunday; two instructors of one class deduped; 온라인/교시 give none). SyllabusService.meetings(courseId, readIfUnread) reads a never-read syllabus once; Timetable.get looks courses up in parallel, order manual > syllabus > course.md, re-checks the account; contract source enum gains 'syllabus'; panel labels '강의계획서에서 찾음' and '자동 값으로'. Review fix: 월요일 counted as 월+일. Checks: pnpm -r run check exit 0 (host 281, ui 140, contracts 58 …). Real app (test-app.sh, app not recording, my own syllabus copies from today set aside to reproduce a first load, then restored): dashboard timetable read the two non-manual courses' syllabi by itself — 논리회로 '강의계획서에서 찾음 · 월 18:00, 수 18:00' (전220), 데이터베이스 stays '시간 없음' (syllabus says 온라인); the owner's four entered courses stayed '직접 입력' and were not fetched."
+      ]
+    },
+    {
+      "id": "WBS-108",
+      "title": "채팅: 새 대화의 기본 실행 모드를 '자동 판단'으로",
+      "phase": "MVP 검수",
+      "priority": "P2",
+      "deps": [
+        "WBS-051"
+      ],
+      "areas": [
+        "desktop-host",
+        "ui",
+        "pm"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/"
+      ],
+      "spec": "PRD-001",
+      "requirements": [],
+      "acceptance": "이어 갈 Claude Code 세션도 저장된 메시지도 없는 새 채팅 대화는, 현재 모델(아직 고르지 않았으면 Claude Code의 'default' 항목)이 auto 모드를 지원할 때 공식 setPermissionMode('auto')로 '자동 판단' 모드에서 시작한다. 재개된 대화와 지원하지 않는 모델은 '일반'. 사용자는 대화 설정에서 언제든 바꿀 수 있고, Claude Code가 묻는 권한 요청은 앱이 대신 승인하지 않고 사용자에게 그대로 보인다(CR-050).",
+      "status": "Review",
+      "branch": "feat/WBS-108-chat-auto-mode",
+      "qa_mode": "appropriate_checks_only",
+      "url": "https://app.notion.com/p/413bd7ec20cd811790aaf603f1c6aa3c?pvs=204",
+      "scope_note": "이문찬 요청(2026-11-09, 상위 세션 경유): \"채팅에서 기본 모드를 자동 판단 모드로 해줘\". '자동 판단'은 WBS-051부터 있던 Claude Code auto 권한 모드의 앱 표시 이름. 로컬 브랜치만, push 보류.",
+      "review_evidence": [
+        "2026-11-09 Found: the host always started chats with permissionMode 'default' and the mode is not persisted; the UI hid the auto option until a model was reported (state.model '' for new chats). Probe of the installed CLI (2.1.319, env -i, no prompt sent): models list has a 'default' entry with supportsAutoMode true. Change: conversation-service modelInfo() (chosen model, else the 'default' entry); after initialization a new conversation (no resume, no messages, mode default) whose model supports auto calls q.setPermissionMode('auto'), failure keeps default; effort/auto validation use the same lookup. UI currentChatModel() mirrors it; environment line explains auto mode; fake host starts in auto.",
+        "Self-review: canUseTool path untouched — the app still never answers permission requests itself (test asserts a Bash request waits for the user and is denied by the user's answer); resumed sessions are not switched (test); unsupported model stays default (test). Fixed during review: generic type of currentChatModel under exactOptionalPropertyTypes. Checks: pnpm -r run check exit 0 (contracts 58, transcriber 25, collector 88, ui 141, cli-adapter 50, app-modifier 28, host 284).",
+        "Real app (test-app.sh, env -i; previous app had no recording in progress, stopped then relaunched; build label WBS-108): in 논리회로 02분반 강의 자료 → 채팅 → 대화 시작, the new conversation (새 대화 4) showed 대화 설정 '자동 판단', model 'Default (recommended)', and the line '일반 환경 · 자동 판단: …'. No message was sent; CDP used only to read. Limit: the empty conversation 새 대화 4 remains in the app."
+      ]
+    },
+    {
+      "id": "WBS-109",
+      "title": "로컬 심층 리뷰·사용자 흐름 기반 텍스트 앱 제어",
+      "phase": "MVP 검수",
+      "priority": "P0",
+      "deps": [],
+      "areas": [
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/host/",
+        "apps/desktop/ui/",
+        "docs/pm/",
+        "docs/specs/SPEC-007.md",
+        "docs/DEVELOPMENT.md",
+        "apps/desktop/README.md"
+      ],
+      "spec": "SPEC-007",
+      "requirements": [
+        "REQ-003",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "debug CLI는 실제 사용자 메뉴·선택·확인 순서를 지킨다. assist CLI는 명시적으로 고른 경우 과목/자료/탭 탐색 과정을 단축한다. 둘의 실행/증거를 구분하며 권한·제출·삭제 확인을 우회하지 않는다. 동일 UI 배경 PNG와 fixture/local 검증을 제공하고 심층 리뷰 결함을 수정·회귀 확인한 뒤 로컬에서만 커밋·병합한다.",
+      "status": "Review",
+      "branch": "feat/WBS-109-agent-control",
+      "url": "https://app.notion.com/p/413bd7ec20cd81138f9ec0c29edcf461",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-109. GitHub push/PR/원격 claim 변경 금지. scripts/claim.py acquire(remote=local .git)로 task/host/ui/shared create-only 선점. 기존 로컬 claim/receipt 없음; 원격 조회는 DNS 실패로 확인하지 못했으며 변경하지 않음. 기존 untracked .pnpm-store/, docs/wiki/, output/ 보존. 기준 main 2ceb2ce; 신규 개발도구의 선행 Done 요구 없음. Notion Review인 기존 로컬 병합 작업을 Done으로 소급 표시하지 않음. 사용자 후속 지시: 기본 debug와 명시 assist를 분리(SPEC-007 v0.2.0); assist 탐색 단축 결과를 debug 검증에 쓰지 않음. 이미 보유한 shared claim 아래 apps/desktop/README.md의 낡은 구현 현황을 이력으로 표시하는 최소 문서 경로를 추가함.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-109.md"
+      ]
+    },
+    {
+      "id": "WBS-110",
+      "title": "앱·CLI 공동 개발 순서와 완료 기준을 에이전트 지침에 명문화",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-109"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "AGENTS.md",
+        "docs/DEVELOPMENT.md",
+        "docs/templates/agent-task.md",
+        "docs/pm/wbs.json",
+        "docs/pm/reviews/WBS-110.md"
+      ],
+      "spec": "SPEC-007",
+      "requirements": [
+        "REQ-003",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "AGENTS.md·개발 안내·작업 템플릿에 사용자 여정 → CLI 시나리오 → 앱/CLI 공동 구현 → 영향에 맞는 debug/assist 검증과 기록을 명문화한다. 일반 UI 자동 반영·작은 문구/색상/문서 변경의 합리적 예외와 미검증 경계를 보존한다.",
+      "status": "Review",
+      "branch": "feat/WBS-110-cli-development-policy",
+      "url": "https://app.notion.com/p/413bd7ec20cd814aa9fbe8d17b363bc9",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-110, SPEC-007 v0.2.0. 최신 Notion WBS-109 Done 및 의존 commit 8209ff2 확인. task/shared를 scripts/claim.py로 local .git에만 create-only 선점. GitHub push/PR/원격 claim 변경 없음. 문서만 수정하며 제품/CLI 코드와 명령 계약은 변경하지 않음. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-110.md"
+      ]
+    },
+    {
+      "id": "WBS-111",
+      "title": "녹음·전사 독립 화면과 전역 채팅·메모 토글",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-110"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/src/agent-protocol.ts",
+        "apps/desktop/host/test/agent-protocol.test.ts",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "apps/desktop/host/scripts/layout-smoke.mjs",
+        "docs/specs/SPEC-003.md",
+        "docs/specs/SPEC-007.md",
+        "docs/DEVELOPMENT.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "녹음·전사를 좌측 독립 화면에 통합하고 채팅·메모를 모든 화면에서 각각 켜고 끈다. 초안·응답·녹음을 화면 전환으로 중단하지 않는다. 화면 문맥과 세션 소속을 구분하고 이전 PDF를 다른 화면 문맥으로 보내지 않는다. 사용자 여정 debug CLI 및 명시 assist를 갱신·검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-111-global-tools-layout",
+      "url": "https://app.notion.com/p/414bd7ec20cd816ebc33f916c31c9fad",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-111. Notion Ready 및 WBS-110 Done, 의존 main 4a39bbe 확인 후 scripts/claim.py로 task/ui/host/shared를 local .git에만 create-only 선점. GitHub push/PR/원격 claim 변경 금지. 사용자 요청에 따라 읽기 전용 설계 에이전트와 문맥 설계를 상의함. 자동 세션 분리·본문 자동 첨부 정책은 별도 후속 협의 사항으로 보존. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. SPEC-003 v0.4.4 승인 추가 절과 SPEC-007 v0.3.0을 동기화함. 영역 밖 변경 없음.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-111.md"
+      ]
+    },
+    {
+      "id": "WBS-112",
+      "title": "녹음 탭 주차별 탐색과 자료 탭 녹음 제거",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-111"
+      ],
+      "areas": [
+        "ui",
+        "host",
+        "shared"
+      ],
+      "paths": [
+        "apps/desktop/ui/",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "docs/specs/SPEC-003.md",
+        "docs/specs/SPEC-007.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-003",
+      "requirements": [
+        "REQ-003",
+        "REQ-007",
+        "REQ-008",
+        "REQ-010"
+      ],
+      "acceptance": "자료 주차/기타 메뉴에서 녹음본을 제거한다. 녹음·전사 화면에서 전체/LMS 주차/주차 미정별 원본을 구분하고 주차 변경 시 이전 전사를 닫는다. 미지정/삭제된 주차·과목 경계·재배정/저장 뒤 선택을 보존하며 실제 debug 및 별도 assist 시나리오로 검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-112-media-week-browser",
+      "url": "https://app.notion.com/p/414bd7ec20cd81199048c773feccc10e",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-112(후속 자료 탭 녹음 제거 지시 포함). 최신 Notion WBS-111 Done 및 main 6192577 확인 후 task/ui/host/shared를 scripts/claim.py로 local .git에 create-only 선점. GitHub push/PR/원격 claim 변경 없음. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. 공유 계약/저장 스키마/host 서비스/마이크/전사 엔진 변경 없음.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-112.md"
+      ]
+    },
+    {
+      "id": "WBS-113",
+      "title": "Claude 텍스트 작업 자동 호환성 검사와 캐시",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-112"
+      ],
+      "areas": [
+        "cli",
+        "host",
+        "ui",
+        "shared"
+      ],
+      "paths": [
+        "packages/cli-adapter/",
+        "apps/desktop/host/src/cli-runner.ts",
+        "apps/desktop/host/src/readable-note.ts",
+        "apps/desktop/host/src/main.ts",
+        "apps/desktop/host/test/",
+        "apps/desktop/host/scripts/app-control-smoke.mjs",
+        "apps/desktop/host/scripts/text-compat-smoke.ts",
+        "apps/desktop/ui/src/fake-host.ts",
+        "docs/specs/SPEC-002.md",
+        "docs/specs/SPEC-007.md",
+        "docs/decisions/ADR-002-runtime-placement.md",
+        "docs/DEVELOPMENT.md",
+        "docs/pm/"
+      ],
+      "spec": "SPEC-002",
+      "requirements": [
+        "REQ-001",
+        "REQ-005",
+        "REQ-007",
+        "REQ-009",
+        "REQ-010"
+      ],
+      "acceptance": "텍스트 전용 작업은 새 공식 CLI 실행 파일/검사 정책에 대해 합성 입력으로 자동 호환성을 검사하고 성공만 private cache한다. 새 버전·같은 버전 바이너리 변경·정책 변경·재시작·취소/동시성·auth/usage/network/도구/MCP/응답 형식 실패를 구분한다. legacy G0/버전 정책 및 일반 SDK/native 권한은 유지한다. 실제 CLI 2.1.322 합성 정리본과 캐시 재사용, debug/assist 정리본 생성 UI를 검증한다.",
+      "status": "Review",
+      "branch": "feat/WBS-113-text-cli-compatibility",
+      "url": "https://app.notion.com/p/414bd7ec20cd81449211cf89dafee18e",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "사용자 직접 승인 CR-113. 최신 Notion WBS-112 Done 및 main 4ee34e7 확인 후 task/cli/host/ui/shared를 scripts/claim.py로 local .git에만 create-only 선점. GitHub push/PR/원격 claim 변경 금지. root manifest/lockfile/공유 IPC schema/legacy isolation 증거/전역 Claude 설정/사용자 강의 파일은 변경하지 않는다. 기존 미추적 .pnpm-store/, docs/wiki/, output/ 보존. 자동 모델 검사는 실제 텍스트 작업 최초 실행 때만 합성 입력으로 수행하며 소량의 구독 사용량을 쓴다.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-113.md"
+      ]
     }
   ],
   "qaPolicy": {

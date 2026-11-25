@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Details } from './Details.tsx';
 import type { CourseLearningStatus, Recording, Week } from "@learningxxx/contracts";
 import { formatSeoul } from "./library.ts";
-import { unfiledRecordings, type RecordingRow } from "./recording-weeks.ts";
-import { Icon } from "./StudyUI.tsx";
+import { unfiledRecordings } from "./recording-weeks.ts";
 
 /** An online lecture a recording can belong to: the LMS lectures of the materials menu. */
 export interface Lecture {
@@ -66,15 +65,5 @@ export function UnfiledRecordings({ recordings, weeks, lectures, status, onAssig
         })}
       </ul>
     </Details>
-  );
-}
-
-/** One recording in the week menu, under its lecture or its week. */
-export function RecordingFile({ row, selected, onOpen, nested }: { row: RecordingRow; selected: boolean; onOpen: (row: RecordingRow) => void; nested?: boolean | undefined }) {
-  return (
-    <button className={`recording-file ${nested ? "nested" : ""}`} aria-pressed={selected} disabled={!row.asset} title={`${row.recording.title} · ${row.status}`} aria-label={`녹음 ${row.recording.title}, ${row.status}`} onClick={() => onOpen(row)}>
-      <Icon name="mic" />
-      <span><span className="video-title">{row.recording.title}</span><small>{row.status}</small></span>
-    </button>
   );
 }

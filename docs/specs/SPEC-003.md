@@ -1,7 +1,7 @@
 # SPEC-003 · macOS 화면·자료·자유 채팅
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b7b48ee8eed191724e?pvs=204
-Baseline snapshot: 2026-11-03 · v0.4.3; approved additive CR-111/112: 2026-11-10 · v0.4.5. Notion is authoritative; historical sections are preserved.
+Baseline snapshot: 2026-11-03 · v0.4.3; approved additive CR-111/112: 2026-11-10 · v0.4.5. Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).; historical sections are preserved.
 
 ## 화면 원칙
 REQ-003/006/009. 자료를 읽는 화면과 자유 채팅이 중심이다. CR-047(2026-11-03 사용자 직접 승인): 시작 화면은 실제 수집 과목·과제 일정·개인 할 일 대시보드다. 과목 선택 후 PDF·채팅 중심 화면으로 전환한다. 초기 이미지 시안은 참고이며 최신 회의의 자유 채팅 결정을 따른다.

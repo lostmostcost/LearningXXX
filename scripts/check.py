@@ -30,7 +30,8 @@ for task in tasks:
     assert task["id"] in task["branch"]
     assert (root / f"docs/specs/{task['spec']}.md").is_file()
     assert all(re.fullmatch(r"REQ-\d{3}", r) for r in task["requirements"])
-    assert task["url"].startswith("https://app.notion.com/")
+    # Since 2026-11-26 the repository is authoritative; a task may keep an archived Notion link or none.
+    assert not task.get("url") or task["url"].startswith("https://")
     assert all(not p.startswith("/") and ".." not in p.split("/") for p in task["paths"])
     visit(task["id"])
 assert any(t["phase"] == "B 전사" for t in tasks), "Full MVP must include B"

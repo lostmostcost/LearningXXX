@@ -1,7 +1,7 @@
 # SPEC-002 · 구독 CLI·세션·파일 격리
 
 Source: https://app.notion.com/p/40bbd7ec20cd81079a4cc94ae75e8a21?pvs=204
-Baseline snapshot: 2026-11-03 · v0.3.1; approved additive CR-113: 2026-11-10 · v0.3.2. Historical policy sections are preserved; Notion is authoritative.
+Baseline snapshot: 2026-11-03 · v0.3.1; approved additive CR-113: 2026-11-10 · v0.3.2. Historical policy sections are preserved; Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 실행 전략과 검증 경계
 REQ-001/004/005/009. 각자의 Mac에 설치·로그인된 공식 Claude Code CLI를 앱의 host process가 실행한다. 서버에 두 사람의 Claude 인증을 올리지 않는다. CLI의 JSON/stream 출력과 명시적 session ID 기반 재개를 후보로 사용한다. 프로세스가 매 요청 끝나도 session ID를 보존하면 논리적 세션은 유지할 수 있다. 프로세스 상주와 세션 지속을 혼동하지 않는다.

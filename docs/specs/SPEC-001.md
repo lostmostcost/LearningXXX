@@ -1,7 +1,7 @@
 # SPEC-001 · LMS 수집·동기화·자료 모델
 
 Source: https://app.notion.com/p/40bbd7ec20cd81b8bdefc1dfdb9ba2ed?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.0 · Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 목적과 범위
 REQ-002. 사용자가 Mac 앱에서 실행하면 한 학기 한 과목의 주차, 강의자료/첨부, 공지, 과제 메타데이터를 수집한다. 서버와 자동·예약 수집은 없다(CR-001). 파일만 긁어오는 다운로드 도구가 아니라 과목과 주차의 관계, 출처, 변경 이력을 보존하는 학습 데이터 공급원이다.

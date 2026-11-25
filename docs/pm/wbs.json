@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "snapshotDate": "2026-11-01",
-  "statusSource": "Notion; status here is a snapshot, never an execution authorization",
+  "statusSource": "Repository (docs/pm/wbs.json) since 2026-11-26; the Notion board is archived and its links are history",
   "tasks": [
     {
       "id": "WBS-001",
@@ -3537,16 +3537,47 @@
       "review_evidence": [
         "docs/pm/reviews/WBS-113.md"
       ]
+    },
+    {
+      "id": "WBS-115",
+      "title": "AI 에이전트 주도 개발 규약으로 전환과 Notion 보관",
+      "phase": "MVP 검수",
+      "priority": "P1",
+      "deps": [
+        "WBS-113"
+      ],
+      "areas": [
+        "shared"
+      ],
+      "paths": [
+        "AGENTS.md",
+        "docs/specs/",
+        "docs/DEVELOPMENT.md",
+        "docs/templates/",
+        "docs/pm/",
+        ".github/pull_request_template.md",
+        ".github/ISSUE_TEMPLATE/bug.yml",
+        "scripts/check.py",
+        "scripts/claim.py",
+        "tests/tooling/"
+      ],
+      "spec": "OPS-001",
+      "requirements": [
+        "REQ-010"
+      ],
+      "acceptance": "AGENTS.md·OPS-001·DEVELOPMENT·템플릿·검사 도구가 Notion 확인·CR 승인·2인 claim을 요구하지 않고, 저장소를 유일한 원본으로 삼아 에이전트가 작업 선택·결정·머지를 주도한다. 필수 제품 요구·자체 리뷰·앱/CLI 공동 개발 규칙은 유지한다. 방해가 되는 Notion PM 문서는 보관 페이지로 옮긴다.",
+      "status": "In Progress",
+      "branch": "docs/WBS-115-agent-led-process",
+      "qa_mode": "appropriate_checks_only",
+      "scope_note": "소유자 직접 지시(2026-11-26): 공모전 종료, Notion 지침 미사용, 에이전트 주도. 제품 필수 요구(구독 CLI, 개인정보, 금지 참조)는 변경하지 않는다.",
+      "review_evidence": [
+        "docs/pm/reviews/WBS-115.md"
+      ]
     }
   ],
   "qaPolicy": {
-    "routine": "Appropriate checks and merge; no mandatory manual QA, peer QA or QA card approval",
-    "majorFeatureTasks": [
-      "WBS-020",
-      "WBS-028",
-      "WBS-031"
-    ],
-    "majorFeatureCompletion": "Responsible developer directly tests the feature and continues after brief self-QA without peer approval",
-    "summaryTask": "WBS-029 summarizes existing results without another QA round"
+    "routine": "Appropriate checks, self-review and merge; the agent verifies in the real app or with real engines when observable",
+    "ownerTesting": "Optional; never fabricated",
+    "history": "WBS-020/028/031 developer self-tests were the checkpoints of the earlier two-person plan"
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomic, cooperative task/area claims using Git refs. No Notion auto-sync."""
+"""Atomic, cooperative task/area claims using Git refs, for when several people or agents work in parallel."""
 import argparse
 import datetime
 import json
@@ -79,12 +79,10 @@ def main():
     parser.add_argument("action", choices=["acquire", "release"])
     parser.add_argument("task")
     parser.add_argument("--ready-confirmed", action="store_true",
-                        help="Acknowledge checking live Notion Ready/dependencies")
+                        help="Accepted for compatibility; no longer required")
     args = parser.parse_args()
     root = pathlib.Path(git("rev-parse", "--show-toplevel"))
     if args.action == "acquire":
-        if not args.ready_confirmed:
-            parser.error("Read current Notion Ready/dependencies, then pass --ready-confirmed")
         tasks = json.loads((root / "docs/pm/wbs.json").read_text())["tasks"]
         task = next((t for t in tasks if t["id"] == args.task), None)
         if not task:

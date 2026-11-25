@@ -1,7 +1,7 @@
 # SPEC-004 · 녹음·온라인 영상·자동 전사
 
 Source: https://app.notion.com/p/40bbd7ec20cd814089fcc6c39c3992a3?pvs=204
-Snapshot: 2026-11-03 · v0.2.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-03 · v0.2.0 · Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 전체 MVP에 포함
 REQ-007/008. B 단계에서 대면 강의 녹음, 온라인 강의 영상 다운로드, 원본 재생·보존, 자동 전사를 구현한다. 실시간 번역은 별도 C 단계다. 전사 텍스트와 요약은 다른 산출물이며 전사 완료가 자동 요약을 유발하지 않는다.
@@ -45,4 +45,4 @@ Source: https://app.notion.com/p/40dbd7ec20cd81839f41c299a3f55c63 · WBS-053 · 
 
 전사가 실패하면 엔진이 남긴 오류의 마지막 줄을 300자 이내로, 파일 경로를 빼고 작업에 남겨 화면에 보여 준다. 근거 측정은 docs/qa/WBS-101-window-experiment.md에 있다(전체 대비 차이 4.3%, 차이는 표기·조사 수준, 최대 메모리 11.9GB→8.3GB).
 
-Source: 2026-11-08 이문찬 직접 지시 · WBS-101. Notion SPEC-004 반영 필요.
+Source: 2026-11-08 이문찬 직접 지시 · WBS-101.

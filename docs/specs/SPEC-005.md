@@ -1,7 +1,7 @@
 # SPEC-005 · 요청 기반 앱 코드 수정·빌드·복구
 
 Source: https://app.notion.com/p/40bbd7ec20cd8164bbc8d7e1e6638900?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative.
+Snapshot: 2026-11-01 · v0.1.0 · Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 요구와 실행 조건
 REQ-011. 사용자가 앱 안에서 명시적으로 요청하면 AI가 앱 코드 수정을 제안·수행한다. 요청 없는 자동 자기수정은 실행하지 않는다. 학습 파일 산출과 별개의 제품 기능이며 전체 MVP에 포함한다.

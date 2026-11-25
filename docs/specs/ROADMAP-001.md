@@ -1,7 +1,7 @@
 # ROADMAP-001 · 의존성 기반 로드맵과 병렬 작업
 
 Source: https://app.notion.com/p/40bbd7ec20cd81ae94a9c0516b9256a5?pvs=204
-Snapshot: 2026-11-01 · v0.1.0 · Notion is authoritative; refresh after approved changes.
+Snapshot: 2026-11-01 · v0.1.0 · Repository copy is authoritative since 2026-11-26 (Notion archived; source link is history).
 
 ## 일정 기준
 달력 일정·담당자·공수는 아직 확정하지 않았다. 지금은 의존성 DAG와 작업별 수용 조건을 기준으로 진행한다. G0 결과와 두 사람의 주간 투입 가능 시간을 확인한 뒤 예상작업일·시작·종료를 채운다. 2인이므로 작업일 합계의 절반을 자동 프로젝트 기간으로 계산하지 않는다.
